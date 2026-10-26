@@ -100,6 +100,20 @@ namespace DOL.UnitTests
             });
         }
 
+        [Test]
+        public void TemporaryCompanionPaladinsLeaveTheArmorChantOutOfTheirTwist()
+        {
+            Assert.Multiple(() =>
+            {
+                Assert.That(CompanionChantAnimation.SkipsInGroupTwist(true, false, eSpellType.SpecArmorFactorBuff), Is.True,
+                    "a /spawn Paladin skips Crusader's Ward");
+                Assert.That(CompanionChantAnimation.SkipsInGroupTwist(true, false, eSpellType.DamageAdd), Is.False,
+                    "it keeps its other chants");
+                Assert.That(CompanionChantAnimation.SkipsInGroupTwist(false, true, eSpellType.SpecArmorFactorBuff), Is.False,
+                    "autonomous Paladins keep the armor chant");
+            });
+        }
+
         private static bool BrainOutOfPower(int[] costs, int mana) => BotBrain.OutOfPower(costs, mana);
     }
 }
