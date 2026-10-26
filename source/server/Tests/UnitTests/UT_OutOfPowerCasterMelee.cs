@@ -107,6 +107,24 @@ namespace DOL.UnitTests
             });
         }
 
+        [Test]
+        public void TemporaryCompanionHealersHoldTheirPositionDuringAFight()
+        {
+            Assert.Multiple(() =>
+            {
+                Assert.That(CompanionHealerCombatHold.Holds(true, false, true, true, true), Is.True,
+                    "a /spawn healer stays put while the group fights");
+                Assert.That(CompanionHealerCombatHold.Holds(true, false, true, false, true), Is.False,
+                    "it follows again when the fight is over");
+                Assert.That(CompanionHealerCombatHold.Holds(true, false, true, true, false), Is.False,
+                    "it follows a leader beyond the leash");
+                Assert.That(CompanionHealerCombatHold.Holds(true, false, false, true, true), Is.False,
+                    "other companions keep their formation");
+                Assert.That(CompanionHealerCombatHold.Holds(false, true, true, true, true), Is.False,
+                    "autonomous healers are unchanged");
+            });
+        }
+
         private static bool BrainOutOfPower(int[] costs, int mana) => BotBrain.OutOfPower(costs, mana);
     }
 }
