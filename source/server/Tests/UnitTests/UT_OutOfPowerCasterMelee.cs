@@ -82,6 +82,24 @@ namespace DOL.UnitTests
             Assert.That(BotBrain.IsPullHeldSummon(spell), Is.EqualTo(held));
         }
 
+        [Test]
+        public void OnlyTemporaryCompanionPaladinChantsLoseTheirAnimation()
+        {
+            Assert.Multiple(() =>
+            {
+                Assert.That(CompanionChantAnimation.Suppresses(true, false, eCharacterClass.Paladin, true, false), Is.True,
+                    "a /spawn Paladin's chant");
+                Assert.That(CompanionChantAnimation.Suppresses(true, false, eCharacterClass.Paladin, false, false), Is.False,
+                    "its self armor buff and resurrection still show");
+                Assert.That(CompanionChantAnimation.Suppresses(true, false, eCharacterClass.Paladin, true, true), Is.False,
+                    "harmful pulses still show");
+                Assert.That(CompanionChantAnimation.Suppresses(false, true, eCharacterClass.Paladin, true, false), Is.False,
+                    "autonomous Paladins keep their animations");
+                Assert.That(CompanionChantAnimation.Suppresses(true, false, eCharacterClass.Minstrel, true, false), Is.False,
+                    "other performers are unchanged");
+            });
+        }
+
         private static bool BrainOutOfPower(int[] costs, int mana) => BotBrain.OutOfPower(costs, mana);
     }
 }
