@@ -25,9 +25,6 @@ namespace DOL.GS
             Spell spell = spellHandler.Spell;
             GameLiving target;
 
-            if (CompanionChantAnimation.Suppresses(spellHandler.Caster, spell))
-                return;
-
             // Focus damage shield. Need to figure out why this is needed.
             if (spell.IsPulsing && spell.SpellType == eSpellType.DamageShield)
                 target = spellHandler.Target;
