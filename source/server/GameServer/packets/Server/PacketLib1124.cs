@@ -203,6 +203,10 @@ namespace DOL.GS.PacketHandler
 							flags2 |= 0x02;
 					}
 
+					// /spawn companions never show their name, for a GM too.
+					if (CompanionNameplate.HidesName(npc))
+						flags2 |= 0x02;
+
 					if (npc.IsStealthed)
 						flags2 |= 0x04;
 
