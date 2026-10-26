@@ -1,4 +1,6 @@
 using DOL.AI.Brain;
+using DOL.Database;
+using DOL.GS;
 using NUnit.Framework;
 
 namespace DOL.UnitTests
@@ -66,6 +68,18 @@ namespace DOL.UnitTests
                 Assert.That(BotBrain.PullOffenseStillHeld(start + 3_000, until, false), Is.False, "three seconds passed");
                 Assert.That(BotBrain.PullOffenseStillHeld(start + 1_000, until, true), Is.False, "hit: attack at once");
             });
+        }
+
+        [TestCase(eSpellType.SummonTheurgistPet, true)]
+        [TestCase(eSpellType.SummonAnimistFnF, true)]
+        [TestCase(eSpellType.SummonAnimistAmbusher, true)]
+        [TestCase(eSpellType.SummonAnimistPet, false)]
+        [TestCase(eSpellType.SummonSimulacrum, false)]
+        [TestCase(eSpellType.DirectDamage, false)]
+        public void TheurgistAndAnimistAttackSummonsWaitWithTheCaster(eSpellType type, bool held)
+        {
+            var spell = new Spell(new DbSpell { Type = type.ToString(), Target = "Enemy" }, 20);
+            Assert.That(BotBrain.IsPullHeldSummon(spell), Is.EqualTo(held));
         }
 
         private static bool BrainOutOfPower(int[] costs, int mana) => BotBrain.OutOfPower(costs, mana);

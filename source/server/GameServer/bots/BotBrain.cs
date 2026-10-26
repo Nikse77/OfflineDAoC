@@ -813,6 +813,13 @@ namespace DOL.AI.Brain
                 _pullOffenseHoldUntilTick = GameLoop.GameLoopTime + PullOffenseHoldMilliseconds;
         }
 
+        // A Theurgist's elementals and an Animist's fire-and-forget shrooms are
+        // its attack, cast from pet upkeep rather than the spell selector, so
+        // they wait with the caster. Pets already out (and an Animist's main
+        // shroom) are not held.
+        public static bool IsPullHeldSummon(Spell spell) => spell != null &&
+            (spell.SpellType == eSpellType.SummonTheurgistPet || AutonomousPetSupport.IsAnimistFieldTurret(spell.SpellType));
+
         private bool PullOffenseHeld => _pullOffenseHoldUntilTick != 0 &&
             PullOffenseStillHeld(GameLoop.GameLoopTime, _pullOffenseHoldUntilTick,
                 Body.IsBeingInterruptedByOther || RecentDirectAttacker() != null);
@@ -1489,7 +1496,8 @@ namespace DOL.AI.Brain
             if ((!archerCombatOwnsPetUpkeep || requiredPetUpkeep) &&
                 (BotAnimistPolicy.AppliesTo(BotBody) || requiredPetUpkeep ||
                  (!movementFirstPetClass && !deferCasterUpkeep)) &&
-                AutonomousPetSupport.Maintain(Body, petCombatTarget, ref _nextDeployablePetTick, out _))
+                AutonomousPetSupport.Maintain(Body, petCombatTarget, ref _nextDeployablePetTick, out _,
+                    PullOffenseHeld ? spell => !IsPullHeldSummon(spell) : null))
                 return;
 
             // A controlled pet may reach the camp first while its persistent
