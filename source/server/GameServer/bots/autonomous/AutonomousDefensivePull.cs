@@ -124,7 +124,21 @@ namespace DOL.GS
         public static bool TryBegin(GameBot shooter, GameLiving target)
             => TryBeginCore(shooter, target, flyingHandoff: false);
 
-        private static bool TryBeginCore(GameBot shooter, GameLiving target, bool flyingHandoff)
+        /// <summary>
+        /// Owner 2026-10-26: a /grind pull by one of the player's own /spawn
+        /// companions with a real distance weapon (no spells): one shot from a
+        /// short proven firing point, back to the party, everyone waits for the
+        /// monster. False means nothing started and /grind pulls the old way.
+        /// </summary>
+        public static bool TryBeginCompanionGrindPull(GameBot shooter, GameLiving target)
+            => shooter is { IsTemporaryGroupHelper: true, IsAutonomousWorldBot: false } &&
+               HasUsableDistanceWeapon(shooter) &&
+               TryBeginCore(shooter, target, flyingHandoff: false, companionGrind: true);
+
+        public static bool IsGrindRangedPuller(GameBot bot) => bot?.CharacterClass != null &&
+            !SavageBotCombatPolicy.MustMeleePull((eCharacterClass)bot.CharacterClass.ID) && HasUsableDistanceWeapon(bot);
+
+        private static bool TryBeginCore(GameBot shooter, GameLiving target, bool flyingHandoff, bool companionGrind = false)
         {
             // Suppress only a new scripted pull of this expedition's dragon.
             // Attacked-by-enemy and shared defense paths are unchanged.
@@ -133,18 +147,22 @@ namespace DOL.GS
                 SavageBotCombatPolicy.MustMeleePull((eCharacterClass)shooter.CharacterClass.ID))
                 return false;
             if (shooter?.Group == null ||
-                !flyingHandoff && !AutonomousBotGroupCoordinator.UsesDefensivePullGroup(shooter.Group)) return false;
+                !flyingHandoff && !companionGrind && !AutonomousBotGroupCoordinator.UsesDefensivePullGroup(shooter.Group)) return false;
             State state = States.GetOrCreateValue(shooter.Group);
             lock (state)
             {
-                if (state.Active || GameLoop.GameLoopTime < state.RetryAfter) return true;
+                if (state.Active) return true;
+                // /grind paces its own pulls; the autonomous 10-30 s retry gate does not apply.
+                if (!companionGrind && GameLoop.GameLoopTime < state.RetryAfter) return true;
                 GameBot[] members = shooter.Group.GetMembersInTheGroup().OfType<GameBot>().ToArray();
-                if (members.Length < (flyingHandoff ? 2 : MinimumPullParty) ||
-                    target?.IsAlive != true || shooter.CurrentRegion != target.CurrentRegion)
+                if (target?.IsAlive != true || shooter.CurrentRegion != target.CurrentRegion)
+                    return !companionGrind;
+                if (members.Length < (companionGrind ? 1 : flyingHandoff ? 2 : MinimumPullParty))
                     return true;
                 // An enemy already in the party is a real defensive fight, not a ranged pull.
                 if (!flyingHandoff && members.Any(member => member.IsWithinRadius(target, ContactRadius))) return false;
-                Spell spell = flyingHandoff ? ReadyPullSpell(shooter) : PullSpell(shooter);
+                // A /grind shooter always uses its distance weapon, never a spell.
+                Spell spell = companionGrind ? null : flyingHandoff ? ReadyPullSpell(shooter) : PullSpell(shooter);
                 // A puller with no ranged pull at all (common below level 50) pulls the ordinary way;
                 // reporting "handled" here left such a party standing at its camp for good.
                 if (spell == null && !flyingHandoff && !HasRangedPull(shooter)) return false;
@@ -160,6 +178,12 @@ namespace DOL.GS
                 if (!TryFiringPoint(PathfindingProvider.Instance, shooter.CurrentZone, origin, enemy, range, out Vector3 point))
                 {
                     shooter.SwitchWeapon(previous);
+                    // No proven firing point: /grind falls back to its ordinary pull at once.
+                    if (companionGrind)
+                    {
+                        state.RetryAfter = 0;
+                        return false;
+                    }
                     // Merely too far for the short proven approach: the party keeps walking in and the
                     // camp check (every 1.5 s) pulls once in range. Holding here stood parties 2,000
                     // units from their camp (1,087 unreachable pulls in run 11's first hour, mostly

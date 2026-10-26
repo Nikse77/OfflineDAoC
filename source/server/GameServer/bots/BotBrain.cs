@@ -783,6 +783,16 @@ namespace DOL.AI.Brain
         private bool PrefersCurrentSpellRange() =>
             PrefersSpellRange(BotBody?.CharacterClass, BotBody?.Group?.MemberCount > 1, BotBody?.IsAutonomousWorldBot == true);
 
+        // Owner 2026-10-26: /spawn casters never fight with their staff, neither
+        // out of power nor when a monster hits them in melee. They stay at range
+        // and keep to instant and uninterruptible spells until they can cast
+        // again. Autonomous gamebots keep both melee fallbacks.
+        public static bool CasterStaffMeleeAllowed(bool temporaryCompanion, bool autonomous) =>
+            !temporaryCompanion || autonomous;
+
+        private bool AllowsCasterStaffMelee =>
+            CasterStaffMeleeAllowed(BotBody?.IsTemporaryGroupHelper == true, BotBody?.IsAutonomousWorldBot == true);
+
         // True when the body already runs the same melee follow NpcStartAttack would
         // issue (its own target, melee weapon, stick distance).
         private bool IsMeleeChasing(GameObject target) =>
@@ -3066,7 +3076,7 @@ namespace DOL.AI.Brain
                 // that order. Clearing it every think made NpcStartAttack stop the
                 // running bot and re-follow, which clients saw as rubberbanding.
                 // A caster meleeing because it is out of power chases like a melee bot.
-                bool outOfPowerMelee = rangedCaster && OutOfPowerForOffense();
+                bool outOfPowerMelee = rangedCaster && AllowsCasterStaffMelee && OutOfPowerForOffense();
                 if (rangedCaster && !outOfPowerMelee || !IsMeleeChasing(Body.TargetObject))
                     Body.StopFollowing();
                 if (!rangedCaster && Body.TargetObject is GameLiving meleeTarget && TryEngageUnderMeleePressure(meleeTarget))
@@ -3076,8 +3086,9 @@ namespace DOL.AI.Brain
                 // Otherwise each new swing refreshes SelfInterruptTime forever.
                 // Actual incoming interruption still goes through native rules.
                 // A caster with no power for any attack spell keeps swinging.
-                if (rangedCaster && !Body.IsBeingInterruptedByOther && Body.attackComponent.AttackState &&
-                    !OutOfPowerForOffense())
+                // A /spawn caster never swings at all (AllowsCasterStaffMelee).
+                if (rangedCaster && Body.attackComponent.AttackState &&
+                    (!AllowsCasterStaffMelee || !Body.IsBeingInterruptedByOther && !OutOfPowerForOffense()))
                     Body.StopAttack();
 
                 if (!UsesDefensiveOnlyPet)
@@ -3143,9 +3154,10 @@ namespace DOL.AI.Brain
                         // having no power for any attack spell: the caster walks
                         // in with its staff until it can cast again. Cooldowns,
                         // an already-active debuff or a rejected cast never
-                        // order a staff charge.
-                        if (TryEngageUnderMeleePressure(spellTarget)) return;
-                        if (TryOutOfPowerMelee(spellTarget)) return;
+                        // order a staff charge. /spawn casters skip both melee
+                        // fallbacks and keep to their spells at range.
+                        if (AllowsCasterStaffMelee && TryEngageUnderMeleePressure(spellTarget)) return;
+                        if (AllowsCasterStaffMelee && TryOutOfPowerMelee(spellTarget)) return;
                         ApproachForOffensiveSpell(spellTarget);
                         return;
                     }
@@ -3647,8 +3659,11 @@ namespace DOL.AI.Brain
                 return null;
 
             GamePlayer leader = AssistedPlayer;
+            // Owner 2026-10-26: the tank is not on its own protection list. The
+            // monster hitting it was always the nearest candidate and so beat a
+            // monster on a caster or any other non-healer member every time.
             HashSet<GameLiving> protectedMembers = Body.Group.GetMembersInTheGroup()
-                .Where(member => member?.IsAlive == true && member.CurrentRegionID == Body.CurrentRegionID &&
+                .Where(member => member != Body && member?.IsAlive == true && member.CurrentRegionID == Body.CurrentRegionID &&
                                  Body.IsWithinRadius(member, GROUP_DEFENSE_ASSIST_RADIUS))
                 .ToHashSet();
             if (protectedMembers.Count == 0)
@@ -3663,11 +3678,17 @@ namespace DOL.AI.Brain
                                     candidate.TargetObject is GameLiving victim &&
                                     protectedMembers.Contains(victim) &&
                                     CanAggroTarget(candidate))
-                .OrderByDescending(candidate => candidate.TargetObject == leader)
-                .ThenByDescending(candidate => candidate.TargetObject is GameBot bot && bot.Brain is BotBrain { IsHealer: true })
+                .OrderBy(candidate => ProtectionPriority(
+                    candidate.TargetObject == leader,
+                    candidate.TargetObject is GameBot { Brain: BotBrain { IsHealer: true } },
+                    candidate.TargetObject is GameBot caster && PrefersSpellRange(caster.CharacterClass, grouped: true)))
                 .ThenBy(candidate => Body.GetDistanceTo(candidate))
                 .FirstOrDefault();
         }
+
+        /// <summary>Who a tank peels for first: the player, then healers, then pure casters, then everyone else.</summary>
+        public static int ProtectionPriority(bool victimIsLeader, bool victimIsHealer, bool victimIsCaster) =>
+            victimIsLeader ? 0 : victimIsHealer ? 1 : victimIsCaster ? 2 : 3;
 
         private bool TryPriorityTaunt(GameLiving target)
         {

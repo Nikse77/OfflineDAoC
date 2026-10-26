@@ -308,6 +308,18 @@ namespace DOL.UnitTests
         public void OnlyChantingAndSingingClassesGetTheUpkeepTolerance(eCharacterClass characterClass, bool expected) =>
             Assert.That(PlayerCompanionGrind.IsSongUpkeepClass(characterClass), Is.EqualTo(expected));
 
+        [Test] public void RangedGrindPullPrefersArmedTankThenMeleeThenArchersNeverCastersOrSupport()
+        {
+            Assert.Multiple(() =>
+            {
+                Assert.That(PlayerCompanionGrind.RangedPullerRank(BotPartyRole.Tank, false, false), Is.EqualTo(0), "armed tank first");
+                Assert.That(PlayerCompanionGrind.RangedPullerRank(BotPartyRole.Damage, false, false), Is.EqualTo(1), "then other melee");
+                Assert.That(PlayerCompanionGrind.RangedPullerRank(BotPartyRole.Damage, false, true), Is.EqualTo(2), "archers last");
+                Assert.That(PlayerCompanionGrind.RangedPullerRank(BotPartyRole.Damage, true, false), Is.EqualTo(-1), "casters never");
+                Assert.That(PlayerCompanionGrind.RangedPullerRank(BotPartyRole.Support, false, false), Is.EqualTo(-1), "support never");
+            });
+        }
+
         [Test] public void SongUpkeepStillNeedsFullHealthButOnlyAFloorOfPowerAndEndurance()
         {
             Assert.That(PlayerCompanionGrind.ReadyWithSongUpkeep(100, 100, 80, 100, 76, 100), Is.True);

@@ -108,6 +108,29 @@ namespace DOL.GS.Commands
                 BotPartyRoles.For((eCharacterClass)bot.CharacterClass.ID) != BotPartyRole.Support)
             .OrderBy(bot => BotPartyRoles.IsTank(bot) ? 0 : 1).FirstOrDefault();
 
+        // Owner 2026-10-26: in /grind a companion with a distance weapon pulls from
+        // range: an armed tank first, then other melee classes, then the archers.
+        // Casters and support classes never take this job (-1).
+        public static int RangedPullerRank(BotPartyRole role, bool listCaster, bool dedicatedArcher)
+        {
+            if (dedicatedArcher) return 2;
+            if (listCaster || role == BotPartyRole.Support) return -1;
+            return role == BotPartyRole.Tank ? 0 : 1;
+        }
+
+        private static int RangedPullerRank(GameBot bot)
+        {
+            var characterClass = (eCharacterClass)bot.CharacterClass.ID;
+            return RangedPullerRank(BotPartyRoles.For(characterClass),
+                bot.CharacterClass.ClassType == eClassType.ListCaster,
+                BotRangedCombat.IsDedicatedArcher(characterClass));
+        }
+
+        public static GameBot SelectRangedPuller(IEnumerable<GameBot> companions, GameLiving target) => companions
+            .Where(bot => bot.IsAlive && !bot.IsCrowdControlled && bot.CharacterClass != null &&
+                RangedPullerRank(bot) >= 0 && AutonomousDefensivePull.IsGrindRangedPuller(bot))
+            .OrderBy(RangedPullerRank).ThenBy(bot => bot.GetDistanceTo(target)).FirstOrDefault();
+
         public static bool IsSuitableLevel(int playerLevel, int monsterLevel, int conLevel, int companionCount) =>
             monsterLevel > 0 && conLevel > -3;
 
@@ -136,7 +159,8 @@ namespace DOL.GS.Commands
             player.CurrentSpeed = 0;
             player.Out.SendPlayerJump(false);
             ShowStatus(session, true);
-            message = "Grind mode active: stay here; tank pulls first, or attackers pull if no tank. " +
+            message = "Grind mode active: stay here; a companion with a ranged weapon pulls from range (an armed tank first), " +
+                "otherwise the tank pulls first, or attackers pull if no tank. " +
                 "The next pull waits for everyone to return and fully recover HP/power/endurance. /grind stop cancels; moving also stops it.";
             return true;
         }
@@ -247,9 +271,14 @@ namespace DOL.GS.Commands
                 StandModeSeats(session);
                 foreach (GameBot helper in members.OfType<GameBot>()) helper.WakeTemporaryCompanionRest();
                 session.Target = target; session.ContactDeadline = now + ContactTimeout; session.ReadySince = 0;
-                // This is precisely the existing /pull command's shared combat
-                // dispatch, protected by the strict temporary-only party gate.
-                session.Detail = PlayerLedPullCoordinator.Begin(player, target);
+                // A companion with a distance weapon shoots once and comes back;
+                // the party waits here. Without one (or with no proven firing
+                // point) this is the existing /pull command's shared dispatch,
+                // protected by the strict temporary-only party gate.
+                GameBot shooter = SelectRangedPuller(members.OfType<GameBot>(), target);
+                session.Detail = shooter != null && AutonomousDefensivePull.TryBeginCompanionGrindPull(shooter, target)
+                    ? $"{shooter.Name} pulls {target.Name} from range; the party waits here"
+                    : PlayerLedPullCoordinator.Begin(player, target);
             }
             catch (Exception exception)
             {
@@ -312,6 +341,7 @@ namespace DOL.GS.Commands
             if (session.Target == null || session.Target.InCombat || session.Group.GetMembersInTheGroup().Any(Fighting)) return;
             // Finish any actual battle normally. Only an unengaged /grind order
             // is revoked; do not clear defensive aggro or other players' orders.
+            AutonomousDefensivePull.Cancel(session.Group);
             foreach (GameLiving member in session.Group.GetMembersInTheGroup())
                 if (IsOwnedCompanion(session.Player, session.Group, member) && !Fighting(member) && member is GameBot { Brain: BotBrain brain })
                     brain.CancelOrderedPull(session.Target);
