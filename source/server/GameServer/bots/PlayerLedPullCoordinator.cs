@@ -66,7 +66,7 @@ namespace DOL.GS
                 .OrderBy(bot => bot.GetDistanceTo(target)).ThenBy(bot => bot.ObjectID).FirstOrDefault();
             if (tank == null || helpers.Any(bot => bot.InCombat || bot.IsAttacking) || FindLeaderTarget(player) != null)
             {
-                Engage(player, target, true);
+                Engage(player, target, true, fromPull: true);
                 return "Pull ordered: attackers engage; healers and buffers support the party.";
             }
 
@@ -135,7 +135,7 @@ namespace DOL.GS
             if (order?.Tank != tank || order.Target != target || order.Leader.Group != order.Group ||
                 !order.Group.IsInTheGroup(order.Leader) || !Available(tank, order.Leader) || !IsContact(attack.AttackResult) ||
                 Interlocked.CompareExchange(ref order.Finished, 1, 0) != 0) return;
-            Engage(order.Leader, target, true);
+            Engage(order.Leader, target, true, fromPull: true);
         }
 
         public static bool IsContact(eAttackResult result) => result is eAttackResult.HitStyle or
@@ -171,14 +171,20 @@ namespace DOL.GS
             return null;
         }
 
-        private static void Engage(GamePlayer player, GameLiving target, bool orderHumanPet)
+        // fromPull: the fight started from /pull or /grind (the tank's contact, or
+        // an immediate engage), not from the player's own attack.
+        private static void Engage(GamePlayer player, GameLiving target, bool orderHumanPet, bool fromPull = false)
         {
             if (player?.Group == null || !ValidEnemy(player, target)) return;
             foreach (GameLiving member in player.Group.GetMembersInTheGroup())
             {
                 if (member is GameBot bot && bot.PlayerGroupLeader == player && Available(bot, player) &&
                     bot.IsWithinRadius(target, BotBrain.GROUP_DEFENSE_ASSIST_RADIUS) && bot.Brain is BotBrain brain)
+                {
+                    if (fromPull && bot != target.TargetObject)
+                        brain.HoldOffenseAfterPull();
                     brain.AssistPlayerAttack(target);
+                }
             }
             if (orderHumanPet) player.ControlledBrain?.Attack(target);
         }

@@ -340,6 +340,8 @@ namespace DOL.GS
                     if (engage && member.IsAlive && member.Group == state.Shooter.Group &&
                         member.CurrentRegion == state.Target.CurrentRegion)
                     {
+                        // Only /spawn casters wait (see BotBrain.HoldOffenseAfterPull).
+                        brain.HoldOffenseAfterPull();
                         brain.AddToAggroList(state.Target, Math.Max(25, state.Target.EffectiveLevel * 10));
                         brain.CommitDungeonPull(state.Target);
                         brain.FSM.SetCurrentState(eFSMStateType.AGGRO);

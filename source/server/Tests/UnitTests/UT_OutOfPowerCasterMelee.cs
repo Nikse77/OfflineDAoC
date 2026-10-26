@@ -45,6 +45,29 @@ namespace DOL.UnitTests
             });
         }
 
+        [Test]
+        public void OnlyTemporaryCompanionCastersWaitAfterAPull()
+        {
+            Assert.Multiple(() =>
+            {
+                Assert.That(BotBrain.HoldsOffenseAfterPull(true, false, true), Is.True, "a /spawn caster waits");
+                Assert.That(BotBrain.HoldsOffenseAfterPull(true, false, false), Is.False, "melee and healers do not");
+                Assert.That(BotBrain.HoldsOffenseAfterPull(false, true, true), Is.False, "autonomous casters do not");
+            });
+        }
+
+        [Test]
+        public void PullHoldLastsThreeSecondsUnlessTheCasterIsHit()
+        {
+            long start = 10_000, until = start + BotBrain.PullOffenseHoldMilliseconds;
+            Assert.Multiple(() =>
+            {
+                Assert.That(BotBrain.PullOffenseStillHeld(start + 2_999, until, false), Is.True, "still waiting");
+                Assert.That(BotBrain.PullOffenseStillHeld(start + 3_000, until, false), Is.False, "three seconds passed");
+                Assert.That(BotBrain.PullOffenseStillHeld(start + 1_000, until, true), Is.False, "hit: attack at once");
+            });
+        }
+
         private static bool BrainOutOfPower(int[] costs, int mana) => BotBrain.OutOfPower(costs, mana);
     }
 }

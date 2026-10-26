@@ -793,6 +793,30 @@ namespace DOL.AI.Brain
         private bool AllowsCasterStaffMelee =>
             CasterStaffMeleeAllowed(BotBody?.IsTemporaryGroupHelper == true, BotBody?.IsAutonomousWorldBot == true);
 
+        // Owner 2026-10-26: after a /pull or /grind pull a /spawn caster waits
+        // three seconds before its first offensive spell, unless it is hit.
+        // Its pet still attacks at once. Autonomous gamebots never wait.
+        public const int PullOffenseHoldMilliseconds = 3_000;
+        private long _pullOffenseHoldUntilTick;
+
+        public static bool HoldsOffenseAfterPull(bool temporaryCompanion, bool autonomous, bool pureCaster) =>
+            temporaryCompanion && !autonomous && pureCaster;
+
+        public static bool PullOffenseStillHeld(long now, long holdUntil, bool underAttack) =>
+            now < holdUntil && !underAttack;
+
+        /// <summary>Called when a /pull or /grind pull reaches its fight.</summary>
+        public void HoldOffenseAfterPull()
+        {
+            if (HoldsOffenseAfterPull(BotBody?.IsTemporaryGroupHelper == true, BotBody?.IsAutonomousWorldBot == true,
+                    PrefersSpellRange(BotBody?.CharacterClass, grouped: true)))
+                _pullOffenseHoldUntilTick = GameLoop.GameLoopTime + PullOffenseHoldMilliseconds;
+        }
+
+        private bool PullOffenseHeld => _pullOffenseHoldUntilTick != 0 &&
+            PullOffenseStillHeld(GameLoop.GameLoopTime, _pullOffenseHoldUntilTick,
+                Body.IsBeingInterruptedByOther || RecentDirectAttacker() != null);
+
         // True when the body already runs the same melee follow NpcStartAttack would
         // issue (its own target, melee weapon, stick distance).
         private bool IsMeleeChasing(GameObject target) =>
@@ -3110,6 +3134,17 @@ namespace DOL.AI.Brain
                 if (protectionTarget != null && TryPriorityTaunt(protectionTarget))
                 {
                     Body.StopAttack();
+                    return;
+                }
+
+                // A /spawn caster lets the tank build threat after a /pull or
+                // /grind pull: its pet already has its order above, the caster
+                // only closes to spell range until the hold ends or it is hit.
+                if (PullOffenseHeld)
+                {
+                    Body.StopAttack();
+                    if (Body.TargetObject is GameLiving heldTarget)
+                        ApproachForOffensiveSpell(heldTarget);
                     return;
                 }
 
