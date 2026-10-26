@@ -2385,7 +2385,6 @@ namespace DOL.AI.Brain
                     return;
                 }
                 chants = chants.Where(spell => spell.SpellType != eSpellType.CombatHeal || combatHealing)
-                    .Where(spell => !CompanionChantAnimation.SkipsInGroupTwist(bot, spell))
                     .OrderByDescending(spell => spell.SpellType == eSpellType.EnduranceRegenBuff)
                     .ThenByDescending(spell => spell.SpellType == eSpellType.SpecArmorFactorBuff)
                     .ThenByDescending(spell => spell.SpellType == eSpellType.DamageAdd).ToList();
