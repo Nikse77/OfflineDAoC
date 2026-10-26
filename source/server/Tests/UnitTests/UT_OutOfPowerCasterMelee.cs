@@ -90,6 +90,10 @@ namespace DOL.UnitTests
                 Assert.That(CompanionNameplate.HidesName(true, false), Is.True, "a /spawn companion");
                 Assert.That(CompanionNameplate.HidesName(false, true), Is.False, "autonomous gamebots keep their names");
                 Assert.That(CompanionNameplate.HidesName(false, false), Is.False, "other bots keep their names");
+                Assert.That(CompanionNameplate.HidesName(true, false, viewerShowsNames: false), Is.True,
+                    "hidden by default");
+                Assert.That(CompanionNameplate.HidesName(true, false, viewerShowsNames: true), Is.False,
+                    "/companionnames on shows them");
             });
         }
 
