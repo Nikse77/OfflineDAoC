@@ -61,10 +61,22 @@ namespace DOL.GS
             // the old "party is resting" refusal could block /pull forever).
             foreach (GameBot bot in helpers.Where(bot => bot.IsTemporaryCompanionRestLocked))
                 bot.WakeTemporaryCompanionRest();
+            // Owner 2026-10-26: a companion with a distance weapon pulls from range
+            // (an armed tank first, then other melee, then archers); the party
+            // waits for the monster. A new order replaces an unfinished one.
+            // Without a shooter or a firing point the tank pulls in melee below.
+            bool alreadyFighting = helpers.Any(bot => bot.InCombat || bot.IsAttacking) || FindLeaderTarget(player) != null;
+            if (!alreadyFighting)
+            {
+                AutonomousDefensivePull.Cancel(group);
+                GameBot shooter = AutonomousDefensivePull.SelectCompanionRangedPuller(helpers, target);
+                if (shooter != null && AutonomousDefensivePull.TryBeginCompanionRangedPull(shooter, target))
+                    return $"{shooter.Name} pulls {target.Name} from range; the party waits for it.";
+            }
             GameBot tank = helpers.Where(BotPartyRoles.IsTank)
                 .Where(bot => !bot.IsCrowdControlled)
                 .OrderBy(bot => bot.GetDistanceTo(target)).ThenBy(bot => bot.ObjectID).FirstOrDefault();
-            if (tank == null || helpers.Any(bot => bot.InCombat || bot.IsAttacking) || FindLeaderTarget(player) != null)
+            if (tank == null || alreadyFighting)
             {
                 Engage(player, target, true, fromPull: true);
                 return "Pull ordered: attackers engage; healers and buffers support the party.";

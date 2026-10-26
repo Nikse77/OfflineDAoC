@@ -125,20 +125,44 @@ namespace DOL.GS
             => TryBeginCore(shooter, target, flyingHandoff: false);
 
         /// <summary>
-        /// Owner 2026-10-26: a /grind pull by one of the player's own /spawn
-        /// companions with a real distance weapon (no spells): one shot from a
-        /// short proven firing point, back to the party, everyone waits for the
-        /// monster. False means nothing started and /grind pulls the old way.
+        /// Owner 2026-10-26: a /pull (and so /grind) by one of the player's own
+        /// /spawn companions with a real distance weapon (no spells): one shot
+        /// from a short proven firing point, back to the party, everyone waits
+        /// for the monster. False means nothing started and the tank pulls in
+        /// melee as before.
         /// </summary>
-        public static bool TryBeginCompanionGrindPull(GameBot shooter, GameLiving target)
+        public static bool TryBeginCompanionRangedPull(GameBot shooter, GameLiving target)
             => shooter is { IsTemporaryGroupHelper: true, IsAutonomousWorldBot: false } &&
                HasUsableDistanceWeapon(shooter) &&
-               TryBeginCore(shooter, target, flyingHandoff: false, companionGrind: true);
+               TryBeginCore(shooter, target, flyingHandoff: false, companionPull: true);
 
-        public static bool IsGrindRangedPuller(GameBot bot) => bot?.CharacterClass != null &&
+        public static bool IsCompanionRangedPuller(GameBot bot) => bot?.CharacterClass != null &&
             !SavageBotCombatPolicy.MustMeleePull((eCharacterClass)bot.CharacterClass.ID) && HasUsableDistanceWeapon(bot);
 
-        private static bool TryBeginCore(GameBot shooter, GameLiving target, bool flyingHandoff, bool companionGrind = false)
+        // Who shoots: an armed tank first, then other melee classes, then the
+        // archers. Casters and support classes never take this job (-1).
+        public static int RangedPullerRank(BotPartyRole role, bool listCaster, bool dedicatedArcher)
+        {
+            if (dedicatedArcher) return 2;
+            if (listCaster || role == BotPartyRole.Support) return -1;
+            return role == BotPartyRole.Tank ? 0 : 1;
+        }
+
+        private static int RangedPullerRank(GameBot bot)
+        {
+            var characterClass = (eCharacterClass)bot.CharacterClass.ID;
+            return RangedPullerRank(BotPartyRoles.For(characterClass),
+                bot.CharacterClass.ClassType == eClassType.ListCaster,
+                BotRangedCombat.IsDedicatedArcher(characterClass));
+        }
+
+        public static GameBot SelectCompanionRangedPuller(IEnumerable<GameBot> companions, GameLiving target) => companions
+            .Where(bot => bot is { IsTemporaryGroupHelper: true, IsAutonomousWorldBot: false, IsAlive: true } &&
+                !bot.IsCrowdControlled && bot.CharacterClass != null &&
+                RangedPullerRank(bot) >= 0 && IsCompanionRangedPuller(bot))
+            .OrderBy(RangedPullerRank).ThenBy(bot => bot.GetDistanceTo(target)).FirstOrDefault();
+
+        private static bool TryBeginCore(GameBot shooter, GameLiving target, bool flyingHandoff, bool companionPull = false)
         {
             // Suppress only a new scripted pull of this expedition's dragon.
             // Attacked-by-enemy and shared defense paths are unchanged.
@@ -147,22 +171,22 @@ namespace DOL.GS
                 SavageBotCombatPolicy.MustMeleePull((eCharacterClass)shooter.CharacterClass.ID))
                 return false;
             if (shooter?.Group == null ||
-                !flyingHandoff && !companionGrind && !AutonomousBotGroupCoordinator.UsesDefensivePullGroup(shooter.Group)) return false;
+                !flyingHandoff && !companionPull && !AutonomousBotGroupCoordinator.UsesDefensivePullGroup(shooter.Group)) return false;
             State state = States.GetOrCreateValue(shooter.Group);
             lock (state)
             {
                 if (state.Active) return true;
-                // /grind paces its own pulls; the autonomous 10-30 s retry gate does not apply.
-                if (!companionGrind && GameLoop.GameLoopTime < state.RetryAfter) return true;
+                // A player's /pull or /grind is paced by the player; the autonomous 10-30 s retry gate does not apply.
+                if (!companionPull && GameLoop.GameLoopTime < state.RetryAfter) return true;
                 GameBot[] members = shooter.Group.GetMembersInTheGroup().OfType<GameBot>().ToArray();
                 if (target?.IsAlive != true || shooter.CurrentRegion != target.CurrentRegion)
-                    return !companionGrind;
-                if (members.Length < (companionGrind ? 1 : flyingHandoff ? 2 : MinimumPullParty))
+                    return !companionPull;
+                if (members.Length < (companionPull ? 1 : flyingHandoff ? 2 : MinimumPullParty))
                     return true;
                 // An enemy already in the party is a real defensive fight, not a ranged pull.
                 if (!flyingHandoff && members.Any(member => member.IsWithinRadius(target, ContactRadius))) return false;
-                // A /grind shooter always uses its distance weapon, never a spell.
-                Spell spell = companionGrind ? null : flyingHandoff ? ReadyPullSpell(shooter) : PullSpell(shooter);
+                // A companion shooter always uses its distance weapon, never a spell.
+                Spell spell = companionPull ? null : flyingHandoff ? ReadyPullSpell(shooter) : PullSpell(shooter);
                 // A puller with no ranged pull at all (common below level 50) pulls the ordinary way;
                 // reporting "handled" here left such a party standing at its camp for good.
                 if (spell == null && !flyingHandoff && !HasRangedPull(shooter)) return false;
@@ -178,8 +202,8 @@ namespace DOL.GS
                 if (!TryFiringPoint(PathfindingProvider.Instance, shooter.CurrentZone, origin, enemy, range, out Vector3 point))
                 {
                     shooter.SwitchWeapon(previous);
-                    // No proven firing point: /grind falls back to its ordinary pull at once.
-                    if (companionGrind)
+                    // No proven firing point: /pull falls back to the tank's melee pull at once.
+                    if (companionPull)
                     {
                         state.RetryAfter = 0;
                         return false;

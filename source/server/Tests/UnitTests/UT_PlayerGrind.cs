@@ -308,15 +308,15 @@ namespace DOL.UnitTests
         public void OnlyChantingAndSingingClassesGetTheUpkeepTolerance(eCharacterClass characterClass, bool expected) =>
             Assert.That(PlayerCompanionGrind.IsSongUpkeepClass(characterClass), Is.EqualTo(expected));
 
-        [Test] public void RangedGrindPullPrefersArmedTankThenMeleeThenArchersNeverCastersOrSupport()
+        [Test] public void RangedPullPrefersArmedTankThenMeleeThenArchersNeverCastersOrSupport()
         {
             Assert.Multiple(() =>
             {
-                Assert.That(PlayerCompanionGrind.RangedPullerRank(BotPartyRole.Tank, false, false), Is.EqualTo(0), "armed tank first");
-                Assert.That(PlayerCompanionGrind.RangedPullerRank(BotPartyRole.Damage, false, false), Is.EqualTo(1), "then other melee");
-                Assert.That(PlayerCompanionGrind.RangedPullerRank(BotPartyRole.Damage, false, true), Is.EqualTo(2), "archers last");
-                Assert.That(PlayerCompanionGrind.RangedPullerRank(BotPartyRole.Damage, true, false), Is.EqualTo(-1), "casters never");
-                Assert.That(PlayerCompanionGrind.RangedPullerRank(BotPartyRole.Support, false, false), Is.EqualTo(-1), "support never");
+                Assert.That(AutonomousDefensivePull.RangedPullerRank(BotPartyRole.Tank, false, false), Is.EqualTo(0), "armed tank first");
+                Assert.That(AutonomousDefensivePull.RangedPullerRank(BotPartyRole.Damage, false, false), Is.EqualTo(1), "then other melee");
+                Assert.That(AutonomousDefensivePull.RangedPullerRank(BotPartyRole.Damage, false, true), Is.EqualTo(2), "archers last");
+                Assert.That(AutonomousDefensivePull.RangedPullerRank(BotPartyRole.Damage, true, false), Is.EqualTo(-1), "casters never");
+                Assert.That(AutonomousDefensivePull.RangedPullerRank(BotPartyRole.Support, false, false), Is.EqualTo(-1), "support never");
             });
         }
 
