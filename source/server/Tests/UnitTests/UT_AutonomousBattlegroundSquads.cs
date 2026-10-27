@@ -41,5 +41,17 @@ namespace DOL.UnitTests
             Assert.That(squads.Select(s => s.OrderBy(i => i).ToArray()),
                 Is.EqualTo(new[] { new[] { 0, 1, 2 }, new[] { 3, 4, 5, 6 } }));
         }
+
+        [Test]
+        public void GamebotsReleaseInTheBattlegroundTheyStillFit()
+        {
+            Assert.Multiple(() =>
+            {
+                Assert.That(BotBattlegroundRelease.Applies(true, 252, 22), Is.True, "Thidranki, levels 20-24");
+                Assert.That(BotBattlegroundRelease.Applies(true, 252, 25), Is.False, "out-levelled: the normal release");
+                Assert.That(BotBattlegroundRelease.Applies(false, 252, 22), Is.False, "companions keep their own release");
+                Assert.That(BotBattlegroundRelease.Applies(true, 1, 22), Is.False, "not a battleground");
+            });
+        }
     }
 }

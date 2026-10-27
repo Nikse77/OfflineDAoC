@@ -1091,6 +1091,8 @@ namespace DOL.GS
                 if (releaseZone == null || !AutonomousRealmBoundary.Allows(Realm, releaseRegion, releaseZone.ID))
                     release = null;
             }
+            if (release == null && BotBattlegroundRelease.Applies(IsAutonomousWorldBot, _deathRegionId, Level))
+                release = BotBattlegroundRelease.Point(_deathRegionId, Realm, ObjectID % 8 + 1);
             if (release == null && IsAutonomousWorldBot && returnToParty &&
                 AutonomousRealmRaid.TryRaidRelease(this, out ushort hubRegion, out Point3D hub))
             {
