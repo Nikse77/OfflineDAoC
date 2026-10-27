@@ -43,6 +43,20 @@ namespace DOL.UnitTests
         }
 
         [Test]
+        public void AssaultCallsComeEvery30To60MinutesAndLast20()
+        {
+            var random = new System.Random(7);
+            long[] intervals = Enumerable.Range(0, 2_000).Select(_ => AutonomousBattlegroundWave.RollCallInterval(random)).ToArray();
+            Assert.Multiple(() =>
+            {
+                Assert.That(intervals.Min(), Is.GreaterThanOrEqualTo(30 * 60_000L));
+                Assert.That(intervals.Max(), Is.LessThanOrEqualTo(60 * 60_000L));
+                Assert.That(intervals.Average() / 60_000, Is.EqualTo(45).Within(1.5), "45 minutes on average");
+                Assert.That(AutonomousBattlegroundWave.AssaultCallMilliseconds, Is.EqualTo(20 * 60_000L));
+            });
+        }
+
+        [Test]
         public void GamebotsReleaseInTheBattlegroundTheyStillFit()
         {
             Assert.Multiple(() =>

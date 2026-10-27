@@ -49,7 +49,10 @@ namespace DOL.GS
 
             AbstractGameKeep central = GameServer.KeepManager.GetKeepsOfRegion(bracket.RegionId)
                 .FirstOrDefault(keep => !keep.IsPortalKeep); // starts neutral (realm none); taken from any realm
-            bool assault = central != null && central.Realm != bot.Realm;
+            // The keep is assaulted only while the realm's assault call lasts (AutonomousBattlegroundWave.AssaultCalled);
+            // otherwise the bots hunt the other realms in the field.
+            bool assault = central != null && central.Realm != bot.Realm &&
+                AutonomousBattlegroundWave.AssaultCalled(bracket, bot.Realm, central);
             if (central != null)
             {
                 // Rebuilt only when the target changes (no per-turn allocation).
@@ -185,8 +188,8 @@ namespace DOL.GS
                 return true;
             }
 
-            // Own (or no) central keep: a third of the realm's bots hold its walls, the rest roam the field.
-            if (central != null && bot.DatabaseID % 3 == 0)
+            // Own central keep: a third of the realm's bots hold its walls, the rest hunt in the field.
+            if (central != null && central.Realm == bot.Realm && bot.DatabaseID % 3 == 0)
             {
                 if (bot.GetDistanceTo(new Point3D(central.X, central.Y, central.Z)) > 3500)
                     return TravelToDefensivePost(bot, central, new(central.X, central.Y, central.Z));
@@ -277,15 +280,27 @@ namespace DOL.GS
             if (!_battlegroundRoamPoint.HasValue || now >= _nextBattlegroundRoamTick ||
                 Vector3.DistanceSquared(current, _battlegroundRoamPoint.Value) < 200 * 200)
             {
-                // Roam between the field's landmarks: the central keep and the other realms' portal approaches.
-                eRealm[] others = [eRealm.Albion, eRealm.Midgard, eRealm.Hibernia];
-                Vector3[] anchors = others.Where(realm => realm != bot.Realm)
-                    .Select(realm => BattlegroundBrackets.BotArrival(bracket, realm))
-                    .Select(entry => Vector3.Lerp(new(entry.X, entry.Y, entry.Z),
-                        central != null ? new(central.X, central.Y, central.Z) : new(entry.X, entry.Y, entry.Z), 0.6f))
-                    .Append(central != null ? new Vector3(central.X, central.Y, central.Z) : current)
-                    .ToArray();
-                Vector3 anchor = anchors[Random.Shared.Next(anchors.Length)];
+                Vector3? prey = HuntPoint(bot, bracket, central);
+                bool hunting = prey.HasValue;
+                Vector3 anchor;
+                if (hunting)
+                    anchor = prey.Value;
+                else
+                {
+                    // Nobody to hunt: roam between the field's landmarks, the other realms' portal approaches and the
+                    // central keep. A keep that is not ours is circled at a distance, never walked into (its guards).
+                    eRealm[] others = [eRealm.Albion, eRealm.Midgard, eRealm.Hibernia];
+                    Vector3 keepPoint = central == null ? current : new Vector3(central.X, central.Y, central.Z);
+                    if (central != null && central.Realm != bot.Realm && Vector3.Distance(current, keepPoint) > 1)
+                        keepPoint += Vector3.Normalize(current - keepPoint) * BattlegroundHuntKeepDistance;
+                    Vector3[] anchors = others.Where(realm => realm != bot.Realm)
+                        .Select(realm => BattlegroundBrackets.BotArrival(bracket, realm))
+                        .Select(entry => Vector3.Lerp(new(entry.X, entry.Y, entry.Z),
+                            central != null ? new(central.X, central.Y, central.Z) : new(entry.X, entry.Y, entry.Z), 0.6f))
+                        .Append(keepPoint)
+                        .ToArray();
+                    anchor = anchors[Random.Shared.Next(anchors.Length)];
+                }
                 Zone zone = bot.CurrentRegion?.GetZone((int)anchor.X, (int)anchor.Y) ?? bot.CurrentZone;
                 IPathfindingMgr nav = PathfindingProvider.Instance;
                 if (zone != null && nav.IsAvailable && nav.HasNavmesh(zone))
@@ -295,12 +310,49 @@ namespace DOL.GS
                     anchor = nav.GetRandomPoint(zone, anchor, 900, nav.DefaultFilters) ?? anchor;
                 }
                 _battlegroundRoamPoint = anchor;
-                _nextBattlegroundRoamTick = now + 120_000 + bot.ObjectID % 30_000;
+                // A hunt follows moving prey, so its point is refreshed sooner.
+                _nextBattlegroundRoamTick = now + (hunting ? 45_000 : 120_000) + bot.ObjectID % 15_000;
+                _battlegroundHunting = hunting;
             }
             IssueVariedRvrPath(bot, _battlegroundRoamPoint.Value);
-            SetBattlegroundStatus(bot, bracket, "Roaming the battleground",
-                central != null ? $"{central.Name} is held by our realm" : "Hunting enemy realms on the field");
+            SetBattlegroundStatus(bot, bracket, _battlegroundHunting ? "Hunting enemy realms" : "Roaming the battleground",
+                central == null ? "Hunting enemy realms on the field" : $"{central.Name} is held by {Holder(central)}");
             return true;
+        }
+
+        public const int BattlegroundHuntKeepDistance = 3_500;
+        public const int BattlegroundHuntPortalDistance = 3_000;
+        private bool _battlegroundHunting;
+
+        /// <summary>
+        /// Where to hunt: one of the nearest enemy-realm bots or players in the battleground, alive, not inside a keep
+        /// that is not ours and not by an enemy portal keep (its guards). A random pick among the five nearest spreads
+        /// the hunters; parties meet parties because the leader picks the prey and the others follow.
+        /// </summary>
+        private static Vector3? HuntPoint(GameBot bot, BattlegroundBrackets.Bracket bracket, AbstractGameKeep central)
+        {
+            Vector2[] enemyPortals = new[] { eRealm.Albion, eRealm.Midgard, eRealm.Hibernia }
+                .Where(realm => realm != bot.Realm)
+                .Select(realm => BattlegroundBrackets.BotArrival(bracket, realm))
+                .Where(arrival => arrival != null)
+                .Select(arrival => new Vector2(arrival.X, arrival.Y))
+                .ToArray();
+            bool foreignKeep = central != null && central.Realm != bot.Realm;
+            bool Huntable(GameLiving enemy) =>
+                enemy != null && enemy.IsAlive && enemy.CurrentRegionID == bracket.RegionId && enemy.Realm != bot.Realm &&
+                enemy.Realm is eRealm.Albion or eRealm.Midgard or eRealm.Hibernia &&
+                !(foreignKeep && CompanionKeepChase.IsInside(central, enemy)) &&
+                enemyPortals.All(portal => Vector2.DistanceSquared(new(enemy.X, enemy.Y), portal) >
+                    (float)BattlegroundHuntPortalDistance * BattlegroundHuntPortalDistance);
+            GameLiving[] prey = AutonomousBotRegistry.Snapshot().Cast<GameLiving>()
+                .Concat(ClientService.Instance.GetPlayersOfRegion(bot.CurrentRegion))
+                .Where(Huntable)
+                .OrderBy(enemy => bot.GetDistanceTo(enemy))
+                .Take(5)
+                .ToArray();
+            if (prey.Length == 0) return null;
+            GameLiving pick = prey[Random.Shared.Next(prey.Length)];
+            return new Vector3(pick.X, pick.Y, pick.Z);
         }
 
         // Stormers stop 1,600-2,500 from the lord with the gates down (runs 18-21), though the mesh reaches him from the

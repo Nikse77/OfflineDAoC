@@ -24,15 +24,76 @@ public static class AutonomousBattlegroundWave
     public const long WaveSpentCheckMilliseconds = 3 * 60_000;
     public const int WaveSpentNearKeep = 4;
 
+    // Owner 2026-10-27: a realm assaults the central keep only when it calls an assault, on average every 45 minutes
+    // (30 to 60, at random), for at most 20 minutes. Between calls its bots hunt the other realms in the field.
+    public const long MinimumCallIntervalMilliseconds = 30 * 60_000L;
+    public const long MaximumCallIntervalMilliseconds = 60 * 60_000L;
+    public const long AssaultCallMilliseconds = 20 * 60_000L;
+
     private sealed class Wave
     {
         public Vector3? Staging;
         public long GatherSince, GoingSince, NextCount, NextTotalCount;
         public bool Going;
         public int Total, Gathered, NearKeep;
+        public bool Called;
+        public long NextCallTick, CallUntilTick;
     }
 
     private static readonly ConcurrentDictionary<(ushort Region, eRealm Realm), Wave> Waves = new();
+
+    private static Wave NewWave(long now) => new() { GatherSince = now, NextCallTick = now + RollCallInterval(Random.Shared) };
+
+    public static long RollCallInterval(Random random) =>
+        random.NextInt64(MinimumCallIntervalMilliseconds, MaximumCallIntervalMilliseconds + 1);
+
+    /// <summary>
+    /// True while the realm's assault call on the central keep lasts. A call starts when its timer is up and the realm
+    /// has at least <see cref="MinimumWave"/> bots inside (otherwise it retries a minute later), and ends after
+    /// <see cref="AssaultCallMilliseconds"/>, when the realm holds the keep or when its wave is spent.
+    /// </summary>
+    public static bool AssaultCalled(BattlegroundBrackets.Bracket bracket, eRealm realm, AbstractGameKeep central)
+    {
+        if (bracket == null || central == null) return false;
+        long now = GameLoop.GameLoopTime;
+        Wave wave = Waves.GetOrAdd((bracket.RegionId, realm), _ => NewWave(now));
+        lock (wave)
+        {
+            if (wave.Called && (now >= wave.CallUntilTick || central.Realm == realm))
+                EndCall(wave, now, bracket, realm, central.Realm == realm ? "keep taken" : "time up");
+            if (!wave.Called && now >= wave.NextCallTick)
+            {
+                if (now >= wave.NextTotalCount)
+                {
+                    wave.NextTotalCount = now + 5_000;
+                    wave.Total = AutonomousBotRegistry.Snapshot().Count(other => other.IsAlive && other.Realm == realm &&
+                        other.CurrentRegionID == bracket.RegionId);
+                }
+                if (IsTooFew(wave.Total))
+                    wave.NextCallTick = now + 60_000;
+                else
+                {
+                    wave.Called = true;
+                    wave.CallUntilTick = now + AssaultCallMilliseconds;
+                    wave.Going = false;
+                    wave.GatherSince = now;
+                    Log.Info($"BG_ASSAULT_CALLED battleground={bracket.Name} realm={GlobalConstants.RealmToName(realm)} " +
+                             $"keep=\"{central.Name}\" inside={wave.Total} minutes={AssaultCallMilliseconds / 60_000}");
+                }
+            }
+            return wave.Called;
+        }
+    }
+
+    private static void EndCall(Wave wave, long now, BattlegroundBrackets.Bracket bracket, eRealm realm, string reason)
+    {
+        wave.Called = false;
+        wave.Going = false;
+        wave.GatherSince = now;
+        wave.NextCallTick = now + RollCallInterval(Random.Shared);
+        Log.Info($"BG_ASSAULT_CALL_ENDED battleground={bracket.Name} realm={GlobalConstants.RealmToName(realm)} reason=\"{reason}\" " +
+                 $"nextInMinutes={(wave.NextCallTick - now) / 60_000}");
+    }
 
     /// <summary>
     /// Too few of the realm's bots in the battleground for any wave (fewer than <see cref="MinimumWave"/>): they roam the
@@ -44,7 +105,7 @@ public static class AutonomousBattlegroundWave
     {
         if (bracket == null) return false;
         long now = GameLoop.GameLoopTime;
-        Wave wave = Waves.GetOrAdd((bracket.RegionId, realm), _ => new Wave { GatherSince = now });
+        Wave wave = Waves.GetOrAdd((bracket.RegionId, realm), _ => NewWave(now));
         lock (wave)
         {
             if (now >= wave.NextTotalCount)
@@ -75,7 +136,7 @@ public static class AutonomousBattlegroundWave
         if (!central.Doors.Values.Any(door => door.IsAlive && door.IsAttackableDoor && door.State == eDoorState.Closed))
             return false;
         long now = GameLoop.GameLoopTime;
-        Wave wave = Waves.GetOrAdd((bracket.RegionId, bot.Realm), _ => new Wave { GatherSince = now });
+        Wave wave = Waves.GetOrAdd((bracket.RegionId, bot.Realm), _ => NewWave(now));
         lock (wave)
         {
             wave.Staging ??= StagingPoint(bot, bracket, central);
@@ -100,6 +161,12 @@ public static class AutonomousBattlegroundWave
                     wave.GatherSince = now;
                     Log.Info($"BG_WAVE_SPENT battleground={bracket.Name} realm={GlobalConstants.RealmToName(bot.Realm)} " +
                              $"nearKeep={wave.NearKeep} inside={wave.Total}");
+                    // A spent wave ends the assault call: the realm goes back to hunting in the field.
+                    if (wave.Called)
+                    {
+                        EndCall(wave, now, bracket, bot.Realm, "wave spent");
+                        return false;
+                    }
                 }
                 else return false;
             }
