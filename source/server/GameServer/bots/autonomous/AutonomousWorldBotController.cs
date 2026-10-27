@@ -3203,6 +3203,8 @@ namespace DOL.GS
             int planningLevel = sharedGroup ? _groupDirective.AverageLevel : bot.Level;
             int highestMemberLevel = sharedGroup
                 ? bot.Group.GetMembersInTheGroup().Max(member => member.EffectiveLevel) : bot.EffectiveLevel;
+            int lowestMemberLevel = sharedGroup
+                ? bot.Group.GetMembersInTheGroup().Min(member => (int)member.Level) : bot.Level;
             ConColor maximumTargetCon = MaximumTargetCon(groupSize);
             ConColor naturalMaximumTargetCon = NaturalMaximumTargetCon(groupSize);
             // Normal groups start at yellow-or-better, but every death retry is
@@ -3283,6 +3285,9 @@ namespace DOL.GS
                     if (validLevels.Length == 0)
                         continue;
                 }
+                if (cell.RegionId == AutonomousDarknessFallsPolicy.RegionId && sharedGroup &&
+                    !AutonomousDarknessFallsPolicy.GroupMayEnter(lowestMemberLevel))
+                    continue;
 
                 if (cell.RegionId == AutonomousDarknessFallsPolicy.RegionId)
                 {

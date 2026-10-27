@@ -18,6 +18,13 @@ public static class AutonomousDarknessFallsPolicy
     public const int SoloMinimumLevel = 25;
     public const ConColor SoloMaximumCon = ConColor.BLUE;
 
+    // Owner 2026-10-27: parties averaging level 12-16 went for the level 15-19 demoniac familiars and lost members on
+    // the way in (122 of 172 interrupted Darkness Falls tasks in a day, none of them at the camp). A party goes to
+    // Darkness Falls only when its lowest member is level 20 or more.
+    public const int GroupMinimumLevel = 20;
+
+    public static bool GroupMayEnter(int lowestMemberLevel) => lowestMemberLevel >= GroupMinimumLevel;
+
     public static ushort HomeRegion(eRealm realm) => realm switch
     {
         eRealm.Albion => 1,
