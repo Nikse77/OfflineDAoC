@@ -63,7 +63,8 @@ public static class AutonomousBotDecisionEngine
         double TravelMinutes,
         int AverageMobLevel = 0,
         int DungeonPopulation = 0,
-        int DungeonSoftCapacity = 0);
+        int DungeonSoftCapacity = 0,
+        bool IsClassic = false);
 
     public sealed record Service(
         eWorldServiceKind Kind,
@@ -227,7 +228,8 @@ public static class AutonomousBotDecisionEngine
             .Select(group => new
             {
                 Camps = group.ToArray(),
-                Weight = Math.Max(1, DungeonCapacity(group) * DungeonAvailability(group)),
+                Weight = Math.Max(1, DungeonCapacity(group) * DungeonAvailability(group)) *
+                    (group.First().IsClassic ? ClassicZoneWeight : 1),
             }).ToArray();
         int totalWeight = regions.Sum(region => region.Weight);
         int draw = random.Next(totalWeight);
@@ -250,7 +252,14 @@ public static class AutonomousBotDecisionEngine
     /// </summary>
     public const int OutdoorSpawnWeightCap = 6;
 
-    public static int OutdoorSpawnWeight(Camp camp) => Math.Clamp(camp.LiveMobCount, 1, OutdoorSpawnWeightCap);
+    // Owner 2026-10-27: bots prefer to level in the realms' classic zones. A
+    // classic camp (or classic dungeon, or Avalon City, Trollheim, Tur Suil)
+    // weighs this many times another one (AutonomousWorldBotController.IsClassicCamp);
+    // the others stay possible.
+    public const int ClassicZoneWeight = 3;
+
+    public static int OutdoorSpawnWeight(Camp camp) =>
+        Math.Clamp(camp.LiveMobCount, 1, OutdoorSpawnWeightCap) * (camp.IsClassic ? ClassicZoneWeight : 1);
 
     private static Camp SelectByLiveSpawns(Camp[] choices, Random random)
     {

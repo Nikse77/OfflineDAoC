@@ -3326,7 +3326,8 @@ namespace DOL.GS
                     0,
                     averageLevel,
                     cell.IsDungeon ? AutonomousDungeonPopulationPolicy.Population(cell.RegionId) : 0,
-                    cell.IsDungeon ? AutonomousDungeonPopulationPolicy.Capacity(cell.RegionId, cell.LiveMobCount) : 0));
+                    cell.IsDungeon ? AutonomousDungeonPopulationPolicy.Capacity(cell.RegionId, cell.LiveMobCount) : 0,
+                    IsClassicCamp(cell.RegionId, cell.IsDungeon, cell.IsFrontier)));
             }
 
             // Once realm/accessibility/level/con filters have been applied, each
@@ -5068,6 +5069,18 @@ namespace DOL.GS
                 return eRealm.Hibernia;
             return eRealm.None;
         }
+
+        /// <summary>
+        /// A camp in a realm's classic zones (Albion, Midgard, Hibernia outside
+        /// their old frontier zones) or in a classic dungeon. Shrouded Isles, the
+        /// frontier zones, New Frontiers, the battlegrounds and the shared frontier
+        /// dungeons are not classic, but three Shrouded Isles dungeons weigh as
+        /// classic ones (owner 2026-10-27): Avalon City, Trollheim and Tur Suil.
+        /// </summary>
+        internal static bool IsClassicCamp(ushort regionId, bool isDungeon, bool isFrontier) =>
+            !isFrontier && (isDungeon
+                ? WorldMgr.GetRegion(regionId)?.Expansion == 1 || regionId is 50 or 150 or 190
+                : regionId is 1 or 100 or 200);
 
         private static bool IsFrontierZone(ushort regionId, ushort zoneId) =>
             AutonomousDungeonPolicy.IsSharedFrontierDungeon(regionId) ||

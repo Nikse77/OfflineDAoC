@@ -83,5 +83,18 @@ namespace DOL.UnitTests
             Assert.That(AutonomousBotDecisionEngine.OutdoorSpawnWeight(Camp(2)), Is.EqualTo(2));
             Assert.That(AutonomousBotDecisionEngine.OutdoorSpawnWeight(Camp(40)), Is.EqualTo(6));
         }
+
+        [Test]
+        public void ClassicZoneCampsWeighThreeTimesOthers()
+        {
+            AutonomousBotDecisionEngine.Camp Camp(int live, bool classic) => new("c", "Zone", "wolf", eRealm.Albion, 1,
+                ConColor.BLUE, ConColor.BLUE, true, false, false, live, 0, 0, IsClassic: classic);
+            Assert.Multiple(() =>
+            {
+                Assert.That(AutonomousBotDecisionEngine.OutdoorSpawnWeight(Camp(2, true)), Is.EqualTo(6));
+                Assert.That(AutonomousBotDecisionEngine.OutdoorSpawnWeight(Camp(40, true)), Is.EqualTo(18));
+                Assert.That(AutonomousBotDecisionEngine.OutdoorSpawnWeight(Camp(40, false)), Is.EqualTo(6));
+            });
+        }
     }
 }
