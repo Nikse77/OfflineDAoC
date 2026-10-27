@@ -120,6 +120,16 @@ public sealed partial class AutonomousWorldBotController
         IsInFrontier(living) || living != null && (RealmRaidNeutralEvents.IsBattleRegion(living.CurrentRegionID) ||
             BattlegroundBrackets.IsBattlegroundRegion(living.CurrentRegionID));
 
+    // Owner 2026-10-27: during its realm's assault call a battleground bot goes for the keep instead of the field fights
+    // (at Caledonia 34 of 56 bots were fighting in the field, half of them over 8,800 from the keep, and no call ever took
+    // it). It still fights an enemy attacking it or a realm-mate near it, and one standing in its way.
+    public const int AssaultFocusRadius = 700;
+
+    internal static bool AssaultFocus(GameBot bot) =>
+        BattlegroundBrackets.IsBattlegroundRegion(bot.CurrentRegionID) &&
+        AutonomousObjectiveAssignments.Is(bot, eAutonomousObjectiveKind.Battleground) &&
+        AutonomousBattlegroundWave.IsCalled(bot.CurrentRegionID, bot.Realm);
+
     // Called before optional upkeep and the world controller's rendezvous,
     // recovery and follow returns. Assignment/level do not restrict defense.
     // It starts real combat without replacing the bot's durable task or event.
@@ -139,6 +149,7 @@ public sealed partial class AutonomousWorldBotController
 
         var nav = PathfindingProvider.Instance;
         if (!nav.IsAvailable || !nav.HasNavmesh(bot.CurrentZone)) return false;
+        bool assaultFocus = !defending && AssaultFocus(bot);
         // Cheap rejections first (most nearby livings are friendly bots); the area lookup last
         // (IsSafeArea/GetAreasOfZone were ~64 MB per 40 s of allocations in run 11).
         bool Eligible(GameLiving target) => target != bot && !target.IsStealthed && !IsIgnoredPvpTarget(target) &&
@@ -156,6 +167,7 @@ public sealed partial class AutonomousWorldBotController
                         npc.Brain is IControlledBrain pet && pet.GetLivingOwner() is IGamePlayer)) && Eligible(npc)))
             .Where(target => bot.GetDistanceTo(target) <= TargetSearchRadius)
             .Where(target => defending || !BotSiegeRuntime.Assigned(bot) || bot.IsWithinRadius(target, 450) && target is not GameSiegeWeapon)
+            .Where(target => !assaultFocus || FiringOnRealm(bot, target) || bot.IsWithinRadius(target, AssaultFocusRadius))
             .OrderBy(target => target.TargetObject is GameBot friendly && friendly.Realm == bot.Realm &&
                 bot.IsWithinRadius(friendly, 1000) && BotSiegeRuntime.HoldingPosition(friendly) ? 0 : 1)
             .ThenBy(bot.GetDistanceTo).ToArray();
