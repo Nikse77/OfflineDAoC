@@ -1520,6 +1520,7 @@ public static partial class AutonomousBotGroupCoordinator
                           !(objectiveKind == eAutonomousObjectiveKind.RvR &&
                             AutonomousRvrEventLayer.IsForceCommitted($"rvr-{bot.DatabaseID}", GameLoop.GameLoopTime)) &&
                           (objectiveKind != eAutonomousObjectiveKind.GroupPve ||
+                           AutonomousBotGoalPolicy.GroupsAllowed(bot.Level) &&
                            CanRecruitPveMember(bot.IsOnStableMasterRoute, bot.IsReturningAfterRelease,
                                bot.InCombat, bot.IsAttacking, (bot.Brain as BotBrain)?.HasAggro == true, 0)) &&
                           AutonomousObjectiveAssignments.Is(bot, objectiveKind))

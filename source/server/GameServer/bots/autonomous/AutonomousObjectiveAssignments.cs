@@ -346,6 +346,7 @@ public static class AutonomousObjectiveAssignments
                         Math.Max(0, target.SoloPve - assignedSolo) + Math.Max(0, target.GroupPve - assignedGroup))
                         ? eAutonomousObjectiveKind.Battleground
                         : ChoosePveObjective(target, assignedSolo, assignedGroup);
+                    kind = SoloBelowGroupLevel(bot, kind);
                     if (kind == eAutonomousObjectiveKind.Battleground)
                         assignedBattleground++;
                     else if (kind == eAutonomousObjectiveKind.SoloPve)
@@ -371,6 +372,7 @@ public static class AutonomousObjectiveAssignments
                         kind = AutonomousBotGoalPolicy.Choose(bot.Level);
                     else
                         kind = ChoosePveObjective(target, assignedSolo, assignedGroup);
+                    kind = SoloBelowGroupLevel(bot, kind);
 
                     switch (kind)
                     {
@@ -384,6 +386,11 @@ public static class AutonomousObjectiveAssignments
             }
         }
     }
+
+    // Counted as solo here so the band's group share goes to bots that may group.
+    private static eAutonomousObjectiveKind SoloBelowGroupLevel(GameBot bot, eAutonomousObjectiveKind kind) =>
+        kind == eAutonomousObjectiveKind.GroupPve && !AutonomousBotGoalPolicy.GroupsAllowed(bot.Level)
+            ? eAutonomousObjectiveKind.SoloPve : kind;
 
     private static void BeginPveIntermission(GameBot bot)
     {
@@ -509,6 +516,9 @@ public static class AutonomousObjectiveAssignments
         // Recovery and task-boundary callers cannot reintroduce a disabled goal.
         if (AutonomousBotGoalPolicy.IsConfigured && !forcedRaid)
             kind = AutonomousBotGoalPolicy.EnsureAllowed(bot.Level, kind);
+        // Levels 1-6 never group, with or without a Bot Goals Setting file.
+        if (!forcedRaid && kind == eAutonomousObjectiveKind.GroupPve && !AutonomousBotGoalPolicy.GroupsAllowed(bot.Level))
+            kind = eAutonomousObjectiveKind.SoloPve;
         OfflineWorldBotRecord record = bot.PersistentRecord;
         // eRealm.Albion and _FirstPlayerRealm share a value; ToString() labelled Albion assignments "_firstplayerrealm-...".
         string assignment = $"{GlobalConstants.RealmToName(bucket.Realm).ToLowerInvariant()}-{bucket.Band}-{epoch}-{kind}";

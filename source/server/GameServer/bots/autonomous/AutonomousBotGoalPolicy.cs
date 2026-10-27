@@ -26,14 +26,25 @@ public static class AutonomousBotGoalPolicy
         IsConfigured = File.Exists(path);
     }
 
+    // Owner 2026-10-27: gamebots of levels 1-6 never group, whatever the Bot
+    // Goals Setting says. They take solo PvE instead of group PvE.
+    public const int SoloOnlyMaximumLevel = 6;
+
+    public static bool GroupsAllowed(int level) => level > SoloOnlyMaximumLevel;
+
     public static eAutonomousObjectiveKind Choose(int level, Random random = null, bool excludeGroup = false,
-        bool excludeBattlegrounds = false) =>
-        (eAutonomousObjectiveKind)Settings.ForLevel(level).Choose((random ?? Random.Shared).NextDouble(), excludeGroup,
-            excludeBattlegrounds || !BattlegroundBrackets.LevelHasBracket(level));
+        bool excludeBattlegrounds = false)
+    {
+        var kind = (eAutonomousObjectiveKind)Settings.ForLevel(level).Choose((random ?? Random.Shared).NextDouble(),
+            excludeGroup || !GroupsAllowed(level), excludeBattlegrounds || !BattlegroundBrackets.LevelHasBracket(level));
+        // A group-only row still answers group PvE with the group share excluded.
+        return kind == eAutonomousObjectiveKind.GroupPve && !GroupsAllowed(level) ? eAutonomousObjectiveKind.SoloPve : kind;
+    }
 
     // A battleground goal also needs a bracket for the level (15-35); level is the only battleground limit.
     public static bool Allows(int level, eAutonomousObjectiveKind kind) =>
         Settings.ForLevel(level).Allows((int)kind) &&
+        (kind != eAutonomousObjectiveKind.GroupPve || GroupsAllowed(level)) &&
         (kind != eAutonomousObjectiveKind.Battleground || BattlegroundBrackets.LevelHasBracket(level));
 
     public static eAutonomousObjectiveKind EnsureAllowed(int level, eAutonomousObjectiveKind kind) =>

@@ -116,6 +116,27 @@ public class UT_BotGoalSettings
     }
 
     [Test]
+    public void LevelsOneToSixNeverGroupWhateverTheSetting()
+    {
+        (BotGoalSettings.Defaults with { Levels1To19 = new(0, 100, 0) }).Save(PathName, () => true);
+        AutonomousBotGoalPolicy.Initialize(_directory);
+        Assert.Multiple(() =>
+        {
+            for (int level = 1; level <= 6; level++)
+            {
+                Assert.That(AutonomousBotGoalPolicy.GroupsAllowed(level), Is.False, $"level {level}");
+                Assert.That(AutonomousBotGoalPolicy.Allows(level, eAutonomousObjectiveKind.GroupPve), Is.False, $"level {level}");
+                for (int seed = 0; seed < 50; seed++)
+                    Assert.That(AutonomousBotGoalPolicy.Choose(level, new Random(seed)), Is.EqualTo(eAutonomousObjectiveKind.SoloPve));
+                Assert.That(AutonomousBotGoalPolicy.EnsureAllowed(level, eAutonomousObjectiveKind.GroupPve),
+                    Is.EqualTo(eAutonomousObjectiveKind.SoloPve));
+            }
+            Assert.That(AutonomousBotGoalPolicy.GroupsAllowed(7), Is.True, "level 7 may group");
+            Assert.That(AutonomousBotGoalPolicy.Choose(7, new Random(1)), Is.EqualTo(eAutonomousObjectiveKind.GroupPve));
+        });
+    }
+
+    [Test]
     public void InvalidSettingsCannotReplaceWorkingFileAndServerStartRaceIsRejected()
     {
         BotGoalSettings.Defaults.Save(PathName, () => true);
