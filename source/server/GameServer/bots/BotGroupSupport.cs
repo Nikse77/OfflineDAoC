@@ -52,6 +52,16 @@ namespace DOL.GS
                 state.Resurrection.ReleaseCaster(bot);
         }
 
+        /// <summary>
+        /// Power a bot must have to take a resurrection: half its power or more (for a higher-level corpse) keeps a
+        /// gamebot healer's reserve for healing. Owner 2026-10-27: a /spawn companion needs only the spell's real
+        /// cost; its healers spent their power healing in the battlegrounds and never raised a fallen companion.
+        /// </summary>
+        public static int ResurrectionReserve(GameBot bot, Spell spell, GameLiving corpse) =>
+            bot.IsTemporaryGroupHelper && !bot.IsAutonomousWorldBot
+                ? bot.PowerCost(spell)
+                : (int)(bot.MaxMana * Math.Max(.1f, .5f + (corpse.Level - bot.Level) / (float)Math.Max(1, (int)bot.Level)));
+
         public static GameLiving ReserveResurrection(GameBot bot, Spell spell)
         {
             if (bot.Group == null || !bot.IsAlive || bot.IsCasting || bot.IsCrowdControlled || bot.IsSilenced || UnderAttack(bot))
@@ -75,7 +85,7 @@ namespace DOL.GS
             {
                 if (!HasCorpseLineOfSight(bot, corpse)) continue;
                 if (corpse.TempProperties.GetProperty<GameLiving>("RESURRECT_CASTER") != null) continue;
-                int cost = (int)(bot.MaxMana * Math.Max(.1f, .5f + (corpse.Level - bot.Level) / (float)Math.Max(1, (int)bot.Level)));
+                int cost = ResurrectionReserve(bot, spell, corpse);
                 if (bot.Mana < cost) continue;
                 if (state.Resurrection.TryReserve(bot, corpse, GameLoop.GameLoopTime, spell.CastTime,
                     true, combat, combat ? budget + 1 : healers, false, bot.CanCastHealSpells)) return corpse;
@@ -98,7 +108,7 @@ namespace DOL.GS
             if (UnderAttack(bot)) return "under attack";
             if (!HasCorpseLineOfSight(bot, corpse)) return "no line of sight to the corpse";
             if (corpse.TempProperties.GetProperty<GameLiving>("RESURRECT_CASTER") != null) return "another resurrection is already pending on the corpse";
-            int cost = (int)(bot.MaxMana * Math.Max(.1f, .5f + (corpse.Level - bot.Level) / (float)Math.Max(1, (int)bot.Level)));
+            int cost = ResurrectionReserve(bot, spell, corpse);
             if (bot.Mana < cost) return $"not enough power for the reservation ({bot.Mana}/{cost} of {bot.MaxMana})";
             return "the shared reservation refused (another resurrector holds it, or healers are needed for combat)";
         }
