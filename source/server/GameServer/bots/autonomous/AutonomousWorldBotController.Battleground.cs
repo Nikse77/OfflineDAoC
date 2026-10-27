@@ -39,6 +39,11 @@ namespace DOL.GS
                 return TravelToBattleground(bot, bracket, new(entry.X, entry.Y, entry.Z));
             }
 
+            // A battleground party's leader decides below; the others go where it goes and fight its fights.
+            if (AutonomousBattlegroundSquads.LeaderOf(bot) is { } squadLeader && squadLeader != bot)
+                return FollowBattlegroundSquad(brain, bot, bracket, squadLeader);
+            AutonomousGroupFormationFollow.Release(bot);
+
             AbstractGameKeep central = GameServer.KeepManager.GetKeepsOfRegion(bracket.RegionId)
                 .FirstOrDefault(keep => !keep.IsPortalKeep); // starts neutral (realm none); taken from any realm
             bool assault = central != null && central.Realm != bot.Realm;
@@ -186,6 +191,48 @@ namespace DOL.GS
                 return HoldDefensiveKeepPost(bot, central);
             }
             return RoamBattleground(bot, bracket, central);
+        }
+
+        /// <summary>
+        /// A battleground party member: it joins any fight of the party in assist range, walks to a member fighting
+        /// further away, and otherwise keeps its formation slot around the leader (AutonomousGroupFormationFollow).
+        /// </summary>
+        private bool FollowBattlegroundSquad(BotBrain brain, GameBot bot, BattlegroundBrackets.Bracket bracket, GameBot leader)
+        {
+            if (brain.TryAssistAutonomousPveCombat())
+            {
+                AutonomousGroupFormationFollow.Release(bot);
+                return false;
+            }
+            if (brain.CheckHeals()) return true;
+            GameBot fighting = AutonomousGroupCombat.MemberToHelp(bot, GameLoop.GameLoopTime);
+            if (fighting != null)
+            {
+                AutonomousGroupFormationFollow.Release(bot);
+                IssuePath(bot, new(fighting.X, fighting.Y, fighting.Z), retargetWhileMoving: true);
+                SetBattlegroundStatus(bot, bracket, $"Moving to help {fighting.Name}", "The party fights further away");
+                return true;
+            }
+            if (!leader.IsAlive || leader.CurrentRegionID != bot.CurrentRegionID)
+            {
+                // The coordinator pass picks a living leader within ten seconds; hold until then.
+                AutonomousGroupFormationFollow.Release(bot);
+                bot.StopMovingOnPath();
+                bot.StopMoving();
+                SetBattlegroundStatus(bot, bracket, "Waiting for the party leader", $"{leader.Name} is down");
+                return true;
+            }
+            Vector3 center = new(leader.X, leader.Y, leader.Z);
+            Vector3 slot = AutonomousBotGroupCoordinator.FormationPoint(bot, center, false);
+            if (Vector3.DistanceSquared(new(bot.X, bot.Y, bot.Z), slot) < FormationFollowReach * FormationFollowReach)
+                AutonomousGroupFormationFollow.Ensure(bot, leader, center, slot, false);
+            else
+            {
+                AutonomousGroupFormationFollow.Release(bot);
+                IssuePath(bot, slot, retargetWhileMoving: true);
+            }
+            SetBattlegroundStatus(bot, bracket, $"With {leader.Name}'s party", leader.PersistentRecord?.ObjectivePhase ?? "Roaming the battleground");
+            return true;
         }
 
         private bool RoamBattleground(GameBot bot, BattlegroundBrackets.Bracket bracket, AbstractGameKeep central)

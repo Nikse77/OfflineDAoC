@@ -172,6 +172,8 @@ public static partial class AutonomousBotGroupCoordinator
             AutonomousRvrEventLayer.PulseDefense(now);
             RealmWarbandSupport.Pulse(now);
             AutonomousObjectiveAssignments.ReconcileIfDue();
+            // Outside Sync: its group changes call back into OnMemberRemoved, which takes Sync.
+            AutonomousBattlegroundSquads.Pulse(now);
             lock (Sync)
             {
                 if (_lastMaintenanceTick == now) return;
@@ -223,6 +225,9 @@ public static partial class AutonomousBotGroupCoordinator
 
             Group group = bot.Group;
             if (group == null)
+                return null;
+            // A battleground party is run by AutonomousBattlegroundSquads, never by a session.
+            if (AutonomousBattlegroundSquads.Owns(group))
                 return null;
 
             GameBot[] members = BotMembers(group);
