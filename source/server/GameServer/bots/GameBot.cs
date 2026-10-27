@@ -97,6 +97,10 @@ namespace DOL.GS
         private long _deathTick;
         private ushort _deathRegionId;
         private Point3D _deathLocation;
+        private Point3D _lastBindRelease;
+        private ushort _lastBindReleaseRegion;
+        private long _lastBindReleaseTick;
+        private int _bindQuickReturns;
         private long _nextReturnRoleplayTick;
         private AutonomousStableRoutePlanner.Choice _stableReturnPlan;
         // GameObject.MoveTo removes and re-adds an actor. GameNPC.RemoveFromWorld
@@ -1087,6 +1091,23 @@ namespace DOL.GS
                 Zone releaseZone = WorldMgr.GetRegion(releaseRegion)?.GetZone(release.X, release.Y);
                 if (releaseZone == null || !AutonomousRealmBoundary.Allows(Realm, releaseRegion, releaseZone.ID))
                     release = null;
+            }
+            if (IsAutonomousWorldBot && release != null)
+            {
+                long now = GameLoop.GameLoopTime;
+                bool sameBind = _lastBindRelease != null && _lastBindReleaseRegion == releaseRegion &&
+                    _lastBindRelease.X == release.X && _lastBindRelease.Y == release.Y;
+                _bindQuickReturns = BotReleaseBindPoints.NextQuickReturns(_bindQuickReturns, sameBind, now - _lastBindReleaseTick);
+                _lastBindRelease = release;
+                _lastBindReleaseRegion = releaseRegion;
+                _lastBindReleaseTick = now;
+                if (BotReleaseBindPoints.SendsToCapital(_bindQuickReturns))
+                {
+                    log.Warn($"AUTONOMOUS_BIND_DEATH_LOOP bot={Name} id={DatabaseID} level={Level} region={releaseRegion} " +
+                             $"bind={release.X},{release.Y},{release.Z} action=\"release at the safe capital\"");
+                    _bindQuickReturns = 0;
+                    release = null;
+                }
             }
             if (release == null && BotBattlegroundRelease.Applies(IsAutonomousWorldBot, _deathRegionId, Level))
                 release = BotBattlegroundRelease.Point(_deathRegionId, Realm, ObjectID % 8 + 1);
