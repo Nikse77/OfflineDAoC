@@ -36,7 +36,7 @@ public class UT_RoutingRecoveryPatch
     [TestCase(false, false, 3000)]
     [TestCase(false, true, 3000)]
     [TestCase(true, false, 0)]
-    public void ReleaseTransfersBeforeRevivingAndRetainsRetryAfterFailure(bool moved, bool throws, int nextTick)
+    public void ReleaseRevivesForTheTransferAndRetainsRetryAfterFailure(bool moved, bool throws, int nextTick)
     {
         var bot = (ReleaseBot)RuntimeHelpers.GetUninitializedObject(typeof(ReleaseBot));
         bot.MoveSucceeds = moved; bot.ThrowOnMove = throws;
@@ -50,8 +50,10 @@ public class UT_RoutingRecoveryPatch
         Set("_nextDeathRecoveryErrorTick", long.MaxValue);
         var callback = typeof(GameBot).GetMethod("HandleDeathRecovery", BindingFlags.Instance | BindingFlags.NonPublic);
         Assert.That(callback.Invoke(bot, new object[] { null }), Is.EqualTo(nextTick));
-        Assert.That(bot.HealthWhenMoving, Is.Zero, "Never revive at the corpse before transfer succeeds");
-        Assert.That(bot.Health, Is.EqualTo(moved ? 30 : 0));
+        // Owner 2026-10-27: revived before the transfer, so the clients at the release point never get a corpse;
+        // a failed or throwing transfer puts the bot back dead at its corpse.
+        Assert.That(bot.HealthWhenMoving, Is.EqualTo(30), "Revived before the transfer");
+        Assert.That(bot.Health, Is.EqualTo(moved ? 30 : 0), "Never left alive at the corpse after a failed transfer");
         Assert.That(bot.IsReturningAfterRelease, Is.EqualTo(moved));
     }
 

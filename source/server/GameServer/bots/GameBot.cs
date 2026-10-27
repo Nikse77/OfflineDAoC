@@ -1113,18 +1113,30 @@ namespace DOL.GS
                 release = new Point3D(capital.X, capital.Y, capital.Z);
             }
             release ??= _deathLocation;
-            // Transfer the corpse first: a failed MoveTo must not revive the bot
-            // at its killer or cause HandleDeathRecovery to discard its timer.
-            if (!MoveTo(releaseRegion, release.X, release.Y, release.Z, Heading))
-                return;
+            // Revive, then move: moving the corpse first sent it dead to the clients at the release point, and they
+            // kept drawing that corpse beside the living bot (owner 2026-10-27, battleground portal keeps). A failed
+            // MoveTo puts the bot back as it was, so it never stays alive at its killer and HandleDeathRecovery keeps
+            // its timer.
+            int health = Health, mana = Mana, endurance = Endurance;
             Health = Math.Max(1, MaxHealth / 3);
             Mana = Math.Max(0, MaxMana / 3);
             Endurance = Math.Max(0, MaxEndurance / 3);
-            // MoveTo sent the corpse to the clients nearby; without sending the living bot again they kept drawing
-            // it dead where it stood (owner 2026-10-27: battleground bots appeared at the portal keep and died there).
-            foreach (GamePlayer viewer in GetPlayersInRadius(WorldMgr.VISIBILITY_DISTANCE))
-                viewer.Out.SendObjectRemove(this);
-            ClientService.CreateObjectForPlayers(this);
+            bool moved;
+            try { moved = MoveTo(releaseRegion, release.X, release.Y, release.Z, Heading); }
+            catch
+            {
+                Health = health;
+                Mana = mana;
+                Endurance = endurance;
+                throw;
+            }
+            if (!moved)
+            {
+                Health = health;
+                Mana = mana;
+                Endurance = endurance;
+                return;
+            }
             IsReturningAfterRelease = returnToParty;
             if (returnToParty) AutonomousRealmRaid.RejoinAfterRelease(this);
             _nextReturnRoleplayTick = GameLoop.GameLoopTime + Util.Random(45_000, 90_000);
