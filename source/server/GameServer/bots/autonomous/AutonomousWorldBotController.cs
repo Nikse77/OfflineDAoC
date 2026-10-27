@@ -480,7 +480,12 @@ namespace DOL.GS
                 // an obsolete camp's sit state is stale; routing below also wakes
                 // the bot when movement actually takes over.
                 bool recoveringAtCurrentCamp = _camp != null && ReferenceEquals(_restingCamp, _camp);
-                if (bot.IsRecoveryResting && !recoveringAtCurrentCamp && !_dungeonRouteResting &&
+                bool battlegroundPortalRest = _battlegroundPortalResting &&
+                    BattlegroundBrackets.IsBattlegroundRegion(bot.CurrentRegionID) &&
+                    AutonomousObjectiveAssignments.Is(bot, eAutonomousObjectiveKind.Battleground);
+                if (!battlegroundPortalRest)
+                    _battlegroundPortalResting = false;
+                if (bot.IsRecoveryResting && !recoveringAtCurrentCamp && !_dungeonRouteResting && !battlegroundPortalRest &&
                     _groupDirective?.Phase != "Regrouping" && !_townIdleUntilUtc.HasValue)
                     bot.WakeRecoveryRest();
 

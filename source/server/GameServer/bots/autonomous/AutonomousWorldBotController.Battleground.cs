@@ -39,6 +39,9 @@ namespace DOL.GS
                 return TravelToBattleground(bot, bracket, new(entry.X, entry.Y, entry.Z));
             }
 
+            if (RestAtBattlegroundPortal(bot, bracket))
+                return true;
+
             // A battleground party's leader decides below; the others go where it goes and fight its fights.
             if (AutonomousBattlegroundSquads.LeaderOf(bot) is { } squadLeader && squadLeader != bot)
                 return FollowBattlegroundSquad(brain, bot, bracket, squadLeader);
@@ -191,6 +194,38 @@ namespace DOL.GS
                 return HoldDefensiveKeepPost(bot, central);
             }
             return RoamBattleground(bot, bracket, central);
+        }
+
+        public const int BattlegroundPortalRestRadius = 1_000;
+        private bool _battlegroundPortalResting;
+
+        /// <summary>
+        /// Owner 2026-10-27: a bot at its realm's portal keep (released there, or just arrived) recovers to full
+        /// before it goes back out; it woke with a third of its health and ran straight back into the fight.
+        /// An enemy close enough to block resting sends it out as before.
+        /// </summary>
+        private bool RestAtBattlegroundPortal(GameBot bot, BattlegroundBrackets.Bracket bracket)
+        {
+            GameLocation arrival = BattlegroundBrackets.BotArrival(bracket, bot.Realm);
+            bool atPortal = arrival != null && Vector2.DistanceSquared(new(bot.X, bot.Y), new(arrival.X, arrival.Y)) <=
+                (float)BattlegroundPortalRestRadius * BattlegroundPortalRestRadius;
+            bool full = AutonomousRestPolicy.IsFullyRecovered(bot.HealthPercent, bot.ManaPercent, bot.EndurancePercent, bot.MaxMana > 0);
+            if (!atPortal || full || BotRestRecovery.BlocksRest(bot))
+            {
+                if (_battlegroundPortalResting)
+                {
+                    _battlegroundPortalResting = false;
+                    bot.WakeRecoveryRest();
+                }
+                return false;
+            }
+            _battlegroundPortalResting = true;
+            bot.StopMovingOnPath();
+            bot.StopMoving();
+            bot.BeginRecoveryRest();
+            SetBattlegroundStatus(bot, bracket, "Recovering at the portal keep",
+                $"HP {bot.HealthPercent}% • power {bot.ManaPercent}% • endurance {bot.EndurancePercent}%");
+            return true;
         }
 
         /// <summary>
