@@ -1062,19 +1062,16 @@ namespace DOL.GS
             {
                 if (!TemporaryCompanionRecovery.CanReleaseToOwner(this))
                     return;
-                // Move the corpse FIRST. Reviving before a failed MoveTo left a
-                // living helper at its killer with an expired recovery timer.
+                // Revived for the move (MoveRevived): a corpse moved to the player was drawn there beside the
+                // living helper (owner 2026-10-27, battleground portal keep). A failed move leaves it dead where it lay.
                 Vector3 destination = TemporaryGroupStableTravel.FormationPoint(Owner, CompanionRaid.IsMember(this) ? Math.Max(0, GroupIndex - 1) : ObjectID % 6);
                 StopCurrentSpellcast();
                 (Brain as BotBrain)?.PrepareForTankPull();
                 StopMoving();
-                if (!MoveTo(Owner.CurrentRegionID, (int)Math.Round(destination.X),
-                    (int)Math.Round(destination.Y), (int)Math.Round(destination.Z), Owner.Heading))
+                if (!MoveRevived(Owner.CurrentRegionID, (int)Math.Round(destination.X), (int)Math.Round(destination.Y),
+                        (int)Math.Round(destination.Z), Owner.Heading, Math.Max(1, MaxHealth), Math.Max(0, MaxMana), Math.Max(0, MaxEndurance)))
                     return;
 
-                Health = Math.Max(1, MaxHealth);
-                Mana = Math.Max(0, MaxMana);
-                Endurance = Math.Max(0, MaxEndurance);
                 IsReturningAfterRelease = false;
                 _stableReturnPlan = null;
                 EnterPlayerLedGroup(Owner);
@@ -1113,30 +1110,9 @@ namespace DOL.GS
                 release = new Point3D(capital.X, capital.Y, capital.Z);
             }
             release ??= _deathLocation;
-            // Revive, then move: moving the corpse first sent it dead to the clients at the release point, and they
-            // kept drawing that corpse beside the living bot (owner 2026-10-27, battleground portal keeps). A failed
-            // MoveTo puts the bot back as it was, so it never stays alive at its killer and HandleDeathRecovery keeps
-            // its timer.
-            int health = Health, mana = Mana, endurance = Endurance;
-            Health = Math.Max(1, MaxHealth / 3);
-            Mana = Math.Max(0, MaxMana / 3);
-            Endurance = Math.Max(0, MaxEndurance / 3);
-            bool moved;
-            try { moved = MoveTo(releaseRegion, release.X, release.Y, release.Z, Heading); }
-            catch
-            {
-                Health = health;
-                Mana = mana;
-                Endurance = endurance;
-                throw;
-            }
-            if (!moved)
-            {
-                Health = health;
-                Mana = mana;
-                Endurance = endurance;
+            if (!MoveRevived(releaseRegion, release.X, release.Y, release.Z, Heading,
+                    Math.Max(1, MaxHealth / 3), Math.Max(0, MaxMana / 3), Math.Max(0, MaxEndurance / 3)))
                 return;
-            }
             IsReturningAfterRelease = returnToParty;
             if (returnToParty) AutonomousRealmRaid.RejoinAfterRelease(this);
             _nextReturnRoleplayTick = GameLoop.GameLoopTime + Util.Random(45_000, 90_000);
@@ -1153,6 +1129,32 @@ namespace DOL.GS
                 PersistentRecord.TravelDestination = CurrentZone?.Description ?? string.Empty;
                 MarkAutonomousStateDirty();
             }
+        }
+
+        /// <summary>
+        /// Revive, then move: moving the corpse first sent it dead to the clients at the release point, and they kept
+        /// drawing that corpse beside the living bot (owner 2026-10-27, battleground portal keeps). A failed or
+        /// throwing MoveTo puts the bot back as it was, so it never stays alive at its killer and the death recovery
+        /// keeps its timer.
+        /// </summary>
+        private bool MoveRevived(ushort region, int x, int y, int z, ushort heading, int health, int mana, int endurance)
+        {
+            int deadHealth = Health, deadMana = Mana, deadEndurance = Endurance;
+            Health = health;
+            Mana = mana;
+            Endurance = endurance;
+            bool moved = false;
+            try { moved = MoveTo(region, x, y, z, heading); }
+            finally
+            {
+                if (!moved)
+                {
+                    Health = deadHealth;
+                    Mana = deadMana;
+                    Endurance = deadEndurance;
+                }
+            }
+            return moved;
         }
 
         private Point3D? FindNearestBindPoint()
