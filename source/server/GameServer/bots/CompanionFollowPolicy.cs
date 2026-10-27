@@ -95,9 +95,24 @@ namespace DOL.GS
         public static bool CanStopForNativeTravelSpeed(GameBot bot, Spell spell) =>
             CanStopForNativeTravelSpeed(bot) && IsNativeCompanionTravelSpeed(bot, spell);
 
+        // Owner 2026-10-27: a companion buffs only out of combat (and, below, only while its player stands still).
+        // Chants and songs pulse through a fight and are not held.
+        public static bool DefersInCombat(bool ordinaryBuff, bool pulsing, bool combat) => ordinaryBuff && !pulsing && combat;
+
+        private static bool InCombat(GameBot bot) =>
+            bot.InCombat || bot.PlayerGroupLeader?.InCombat == true || TemporaryCompanionRecovery.HasPartyCombat(bot);
+
         public static bool DeferBuff(GameLiving caster, Spell spell)
         {
-            if (caster is not GameBot bot || !Applies(bot) || !WaitingForLeaderToStop(bot))
+            if (caster is not GameBot bot || !Applies(bot))
+                return false;
+            if (spell != null && DefersInCombat(IsOrdinaryBuff(bot, spell), spell.IsPulsing, InCombat(bot)))
+                return true;
+            // Owner 2026-10-27: a companion still walking to its place beside the player does not stop halfway to
+            // buff; it reaches its place first. (The native group speed keeps its own stop rule below.)
+            if (spell != null && bot.IsMoving && !IsNativeCompanionTravelSpeed(bot, spell) && IsOrdinaryBuff(bot, spell))
+                return true;
+            if (!WaitingForLeaderToStop(bot))
                 return false;
             if (IsNativeCompanionTravelSpeed(bot, spell))
                 return !CanStopForNativeTravelSpeed(bot, spell);

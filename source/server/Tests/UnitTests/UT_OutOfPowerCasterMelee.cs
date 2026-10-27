@@ -169,6 +169,18 @@ namespace DOL.UnitTests
             });
         }
 
+        [Test]
+        public void CompanionsHoldOrdinaryBuffsDuringAFight()
+        {
+            Assert.Multiple(() =>
+            {
+                Assert.That(CompanionFollowPolicy.DefersInCombat(true, false, true), Is.True, "no ordinary buff in combat");
+                Assert.That(CompanionFollowPolicy.DefersInCombat(true, false, false), Is.False, "out of combat it buffs");
+                Assert.That(CompanionFollowPolicy.DefersInCombat(true, true, true), Is.False, "chants and songs keep pulsing");
+                Assert.That(CompanionFollowPolicy.DefersInCombat(false, false, true), Is.False, "heals and attacks are not buffs");
+            });
+        }
+
         private static bool BrainOutOfPower(int[] costs, int mana) => BotBrain.OutOfPower(costs, mana);
     }
 }
