@@ -129,6 +129,22 @@ namespace DOL.UnitTests
             });
         }
 
+        [Test]
+        public void TemporaryCompanionsDoNotChaseIntoAForeignKeep()
+        {
+            Assert.Multiple(() =>
+            {
+                Assert.That(CompanionKeepChase.DropsTarget(true, false, true, false), Is.True,
+                    "a companion outside lets a target inside the keep go");
+                Assert.That(CompanionKeepChase.DropsTarget(true, false, true, true), Is.False,
+                    "a companion already inside fights on");
+                Assert.That(CompanionKeepChase.DropsTarget(true, false, false, false), Is.False,
+                    "outside the keeps nothing changes");
+                Assert.That(CompanionKeepChase.DropsTarget(false, true, true, false), Is.False,
+                    "autonomous gamebots are unchanged");
+            });
+        }
+
         private static bool BrainOutOfPower(int[] costs, int mana) => BotBrain.OutOfPower(costs, mana);
     }
 }

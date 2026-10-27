@@ -199,6 +199,7 @@ namespace DOL.AI.Brain
         public void ForceAddToAggroList(GameLiving living, long aggroAmount)
         {
             if (IsUntargetable(living)) return;
+            if (CompanionKeepChase.DropsTarget(BotBody, living)) return;
             if (!CompanionEngagementMode.Allows(Body, living)) return;
             if (_autonomousWorldController?.IgnoresTarget(living) == true) return;
             if (CompanionRaidSiege.Ignores(Body as GameBot, living)) return;
@@ -291,6 +292,7 @@ namespace DOL.AI.Brain
         {
             return !living.IsAlive ||
                    IsUntargetable(living) ||
+                   CompanionKeepChase.DropsTarget(BotBody, living) ||
                    living.ObjectState != GameObject.eObjectState.Active ||
                    living.CurrentRegion != Body.CurrentRegion ||
                    !Body.IsWithinRadius(living, MAX_AGGRO_LIST_DISTANCE) ||
