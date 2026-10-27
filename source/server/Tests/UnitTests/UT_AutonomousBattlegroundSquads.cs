@@ -43,6 +43,26 @@ namespace DOL.UnitTests
         }
 
         [Test]
+        public void MembersLetFarTargetsGoUnlessTheyAreFightingThem()
+        {
+            Assert.Multiple(() =>
+            {
+                Assert.That(AutonomousBattlegroundSquads.BeyondReach(false, true, 2_500), Is.True, "too far from the leader");
+                Assert.That(AutonomousBattlegroundSquads.BeyondReach(false, true, 1_000), Is.False, "close to the leader");
+                Assert.That(AutonomousBattlegroundSquads.BeyondReach(true, true, 2_500), Is.False, "it is fighting this member");
+                Assert.That(AutonomousBattlegroundSquads.BeyondReach(false, false, 2_500), Is.False, "the leader is down");
+            });
+        }
+
+        [TestCase(0, 5, false)]
+        [TestCase(1, 5, false)]
+        [TestCase(2, 5, true)]
+        [TestCase(1, 2, true)]
+        [TestCase(0, 0, false)]
+        public void LeaderWaitsWhenMoreThanAThirdAreAway(int away, int living, bool waits) =>
+            Assert.That(AutonomousBattlegroundSquads.ShouldRegroup(away, living), Is.EqualTo(waits));
+
+        [Test]
         public void AssaultCallsComeEvery30To60MinutesAndLast20()
         {
             var random = new System.Random(7);

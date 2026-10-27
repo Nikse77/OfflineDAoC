@@ -40,7 +40,38 @@ public static class AutonomousBattlegroundSquads
     private static int _running;
     private static int _nextSquadNumber;
 
+    // Owner 2026-10-27: party members do not scatter, and regroup when they have. A member lets a target go once it
+    // is further than this from the leader (unless it is fighting that member)...
+    public const int ChaseLeash = 1_800;
+    // ...and the leader waits while more than a third of the living members are further than this from it.
+    public const int RegroupRadius = 1_200;
+
     public static bool Owns(Group group) => group != null && Squads.ContainsKey(group);
+
+    public static bool BeyondReach(bool targetFightsMe, bool leaderNear, int targetToLeader) =>
+        !targetFightsMe && leaderNear && targetToLeader > ChaseLeash;
+
+    /// <summary>True when a party member should let <paramref name="target"/> go: it is too far from the leader.</summary>
+    public static bool BeyondSquadReach(GameBot bot, GameLiving target)
+    {
+        GameBot leader = LeaderOf(bot);
+        if (leader == null || leader == bot || target == null || target.CurrentRegionID != bot.CurrentRegionID)
+            return false;
+        return BeyondReach(target.TargetObject == bot,
+            leader.IsAlive && leader.CurrentRegionID == bot.CurrentRegionID, (int)leader.GetDistanceTo(target));
+    }
+
+    public static bool ShouldRegroup(int membersAway, int livingMembers) => livingMembers > 0 && membersAway * 3 > livingMembers;
+
+    /// <summary>True when the leader should wait for its scattered party.</summary>
+    public static bool NeedsRegroup(GameBot leader)
+    {
+        if (leader?.Group == null || LeaderOf(leader) != leader) return false;
+        GameBot[] others = Members(leader.Group)
+            .Where(member => member != leader && member.IsAlive && member.CurrentRegionID == leader.CurrentRegionID)
+            .ToArray();
+        return ShouldRegroup(others.Count(member => !leader.IsWithinRadius(member, RegroupRadius)), others.Length);
+    }
 
     /// <summary>The leader of the bot's battleground party, or null when it is not in one.</summary>
     public static GameBot LeaderOf(GameBot bot) =>

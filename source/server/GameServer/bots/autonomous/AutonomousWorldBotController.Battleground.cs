@@ -46,6 +46,8 @@ namespace DOL.GS
             if (AutonomousBattlegroundSquads.LeaderOf(bot) is { } squadLeader && squadLeader != bot)
                 return FollowBattlegroundSquad(brain, bot, bracket, squadLeader);
             AutonomousGroupFormationFollow.Release(bot);
+            if (HoldForSquadRegroup(bot, bracket))
+                return true;
 
             AbstractGameKeep central = GameServer.KeepManager.GetKeepsOfRegion(bracket.RegionId)
                 .FirstOrDefault(keep => !keep.IsPortalKeep); // starts neutral (realm none); taken from any realm
@@ -197,6 +199,32 @@ namespace DOL.GS
                 return HoldDefensiveKeepPost(bot, central);
             }
             return RoamBattleground(bot, bracket, central);
+        }
+
+        public const long SquadRegroupWaitMilliseconds = 45_000;
+        private long _squadRegroupSince;
+
+        /// <summary>
+        /// A party leader whose members have scattered stops and lets them close in, for at most
+        /// <see cref="SquadRegroupWaitMilliseconds"/> at a time, so a member that cannot reach it never holds the party
+        /// for good: after a wait the leader goes on for as long again before it may wait once more.
+        /// </summary>
+        private bool HoldForSquadRegroup(GameBot bot, BattlegroundBrackets.Bracket bracket)
+        {
+            long now = GameLoop.GameLoopTime;
+            if (!AutonomousBattlegroundSquads.NeedsRegroup(bot))
+            {
+                _squadRegroupSince = 0;
+                return false;
+            }
+            if (_squadRegroupSince == 0 || now - _squadRegroupSince >= 2 * SquadRegroupWaitMilliseconds)
+                _squadRegroupSince = now;
+            if (now - _squadRegroupSince >= SquadRegroupWaitMilliseconds)
+                return false;
+            bot.StopMovingOnPath();
+            bot.StopMoving();
+            SetBattlegroundStatus(bot, bracket, "Regrouping the party", "Waiting for the members to close in");
+            return true;
         }
 
         public const int BattlegroundPortalRestRadius = 1_000;
