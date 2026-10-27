@@ -1201,6 +1201,7 @@ namespace DOL.GS
                 1 => "That was too close. Give me a moment, then I will fall back into formation.",
                 _ => "Back among the living. I will stay nearer the group this time."
             });
+            BotEmotes.Thank(this, caster);
         }
 
         private long _nextCompanionRecallTick;
@@ -1721,6 +1722,8 @@ namespace DOL.GS
                 // status batch instead of waiting for a server-wide save.
                 AutonomousBotStatusPersistence.Queue(this);
             }
+            if (previousExperience > 0 && Level > previousLevel)
+                BotEmotes.LevelUp(this);
             if (previousExperience == 0 || previousLevel != Level)
             {
                 log.Info($"AUTONOMOUS_XP_PROGRESS bot=\"{Name}\" id={DatabaseID} class=\"{ClassName}\" " +

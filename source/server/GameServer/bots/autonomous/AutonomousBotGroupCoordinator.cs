@@ -331,6 +331,8 @@ public static partial class AutonomousBotGroupCoordinator
         session.DungeonArrivalHoldUntilTick = 0;
         session.DungeonArrivalCompletedCampId = string.Empty;
         session.NoCampSinceTick = null;
+        if (session.Phase == "Meeting up")
+            BotEmotes.SetOut(session.Leader);
         session.Phase = "Traveling";
         StartTaskClock(session, members);
     }

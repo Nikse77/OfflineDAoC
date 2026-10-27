@@ -248,6 +248,7 @@ namespace DOL.GS
             {
                 _portalRegroupSince = 0;
                 _portalRegroupDone = true;
+                BotEmotes.SetOut(bot);
                 return false;
             }
             bot.StopMovingOnPath();

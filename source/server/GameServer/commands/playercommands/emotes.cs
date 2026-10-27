@@ -392,6 +392,9 @@ namespace DOL.GS.Commands
 
 			SendEmoteMessages(sourcePlayer, targetObject as GamePlayer, messageToSource, messageToTarget, messageToOthers);
 
+			if (targetObject is GameBot bot)
+				BotEmotes.Answer(bot, sourcePlayer, emoteID);
+
 			return;
 		}
 

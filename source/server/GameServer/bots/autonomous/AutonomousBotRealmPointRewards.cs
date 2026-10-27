@@ -76,6 +76,9 @@ public static class AutonomousBotRealmPointRewards
     public static void Award(GameBot killedBot, GameObject killer)
     {
         LogRvrDeath(killedBot, killer);
+        if (killer is GameLiving living && (ResolveRootRewardOwner(living) ?? living) is GameBot victor &&
+            victor.Realm != killedBot?.Realm)
+            BotEmotes.Victory(victor);
         if (!IsEligibleVictim(killedBot))
             return;
 

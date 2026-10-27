@@ -1258,6 +1258,7 @@ namespace DOL.AI.Brain
 
         public override void Think()
         {
+            BotEmotes.Tick(BotBody);
             bool nativeSpeedTravelStarted;
             if (CompanionFollowPolicy.ObserveAndCancelBuffs(BotBody, out nativeSpeedTravelStarted))
             {
