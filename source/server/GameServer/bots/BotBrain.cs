@@ -200,6 +200,7 @@ namespace DOL.AI.Brain
         {
             if (IsUntargetable(living)) return;
             if (CompanionKeepChase.DropsTarget(BotBody, living)) return;
+            if (!CompanionBattlegroundMelee.Allows(BotBody, living)) return;
             if (AutonomousBattlegroundSquads.BeyondSquadReach(BotBody, living)) return;
             if (!CompanionEngagementMode.Allows(Body, living)) return;
             if (_autonomousWorldController?.IgnoresTarget(living) == true) return;
@@ -294,6 +295,7 @@ namespace DOL.AI.Brain
             return !living.IsAlive ||
                    IsUntargetable(living) ||
                    CompanionKeepChase.DropsTarget(BotBody, living) ||
+                   !CompanionBattlegroundMelee.Allows(BotBody, living) ||
                    AutonomousBattlegroundSquads.BeyondSquadReach(BotBody, living) ||
                    living.ObjectState != GameObject.eObjectState.Active ||
                    living.CurrentRegion != Body.CurrentRegion ||

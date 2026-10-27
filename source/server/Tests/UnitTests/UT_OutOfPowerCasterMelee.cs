@@ -157,6 +157,18 @@ namespace DOL.UnitTests
             });
         }
 
+        [Test]
+        public void BattlegroundMeleeCompanionsFightOnlyForThePartyOrThePlayer()
+        {
+            Assert.Multiple(() =>
+            {
+                Assert.That(CompanionBattlegroundMelee.Allows(false, true, false), Is.True, "the player's target");
+                Assert.That(CompanionBattlegroundMelee.Allows(false, false, true), Is.True, "an enemy hitting a caster in melee");
+                Assert.That(CompanionBattlegroundMelee.Allows(true, false, false), Is.True, "an enemy fighting the companion");
+                Assert.That(CompanionBattlegroundMelee.Allows(false, false, false), Is.False, "any other enemy is let go");
+            });
+        }
+
         private static bool BrainOutOfPower(int[] costs, int mana) => BotBrain.OutOfPower(costs, mana);
     }
 }
