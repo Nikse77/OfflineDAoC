@@ -201,6 +201,61 @@ namespace DOL.GS
             return RoamBattleground(bot, bracket, central);
         }
 
+        public const long PortalRegroupWaitMilliseconds = 2 * 60_000;
+        private long _portalRegroupSince, _portalRegroupArrivedTick;
+        private bool _portalRegroupDone;
+
+        /// <summary>
+        /// The party falls back to the realm's portal keep when half of the others or more are down or already back
+        /// there (AutonomousBattlegroundSquads.NeedsPortalRegroup), and the leader sets out again once everyone is
+        /// alive, beside it and rested, or after <see cref="PortalRegroupWaitMilliseconds"/> at the portal. The rest
+        /// itself is each member's own (RestAtBattlegroundPortal). After a regroup the party must leave the portal
+        /// before another one can start, so a party standing there never regroups in a loop.
+        /// </summary>
+        private bool HoldForPortalRegroup(GameBot bot, BattlegroundBrackets.Bracket bracket)
+        {
+            if (AutonomousBattlegroundSquads.LeaderOf(bot) != bot || BattlegroundBrackets.BotArrival(bracket, bot.Realm) is not { } arrival)
+            {
+                _portalRegroupSince = 0;
+                return false;
+            }
+            long now = GameLoop.GameLoopTime;
+            Vector2 portal = new(arrival.X, arrival.Y);
+            float fromPortal = Vector2.Distance(new(bot.X, bot.Y), portal);
+            if (_portalRegroupDone)
+            {
+                if (fromPortal <= 3 * AutonomousBattlegroundSquads.PortalRadius)
+                    return false;
+                _portalRegroupDone = false;
+            }
+            if (_portalRegroupSince == 0)
+            {
+                if (!AutonomousBattlegroundSquads.NeedsPortalRegroup(bot, portal))
+                    return false;
+                _portalRegroupSince = now;
+                _portalRegroupArrivedTick = 0;
+            }
+            if (fromPortal > BattlegroundPortalRestRadius)
+            {
+                IssuePath(bot, AutonomousTownTeleporters.Arrival(
+                    new DbTeleport { RegionID = bracket.RegionId, X = arrival.X, Y = arrival.Y, Z = arrival.Z }, 0));
+                SetBattlegroundStatus(bot, bracket, "Regrouping at the portal keep", "The party falls back to set out together");
+                return true;
+            }
+            if (_portalRegroupArrivedTick == 0)
+                _portalRegroupArrivedTick = now;
+            if (AutonomousBattlegroundSquads.PortalRegroupComplete(bot) || now - _portalRegroupArrivedTick >= PortalRegroupWaitMilliseconds)
+            {
+                _portalRegroupSince = 0;
+                _portalRegroupDone = true;
+                return false;
+            }
+            bot.StopMovingOnPath();
+            bot.StopMoving();
+            SetBattlegroundStatus(bot, bracket, "Regrouping at the portal keep", "Waiting for every member, alive and rested");
+            return true;
+        }
+
         public const long SquadRegroupWaitMilliseconds = 45_000;
         private long _squadRegroupSince;
 
@@ -211,6 +266,8 @@ namespace DOL.GS
         /// </summary>
         private bool HoldForSquadRegroup(GameBot bot, BattlegroundBrackets.Bracket bracket)
         {
+            if (HoldForPortalRegroup(bot, bracket))
+                return true;
             long now = GameLoop.GameLoopTime;
             if (!AutonomousBattlegroundSquads.NeedsRegroup(bot))
             {

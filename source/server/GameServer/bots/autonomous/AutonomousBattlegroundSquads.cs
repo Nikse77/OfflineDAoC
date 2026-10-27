@@ -61,6 +61,28 @@ public static class AutonomousBattlegroundSquads
             leader.IsAlive && leader.CurrentRegionID == bot.CurrentRegionID, (int)leader.GetDistanceTo(target));
     }
 
+    // Owner 2026-10-27: a real regroup. When half of the other members or more are down, out of the battleground or
+    // back at the realm's portal keep (released there), the whole party falls back to the portal keep and sets out
+    // again together once everyone is alive, there and rested.
+    public const int PortalRadius = 1_500;
+
+    public static bool ShouldRegroupAtPortal(int downOrBack, int otherMembers) => otherMembers > 0 && downOrBack * 2 >= otherMembers;
+
+    public static bool NeedsPortalRegroup(GameBot leader, Vector2 portal)
+    {
+        if (leader?.Group == null || LeaderOf(leader) != leader) return false;
+        GameBot[] others = Members(leader.Group).Where(member => member != leader).ToArray();
+        int downOrBack = others.Count(member => !member.IsAlive || member.CurrentRegionID != leader.CurrentRegionID ||
+            Vector2.DistanceSquared(new(member.X, member.Y), portal) <= (float)PortalRadius * PortalRadius);
+        return ShouldRegroupAtPortal(downOrBack, others.Length);
+    }
+
+    /// <summary>Everyone is alive, beside the leader and fully recovered: the party can set out again.</summary>
+    public static bool PortalRegroupComplete(GameBot leader) =>
+        leader?.Group != null && Members(leader.Group).All(member => member.IsAlive &&
+            member.CurrentRegionID == leader.CurrentRegionID && leader.IsWithinRadius(member, RegroupRadius) &&
+            AutonomousRestPolicy.IsFullyRecovered(member.HealthPercent, member.ManaPercent, member.EndurancePercent, member.MaxMana > 0));
+
     public static bool ShouldRegroup(int membersAway, int livingMembers) => livingMembers > 0 && membersAway * 3 > livingMembers;
 
     /// <summary>True when the leader should wait for its scattered party.</summary>

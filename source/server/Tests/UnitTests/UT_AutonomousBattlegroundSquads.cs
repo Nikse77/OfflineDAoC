@@ -62,6 +62,15 @@ namespace DOL.UnitTests
         public void LeaderWaitsWhenMoreThanAThirdAreAway(int away, int living, bool waits) =>
             Assert.That(AutonomousBattlegroundSquads.ShouldRegroup(away, living), Is.EqualTo(waits));
 
+        [TestCase(1, 4, false)]
+        [TestCase(2, 4, true)]
+        [TestCase(1, 2, true)]
+        [TestCase(3, 7, false)]
+        [TestCase(4, 7, true)]
+        [TestCase(0, 0, false)]
+        public void PartyFallsBackToThePortalWhenHalfAreDownOrBack(int downOrBack, int others, bool regroups) =>
+            Assert.That(AutonomousBattlegroundSquads.ShouldRegroupAtPortal(downOrBack, others), Is.EqualTo(regroups));
+
         [Test]
         public void AssaultCallsComeEvery30To60MinutesAndLast20()
         {
