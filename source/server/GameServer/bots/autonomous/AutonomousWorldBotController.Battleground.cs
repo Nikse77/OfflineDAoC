@@ -371,21 +371,7 @@ namespace DOL.GS
                 if (hunting)
                     anchor = prey.Value;
                 else
-                {
-                    // Nobody to hunt: roam between the field's landmarks, the other realms' portal approaches and the
-                    // central keep. A keep that is not ours is circled at a distance, never walked into (its guards).
-                    eRealm[] others = [eRealm.Albion, eRealm.Midgard, eRealm.Hibernia];
-                    Vector3 keepPoint = central == null ? current : new Vector3(central.X, central.Y, central.Z);
-                    if (central != null && central.Realm != bot.Realm && Vector3.Distance(current, keepPoint) > 1)
-                        keepPoint += Vector3.Normalize(current - keepPoint) * BattlegroundHuntKeepDistance;
-                    Vector3[] anchors = others.Where(realm => realm != bot.Realm)
-                        .Select(realm => BattlegroundBrackets.BotArrival(bracket, realm))
-                        .Select(entry => Vector3.Lerp(new(entry.X, entry.Y, entry.Z),
-                            central != null ? new(central.X, central.Y, central.Z) : new(entry.X, entry.Y, entry.Z), 0.6f))
-                        .Append(keepPoint)
-                        .ToArray();
-                    anchor = anchors[Random.Shared.Next(anchors.Length)];
-                }
+                    anchor = PatrolPoint(bot, bracket, central, current);
                 Zone zone = bot.CurrentRegion?.GetZone((int)anchor.X, (int)anchor.Y) ?? bot.CurrentZone;
                 IPathfindingMgr nav = PathfindingProvider.Instance;
                 if (zone != null && nav.IsAvailable && nav.HasNavmesh(zone))
@@ -407,24 +393,58 @@ namespace DOL.GS
 
         public const int BattlegroundHuntKeepDistance = 3_500;
         public const int BattlegroundHuntPortalDistance = 3_000;
+        // Owner 2026-10-27: hunting the nearest enemies anywhere drew all three realms into one crowd by the central
+        // keep's moat. A bot only hunts what it can see, and otherwise patrols a point of its own in the field.
+        public const int BattlegroundHuntSightRange = 4_000;
+        public const int BattlegroundPatrolMaximumDistance = 14_000;
         private bool _battlegroundHunting;
 
         /// <summary>
-        /// Where to hunt: one of the nearest enemy-realm bots or players in the battleground, alive, not inside a keep
-        /// that is not ours and not by an enemy portal keep (its guards). A random pick among the five nearest spreads
-        /// the hunters; parties meet parties because the leader picks the prey and the others follow.
+        /// A patrol point of the bot's own: a random direction from the central keep, between
+        /// <see cref="BattlegroundHuntKeepDistance"/> and <see cref="BattlegroundPatrolMaximumDistance"/> from it, kept
+        /// away from the enemy portal keeps. Each party draws its own, so the parties spread over the field and meet
+        /// where their patrols cross.
         /// </summary>
-        private static Vector3? HuntPoint(GameBot bot, BattlegroundBrackets.Bracket bracket, AbstractGameKeep central)
+        private static Vector3 PatrolPoint(GameBot bot, BattlegroundBrackets.Bracket bracket, AbstractGameKeep central, Vector3 current)
         {
-            Vector2[] enemyPortals = new[] { eRealm.Albion, eRealm.Midgard, eRealm.Hibernia }
+            if (central == null) return current;
+            Vector2[] enemyPortals = EnemyPortals(bot, bracket);
+            Vector3 keep = new(central.X, central.Y, central.Z);
+            Vector3 point = current;
+            for (int attempt = 0; attempt < 8; attempt++)
+            {
+                double angle = Random.Shared.NextDouble() * Math.PI * 2;
+                float distance = BattlegroundHuntKeepDistance +
+                    (float)Random.Shared.NextDouble() * (BattlegroundPatrolMaximumDistance - BattlegroundHuntKeepDistance);
+                point = keep + new Vector3((float)Math.Cos(angle) * distance, (float)Math.Sin(angle) * distance, 0);
+                if (enemyPortals.All(portal => Vector2.DistanceSquared(new(point.X, point.Y), portal) >
+                        (float)BattlegroundHuntPortalDistance * BattlegroundHuntPortalDistance) &&
+                    bot.CurrentRegion?.GetZone((int)point.X, (int)point.Y) != null)
+                    return point;
+            }
+            return point;
+        }
+
+        private static Vector2[] EnemyPortals(GameBot bot, BattlegroundBrackets.Bracket bracket) =>
+            new[] { eRealm.Albion, eRealm.Midgard, eRealm.Hibernia }
                 .Where(realm => realm != bot.Realm)
                 .Select(realm => BattlegroundBrackets.BotArrival(bracket, realm))
                 .Where(arrival => arrival != null)
                 .Select(arrival => new Vector2(arrival.X, arrival.Y))
                 .ToArray();
+
+        /// <summary>
+        /// Where to hunt: one of the nearest enemy-realm bots or players within sight
+        /// (<see cref="BattlegroundHuntSightRange"/>), alive, not inside a keep that is not ours and not by an enemy
+        /// portal keep (its guards). Parties meet parties because the leader picks the prey and the others follow.
+        /// </summary>
+        private static Vector3? HuntPoint(GameBot bot, BattlegroundBrackets.Bracket bracket, AbstractGameKeep central)
+        {
+            Vector2[] enemyPortals = EnemyPortals(bot, bracket);
             bool foreignKeep = central != null && central.Realm != bot.Realm;
             bool Huntable(GameLiving enemy) =>
                 enemy != null && enemy.IsAlive && enemy.CurrentRegionID == bracket.RegionId && enemy.Realm != bot.Realm &&
+                bot.IsWithinRadius(enemy, BattlegroundHuntSightRange) &&
                 enemy.Realm is eRealm.Albion or eRealm.Midgard or eRealm.Hibernia &&
                 !(foreignKeep && CompanionKeepChase.IsInside(central, enemy)) &&
                 enemyPortals.All(portal => Vector2.DistanceSquared(new(enemy.X, enemy.Y), portal) >
