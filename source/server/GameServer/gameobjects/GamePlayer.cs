@@ -297,8 +297,10 @@ namespace DOL.GS
         /// </summary>
         public virtual bool CanUseCrossRealmItems { get { return ServerProperties.Properties.ALLOW_CROSS_REALM_ITEMS; }}
 
-        protected bool m_canUseSlashLevel = false;
-        public bool CanUseSlashLevel { get { return m_canUseSlashLevel; }}
+        // Owner 2026-10-27: nothing ever set the old flag, so /level always answered "you don't have a level 50". A
+        // player may use it when any character of the account has reached slash_level_requirement.
+        public bool CanUseSlashLevel => Client?.Account?.Characters?.Any(character =>
+            character != null && character.Level >= Properties.SLASH_LEVEL_REQUIREMENT) == true;
 
         /// <summary>
         /// if player uses debug before (to prevent hack client fly mode for players using debug and then turning it off)
