@@ -3211,14 +3211,11 @@ namespace DOL.GS
             ConColor minimumTargetCon = _deathDifficultySteps > 0 || (_groupDirective?.WipePenalty ?? 0) > 0
                 ? ConColor.GREEN
                 : groupSize >= 2 ? ConColor.YELLOW : ConColor.GREEN;
-            // A battleground has no zone connections; plan from the home region (the bot leaves by the exit)
-            // and add the battleground of the bot's bracket when the whole party fits it (level only).
+            // A battleground has no zone connections; plan from the home region (the bot leaves by the exit).
+            // Owner 2026-10-27: the battlegrounds are for bots on a battleground tour only and no longer offer PvE
+            // camps: solo and group grinders went into the fighting there, died and released over and over.
             HashSet<ushort> reachableRegions = ReachableRegions(bot.Realm,
                 BattlegroundBrackets.IsBattlegroundRegion(bot.CurrentRegionID) ? RealmRaidNeutralEvents.HomeRegion(bot.Realm) : bot.CurrentRegionID);
-            BattlegroundBrackets.Bracket campBattleground = AutonomousTownTeleporters.IsEnabled ? BattlegroundBrackets.ForLevel(bot.Level) : null;
-            if (campBattleground != null && (!sharedGroup || bot.Group == null ||
-                    bot.Group.GetMembersInTheGroup().All(member => BattlegroundBrackets.Allows(campBattleground, member.Level))))
-                reachableRegions.Add(campBattleground.RegionId);
             HashSet<string> rejectedDungeons = AutonomousBotGroupCoordinator.RejectedDungeonCamps(bot);
             foreach (string id in _rejectedDungeonCamps.Where(pair => pair.Value <= GameLoop.GameLoopTime).Select(pair => pair.Key).ToArray())
                 _rejectedDungeonCamps.Remove(id);
