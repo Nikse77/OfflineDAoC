@@ -484,7 +484,10 @@ namespace DOL.GS
                      $"inCombat={bot.InCombat} target={bot.TargetObject?.Name} " +
                      // Why a stormer stands between turns (run 22: 55% of the samples at the gate step stood 3,300 from it).
                      $"issued={Format(controller._issuedRouteDestination)} recovery={Format(controller._routeRecoveryWaypoint)} " +
-                     $"orderIn={Math.Max(0, controller._nextMoveOrderTick - now)} stallReplans={controller._routeStallReplans}");
+                     $"orderIn={Math.Max(0, controller._nextMoveOrderTick - now)} stallReplans={controller._routeStallReplans} " +
+                     // 2026-10-27: stormers inside Dun Murdaigean's broken gate stood still with the lord's path "found" though
+                     // the mesh walks there (navmesh probe); the mover's own route says where it ends.
+                     $"route=\"{(mover is NpcMovementComponent npcMover ? npcMover.DescribeRouteState() : "-")}\"");
 
             static string Format(Vector3? point) => point is { } p ? $"{p.X:0},{p.Y:0},{p.Z:0}" : "-";
         }
