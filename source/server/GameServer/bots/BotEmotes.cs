@@ -72,13 +72,21 @@ namespace DOL.GS
             });
         }
 
-        /// <summary>4. A realm kill: once the fight is over, sometimes a victory gesture.</summary>
+        /// <summary>
+        /// 4. A realm kill: sometimes a victory gesture a second or two later, when the bot attacks nobody and no enemy
+        /// is on its aggro list. The game counts it in combat for ten seconds after the last blow, so that flag is not
+        /// asked here.
+        /// </summary>
         public static void Victory(GameBot bot)
         {
             if (bot == null || Random.Shared.NextDouble() >= VictoryChance) return;
             eEmote emote = bot.Realm == eRealm.Midgard && Random.Shared.Next(3) == 0 ? eEmote.BangOnShield
                 : Random.Shared.Next(2) == 0 ? eEmote.Victory : eEmote.Cheer;
-            Schedule(bot, Random.Shared.Next(3_000, 6_000), () => Act(bot, emote, null));
+            Schedule(bot, Random.Shared.Next(1_000, 2_001), () =>
+            {
+                if (!bot.IsAttacking && (bot.Brain as AI.Brain.BotBrain)?.HasAggro != true)
+                    Act(bot, emote, null, allowCombat: true);
+            });
         }
 
         /// <summary>5. Called every think: a bot standing idle for a while fidgets now and then.</summary>
