@@ -134,11 +134,15 @@ namespace DOL.UnitTests
             Assert.That(AutonomousArmyDetour.FirstDetour(from, to, [new(new Vector2(98_000, 0), 6_000)]), Is.Null);
         }
 
-        [TestCase(30, 18)]
-        [TestCase(10, 8)]
-        [TestCase(0, 8)]
-        public void BattlegroundWaveSize(int inside, int wave) =>
-            Assert.That(AutonomousBattlegroundWave.WaveSize(inside), Is.EqualTo(wave));
+        [TestCase(30, 15, 12)]
+        [TestCase(20, 10, 10)]
+        [TestCase(10, 8, 8)]
+        [TestCase(0, 8, 8)]
+        public void BattlegroundWaveSize(int inside, int wave, int afterTheWait)
+        {
+            Assert.That(AutonomousBattlegroundWave.WaveSize(inside), Is.EqualTo(wave), "half the realm's bots inside");
+            Assert.That(AutonomousBattlegroundWave.PatientSize(inside), Is.EqualTo(afterTheWait), "twelve after the wait, or the wave size");
+        }
 
         // 4. Resurrection outranks chant and song upkeep only when it can happen.
         [TestCase(true, true, true, true, true)]

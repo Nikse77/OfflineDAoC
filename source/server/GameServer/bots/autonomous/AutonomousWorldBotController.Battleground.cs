@@ -53,8 +53,9 @@ namespace DOL.GS
                 .FirstOrDefault(keep => !keep.IsPortalKeep); // starts neutral (realm none); taken from any realm
             // The keep is assaulted only while the realm's assault call lasts (AutonomousBattlegroundWave.AssaultCalled);
             // otherwise the bots hunt the other realms in the field.
-            bool assault = central != null && central.Realm != bot.Realm &&
-                AutonomousBattlegroundWave.AssaultCalled(bracket, bot.Realm, central);
+            // Asked whoever holds the keep, so a call ends as soon as the realm takes it.
+            bool called = central != null && AutonomousBattlegroundWave.AssaultCalled(bracket, bot.Realm, central);
+            bool assault = called && central.Realm != bot.Realm;
             if (central != null)
             {
                 // Rebuilt only when the target changes (no per-turn allocation).
@@ -214,7 +215,9 @@ namespace DOL.GS
         /// </summary>
         private bool HoldForPortalRegroup(GameBot bot, BattlegroundBrackets.Bracket bracket)
         {
-            if (AutonomousBattlegroundSquads.LeaderOf(bot) != bot || BattlegroundBrackets.BotArrival(bracket, bot.Realm) is not { } arrival)
+            // Owner 2026-10-27: during the realm's assault call the party does not fall back to regroup; it goes on.
+            if (AutonomousBattlegroundSquads.LeaderOf(bot) != bot || BattlegroundBrackets.BotArrival(bracket, bot.Realm) is not { } arrival ||
+                AutonomousBattlegroundWave.IsCalled(bracket.RegionId, bot.Realm))
             {
                 _portalRegroupSince = 0;
                 return false;
@@ -299,7 +302,9 @@ namespace DOL.GS
             bool atPortal = arrival != null && Vector2.DistanceSquared(new(bot.X, bot.Y), new(arrival.X, arrival.Y)) <=
                 (float)BattlegroundPortalRestRadius * BattlegroundPortalRestRadius;
             bool full = AutonomousRestPolicy.IsFullyRecovered(bot.HealthPercent, bot.ManaPercent, bot.EndurancePercent, bot.MaxMana > 0);
-            if (!atPortal || full || BotRestRecovery.BlocksRest(bot))
+            // Owner 2026-10-27: during the realm's assault call a released bot goes straight back to the assault.
+            bool calling = AutonomousBattlegroundWave.IsCalled(bracket.RegionId, bot.Realm);
+            if (!atPortal || full || calling || BotRestRecovery.BlocksRest(bot))
             {
                 if (_battlegroundPortalResting)
                 {

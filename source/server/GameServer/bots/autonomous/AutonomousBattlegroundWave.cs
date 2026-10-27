@@ -25,10 +25,11 @@ public static class AutonomousBattlegroundWave
     public const int WaveSpentNearKeep = 4;
 
     // Owner 2026-10-27: a realm assaults the central keep only when it calls an assault, on average every 45 minutes
-    // (30 to 60, at random), for at most 20 minutes. Between calls its bots hunt the other realms in the field.
+    // (30 to 60, at random), for at most 30 minutes (20 until the evening of 2026-10-27: no call ever took a keep).
+    // Between calls its bots hunt the other realms in the field.
     public const long MinimumCallIntervalMilliseconds = 30 * 60_000L;
     public const long MaximumCallIntervalMilliseconds = 60 * 60_000L;
-    public const long AssaultCallMilliseconds = 20 * 60_000L;
+    public const long AssaultCallMilliseconds = 30 * 60_000L;
 
     private sealed class Wave
     {
@@ -61,7 +62,8 @@ public static class AutonomousBattlegroundWave
         {
             if (wave.Called && (now >= wave.CallUntilTick || central.Realm == realm))
                 EndCall(wave, now, bracket, realm, central.Realm == realm ? "keep taken" : "time up");
-            if (!wave.Called && now >= wave.NextCallTick)
+            // A realm that holds the keep calls no assault on it (the call starts once the keep is lost).
+            if (!wave.Called && now >= wave.NextCallTick && central.Realm != realm)
             {
                 if (now >= wave.NextTotalCount)
                 {
@@ -83,6 +85,15 @@ public static class AutonomousBattlegroundWave
             }
             return wave.Called;
         }
+    }
+
+    /// <summary>
+    /// True while the realm's assault call lasts. Read only: the call starts and ends in <see cref="AssaultCalled"/>.
+    /// </summary>
+    public static bool IsCalled(ushort regionId, eRealm realm)
+    {
+        if (!Waves.TryGetValue((regionId, realm), out Wave wave)) return false;
+        lock (wave) return wave.Called && GameLoop.GameLoopTime < wave.CallUntilTick;
     }
 
     private static void EndCall(Wave wave, long now, BattlegroundBrackets.Bracket bracket, eRealm realm, string reason)
@@ -120,8 +131,14 @@ public static class AutonomousBattlegroundWave
 
     public static bool IsTooFew(int realmBotsInside) => realmBotsInside < MinimumWave;
 
-    /// <summary>A wave goes in at this many gathered: 60% of the realm's bots inside, at least <see cref="MinimumWave"/>.</summary>
-    public static int WaveSize(int realmBotsInside) => Math.Max(MinimumWave, realmBotsInside * 6 / 10);
+    /// <summary>A wave goes in at this many gathered: half the realm's bots inside, at least <see cref="MinimumWave"/>.</summary>
+    public static int WaveSize(int realmBotsInside) => Math.Max(MinimumWave, realmBotsInside / 2);
+
+    // Owner 2026-10-27: waves went in after the four-minute wait with eight bots against 20-27 guards and were spent
+    // within minutes. After the wait a wave needs twelve, or the whole wave size when that is smaller.
+    public const int PatientWave = 12;
+
+    public static int PatientSize(int realmBotsInside) => Math.Min(PatientWave, WaveSize(realmBotsInside));
 
     /// <summary>
     /// True while this bot should gather at <paramref name="staging"/> instead of assaulting; false when its realm's
@@ -171,7 +188,7 @@ public static class AutonomousBattlegroundWave
                 else return false;
             }
             int needed = WaveSize(wave.Total);
-            bool patient = now - wave.GatherSince >= GatherPatienceMilliseconds && wave.Gathered >= MinimumWave;
+            bool patient = now - wave.GatherSince >= GatherPatienceMilliseconds && wave.Gathered >= PatientSize(wave.Total);
             if (wave.Gathered >= needed || patient)
             {
                 wave.Going = true;
