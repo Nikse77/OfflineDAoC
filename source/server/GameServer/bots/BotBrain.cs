@@ -293,13 +293,13 @@ namespace DOL.AI.Brain
         protected virtual bool ShouldBeRemovedFromAggroList(GameLiving living)
         {
             return !living.IsAlive ||
+                   living.ObjectState != GameObject.eObjectState.Active ||
+                   living.CurrentRegion != Body.CurrentRegion ||
+                   !Body.IsWithinRadius(living, MAX_AGGRO_LIST_DISTANCE) ||
                    IsUntargetable(living) ||
                    CompanionKeepChase.DropsTarget(BotBody, living) ||
                    !CompanionBattlegroundMelee.Allows(BotBody, living) ||
                    AutonomousBattlegroundSquads.BeyondSquadReach(BotBody, living) ||
-                   living.ObjectState != GameObject.eObjectState.Active ||
-                   living.CurrentRegion != Body.CurrentRegion ||
-                   !Body.IsWithinRadius(living, MAX_AGGRO_LIST_DISTANCE) ||
                    (!GameServer.ServerRules.IsAllowedToAttack(Body, living, true) && !living.effectListComponent.ContainsEffectForEffectType(eEffect.Shade));
         }
 

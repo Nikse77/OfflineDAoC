@@ -410,19 +410,19 @@ namespace DOL.GS
             if (central == null) return current;
             Vector2[] enemyPortals = EnemyPortals(bot, bracket);
             Vector3 keep = new(central.X, central.Y, central.Z);
-            Vector3 point = current;
             for (int attempt = 0; attempt < 8; attempt++)
             {
                 double angle = Random.Shared.NextDouble() * Math.PI * 2;
                 float distance = BattlegroundHuntKeepDistance +
                     (float)Random.Shared.NextDouble() * (BattlegroundPatrolMaximumDistance - BattlegroundHuntKeepDistance);
-                point = keep + new Vector3((float)Math.Cos(angle) * distance, (float)Math.Sin(angle) * distance, 0);
+                Vector3 point = keep + new Vector3((float)Math.Cos(angle) * distance, (float)Math.Sin(angle) * distance, 0);
                 if (enemyPortals.All(portal => Vector2.DistanceSquared(new(point.X, point.Y), portal) >
                         (float)BattlegroundHuntPortalDistance * BattlegroundHuntPortalDistance) &&
                     bot.CurrentRegion?.GetZone((int)point.X, (int)point.Y) != null)
                     return point;
             }
-            return point;
+            // No usable point this time: stay put, and the roam picks again on the next turn.
+            return current;
         }
 
         private static Vector2[] EnemyPortals(GameBot bot, BattlegroundBrackets.Bracket bracket) =>
@@ -444,7 +444,7 @@ namespace DOL.GS
             bool foreignKeep = central != null && central.Realm != bot.Realm;
             bool Huntable(GameLiving enemy) =>
                 enemy != null && enemy.IsAlive && enemy.CurrentRegionID == bracket.RegionId && enemy.Realm != bot.Realm &&
-                bot.IsWithinRadius(enemy, BattlegroundHuntSightRange) &&
+                !enemy.IsStealthed && bot.IsWithinRadius(enemy, BattlegroundHuntSightRange) &&
                 enemy.Realm is eRealm.Albion or eRealm.Midgard or eRealm.Hibernia &&
                 !(foreignKeep && CompanionKeepChase.IsInside(central, enemy)) &&
                 enemyPortals.All(portal => Vector2.DistanceSquared(new(enemy.X, enemy.Y), portal) >
