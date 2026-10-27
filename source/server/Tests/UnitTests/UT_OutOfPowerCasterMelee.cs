@@ -145,6 +145,18 @@ namespace DOL.UnitTests
             });
         }
 
+        [Test]
+        public void TemporaryCompanionsDoNotLeaveThePlayerToSupportAFarMember()
+        {
+            Assert.Multiple(() =>
+            {
+                Assert.That(BotBrain.LeavesPlayerToSupport(true, false, true, 2_000), Is.True, "the member is far from the player");
+                Assert.That(BotBrain.LeavesPlayerToSupport(true, false, true, 1_000), Is.False, "the member is near the player");
+                Assert.That(BotBrain.LeavesPlayerToSupport(true, false, false, 2_000), Is.False, "the player is not here");
+                Assert.That(BotBrain.LeavesPlayerToSupport(false, true, true, 2_000), Is.False, "autonomous gamebots are unchanged");
+            });
+        }
+
         private static bool BrainOutOfPower(int[] costs, int mana) => BotBrain.OutOfPower(costs, mana);
     }
 }
