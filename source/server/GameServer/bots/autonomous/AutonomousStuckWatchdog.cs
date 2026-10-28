@@ -24,6 +24,7 @@ public enum eAutonomousProgressKind
     StableTravel,
     Recovery,
     SiegeParticipation,
+    DefensivePost,
 }
 
 /// <summary>
@@ -178,6 +179,17 @@ public static class AutonomousStuckWatchdog
         isAlive && !inPlayerLedGroup && !protectedStableTravel && !isRvrRoaming &&
         nowUtc - lastGoalProgressUtc >= GoalProgressThreshold;
 
+    /// <summary>
+    /// Progress that is not walking but proves the bot is not frozen: earnings, or a defender standing at its verified
+    /// keep post (run 2026-10-28: 17 battleground defenders were sent to the capital after fifteen quiet minutes at their
+    /// post, then walked back and were relocated again, up to eight times).
+    /// </summary>
+    public static bool RefreshesMovementClock(eAutonomousProgressKind kind) => kind is
+        eAutonomousProgressKind.Experience or
+        eAutonomousProgressKind.RealmPoints or
+        eAutonomousProgressKind.Money or
+        eAutonomousProgressKind.DefensivePost;
+
     public static bool CountsAsGoalProgress(eAutonomousProgressKind kind) => kind is
         eAutonomousProgressKind.SiegeParticipation or
         eAutonomousProgressKind.Combat or
@@ -252,7 +264,7 @@ public static class AutonomousStuckWatchdog
         // longer see this change; refresh the liveness clock here instead or a
         // bot killing steadily from one spot is "rescued" after fifteen minutes.
         // (Combat alone still does not count: it cannot hide a stuck bot.)
-        else if (kind is eAutonomousProgressKind.Experience or eAutonomousProgressKind.RealmPoints or eAutonomousProgressKind.Money)
+        else if (RefreshesMovementClock(kind))
             observation.LastMovementUtc = now;
         if (CountsAsGoalProgress(kind) || kind is eAutonomousProgressKind.Recovery)
         {

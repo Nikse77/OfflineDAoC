@@ -17,6 +17,17 @@ public sealed class UT_AutonomousStuckWatchdog
     }
 
     [Test]
+    public void ADefenderAtItsKeepPostKeepsTheMovementClockFresh()
+    {
+        Assert.That(AutonomousStuckWatchdog.RefreshesMovementClock(eAutonomousProgressKind.DefensivePost), Is.True);
+        Assert.That(AutonomousStuckWatchdog.RefreshesMovementClock(eAutonomousProgressKind.Experience), Is.True);
+        Assert.That(AutonomousStuckWatchdog.RefreshesMovementClock(eAutonomousProgressKind.Objective), Is.False);
+        Assert.That(AutonomousStuckWatchdog.RefreshesMovementClock(eAutonomousProgressKind.Combat), Is.False);
+        // Standing at the post is not goal progress: the assignment's own tenure ends the duty.
+        Assert.That(AutonomousStuckWatchdog.CountsAsGoalProgress(eAutonomousProgressKind.DefensivePost), Is.False);
+    }
+
+    [Test]
     public void StablemasterHorseTravelNeverCountsAsStuckTime()
     {
         DateTime now = new(2026, 8, 28, 12, 0, 0, DateTimeKind.Utc);
