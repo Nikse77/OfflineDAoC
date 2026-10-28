@@ -172,6 +172,7 @@ namespace DOL.GS
         private long _pullHoldSinceTick, _pullHoldLastTick, _nextPullHoldTraceTick;
         private long _pullerFollowSinceTick, _pullerFollowLastTick, _nextPullerFollowTraceTick;
         private long _dyeStandSinceTick, _dyeStandLastTick;
+        private long _nextDarknessFallsLeaderReturnLog;
         private const int DyeStandGiveUpMilliseconds = 60_000;
         private long _nextGroupPulseTick;
         private string _activeDynamicGroupId = string.Empty;
@@ -734,6 +735,21 @@ namespace DOL.GS
                     if (_groupDirective?.IsDynamic == true && _groupDirective.Leader == bot &&
                         !AutonomousBotGroupCoordinator.IsCohesive(_groupDirective))
                     {
+                        // 2026-10-28, group albion-4272d7-005: the leader had walked 4,300 from the end of the certified route
+                        // (to help a member) and waited there for its four followers, who stood at that end and cannot follow a
+                        // free path in Darkness Falls: nobody moved for minutes. The leader goes back to where they are.
+                        if (TryGetDarknessFallsCampRouteEnd(bot, out Vector3 routeEnd) &&
+                            Vector3.DistanceSquared(new(bot.X, bot.Y, bot.Z), routeEnd) > 400 * 400 &&
+                            FollowDarknessFallsCampRoute(bot))
+                        {
+                            if (GameLoop.GameLoopTime >= _nextDarknessFallsLeaderReturnLog)
+                            {
+                                _nextDarknessFallsLeaderReturnLog = GameLoop.GameLoopTime + 120_000;
+                                Log.Info($"AUTONOMOUS_DF_LEADER_RETURN bot={bot.Name} group={_groupDirective.GroupId} position={bot.X},{bot.Y},{bot.Z} " +
+                                         $"routeEnd={(int)routeEnd.X},{(int)routeEnd.Y},{(int)routeEnd.Z} camp=\"{_camp.Id}\"");
+                            }
+                            return true;
+                        }
                         bot.StopMovingOnPath();
                         bot.StopMoving();
                         SetStatus(bot, "Waiting for group members", GoalText(),

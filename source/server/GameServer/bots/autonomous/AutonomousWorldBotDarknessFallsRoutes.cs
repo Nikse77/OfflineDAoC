@@ -53,6 +53,21 @@ public sealed partial class AutonomousWorldBotController
     /// native route legs. Never ask Detour for one long 256-node partial route
     /// from the entrance to a deep camp, or treat another wing's same-name
     /// creature as the assigned destination.</summary>
+    /// <summary>The last waypoint of the certified route to this camp: where a group of this realm gathers for it.</summary>
+    private bool TryGetDarknessFallsCampRouteEnd(GameBot bot, out Vector3 end)
+    {
+        end = default;
+        if (_camp?.RegionId != AutonomousDarknessFallsPolicy.RegionId || bot.CurrentRegionID != AutonomousDarknessFallsPolicy.RegionId ||
+            !AutonomousDungeonGoalCatalog.HasCompleteDarknessFallsCatalog ||
+            !AutonomousDarknessFallsRoutePlan.TryGetCampMobId(_camp.Id, out string mobId) ||
+            !AutonomousDarknessFallsNavigation.TryGetProof(mobId, out var proof) ||
+            !AutonomousDarknessFallsRoutePlan.TryGetWaypoints(
+                proof.Routes?.SingleOrDefault(route => route.Realm == bot.Realm)?.InWaypoints, out Vector3[] incoming))
+            return false;
+        end = incoming[^1];
+        return true;
+    }
+
     private bool FollowDarknessFallsCampRoute(GameBot bot)
     {
         if (_camp?.RegionId != AutonomousDarknessFallsPolicy.RegionId ||
