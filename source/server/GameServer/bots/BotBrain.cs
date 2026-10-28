@@ -591,6 +591,9 @@ namespace DOL.AI.Brain
         private long _nextCombatProgressTick;
         private long _nextMaintenanceBuffTick;
         private long _nextSongTwistTick;
+        // A Minstrel twists only between one pull and the next: the tick of its last fight (0 once it has travelled since).
+        private long _lastSongCombatTick;
+        private const int TwistBetweenPullsMilliseconds = 120_000;
         private bool _companionPerformerBuffBatch;
         private long _lastPerformerFollowTick = long.MinValue;
         private long _nextInstrumentKitCheck;
@@ -2253,6 +2256,8 @@ namespace DOL.AI.Brain
             // casts and pet/group combat. A lingering combat flag after the
             // fight must not stop the resting performer's harmless songs.
             bool immediateCombat = !bot.IsEnhancedResting && (bot.InCombat || HasAggro || bot.IsAttacking);
+            if (immediateCombat)
+                _lastSongCombatTick = GameLoop.GameLoopTime;
 
             // Bard and Skald preserve the last song's child buff, swap back to
             // their legal melee weapon, and fight in both solo and group play.
@@ -2294,8 +2299,13 @@ namespace DOL.AI.Brain
                 .ThenByDescending(spell => spell.Value)
                 .ThenByDescending(spell => spell.Level)
                 .ToList();
-            // Owner 2026-10-28: a Minstrel that is out of combat and on the move keeps the speed song alone, without twisting.
-            if (!immediateCombat && traveling && (eCharacterClass)bot.CharacterClass.ID == eCharacterClass.Minstrel &&
+            // Owner 2026-10-28: a Minstrel keeps the speed song alone, without twisting, while it is on the move, and twists only
+            // between one pull and the next: for two minutes after a fight, and not again once it has travelled since (a minute's
+            // stop in the middle of a walk is no reason to twist).
+            if (traveling)
+                _lastSongCombatTick = 0;
+            bool betweenPulls = _lastSongCombatTick != 0 && GameLoop.GameLoopTime - _lastSongCombatTick <= TwistBetweenPullsMilliseconds;
+            if (!immediateCombat && (traveling || !betweenPulls) && (eCharacterClass)bot.CharacterClass.ID == eCharacterClass.Minstrel &&
                 songs.FirstOrDefault(candidate => candidate.SpellType == eSpellType.SpeedEnhancement) is Spell speedSong)
                 songs = [speedSong];
 
