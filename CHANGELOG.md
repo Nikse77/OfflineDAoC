@@ -80,6 +80,11 @@ The newest version is first. For the full detail of every earlier update, see
   chris4aker/OfflineDAoC-LivingServer fork.)
 
 **World**
+- Monsters with no faction bring friends again: their own kind. Bring A Friend only counted monsters of the same or an
+  allied faction, and two thirds of the aggressive monsters in the game have no faction, so they never brought anyone,
+  whatever the size of the group (Midgard's frore liches, windswept wraiths and chillsome wights, for example). A
+  monster with no faction now brings others of the same name that have no faction either, the way wraiths brought
+  wraiths; monsters with a faction work as before. The server setting baf_same_name_without_faction turns it off.
 - The Huntsmen and Woodsmen of Campacorentin Forest patrol the roads in pairs again instead of standing still. Period
   sightings show a Huntsman and a Woodsman together all along the forest's main roads; each Huntsman now walks one
   stretch of road up and down with a Woodsman at his side, along the same road the horse routes take.
