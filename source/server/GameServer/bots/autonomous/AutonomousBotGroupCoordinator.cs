@@ -1518,6 +1518,48 @@ public static partial class AutonomousBotGroupCoordinator
         }
     }
 
+    /// <summary>
+    /// What limits PvE party formation, tallied per 15-second pass and logged every ten minutes (diagnostics only; the counters
+    /// are touched from the maintenance pass alone and are approximate). 2026-10-28: 974 bots timed out waiting 20 minutes
+    /// and 121 parties formed in three hours, while a role simulation on the live population said about two thirds could
+    /// be grouped; the pass excludes every bot in combat, so grinding solo while waiting may be what keeps a party of five
+    /// from being available at once.
+    /// </summary>
+    private static class FormationStats
+    {
+        private const long WindowMilliseconds = 10 * 60_000;
+        private static long _nextFlushTick;
+        public static long Passes, SlotCapped, Waiting, BusyCombat, BusyOther, Available, LeadersTried, PoolSum,
+            RosterFailed, SmallPool, Formed, NoRendezvous;
+
+        public static void Observe(GameBot[] activeRoster, GameBot[] available)
+        {
+            foreach (GameBot bot in activeRoster)
+            {
+                if (!bot.IsAlive || bot.IsTemporaryGroupHelper || bot.Group != null) continue;
+                Waiting++;
+                if (bot.InCombat || bot.IsAttacking || (bot.Brain as BotBrain)?.HasAggro == true) BusyCombat++;
+                else if (bot.IsOnStableMasterRoute || bot.IsReturningAfterRelease) BusyOther++;
+            }
+            Available += available.Length;
+        }
+
+        public static void FlushIfDue()
+        {
+            long now = GameLoop.GameLoopTime;
+            if (_nextFlushTick == 0) _nextFlushTick = now + WindowMilliseconds;
+            if (now < _nextFlushTick) return;
+            _nextFlushTick = now + WindowMilliseconds;
+            long passes = Math.Max(1, Passes - SlotCapped);
+            Log.Info($"AUTONOMOUS_GROUP_FORMATION_STATS windowMinutes=10 passes={Passes} slotCapped={SlotCapped} " +
+                     $"avgWaiting={Waiting / passes} avgBusyCombat={BusyCombat / passes} avgBusyOther={BusyOther / passes} " +
+                     $"avgAvailable={Available / passes} leadersTried={LeadersTried} avgPool={(LeadersTried == 0 ? 0 : PoolSum / LeadersTried)} " +
+                     $"rosterFailed={RosterFailed} smallPool={SmallPool} formed={Formed} noRendezvous={NoRendezvous}");
+            Passes = SlotCapped = Waiting = BusyCombat = BusyOther = Available = LeadersTried = PoolSum =
+                RosterFailed = SmallPool = Formed = NoRendezvous = 0;
+        }
+    }
+
     private static void TryFormGroups()
     {
         TryFormGroups(eAutonomousObjectiveKind.GroupPve);
@@ -1532,6 +1574,12 @@ public static partial class AutonomousBotGroupCoordinator
         if (GameLoop.GameLoopTime < nextFormationTick)
             return;
         nextFormationTick = GameLoop.GameLoopTime + 15_000;
+        bool pve = objectiveKind == eAutonomousObjectiveKind.GroupPve;
+        if (pve)
+        {
+            FormationStats.FlushIfDue();
+            FormationStats.Passes++;
+        }
 
         // One existing low-frequency pass expires whole groups, including a
         // warband whose own members are currently all on horses or in combat.
@@ -1553,7 +1601,10 @@ public static partial class AutonomousBotGroupCoordinator
         int maximumGrouped = MaximumGroupedForObjective(objectiveKind, activeRoster.Length);
         int availableGroupSlots = maximumGrouped - groupedCount;
         if (objectiveKind != eAutonomousObjectiveKind.RvR && availableGroupSlots < 2)
+        {
+            if (pve) FormationStats.SlotCapped++;
             return;
+        }
         Dictionary<eRealm, int> initiallyGroupedByRealm = activeRoster
             .Where(bot => bot.Group != null)
             .GroupBy(bot => bot.Realm)
@@ -1572,6 +1623,7 @@ public static partial class AutonomousBotGroupCoordinator
                           AutonomousObjectiveAssignments.Is(bot, objectiveKind))
             .OrderBy(_ => Random.Shared.Next())
             .ToArray();
+        if (pve) FormationStats.Observe(activeRoster, available);
         var claimed = new HashSet<GameBot>();
         int rendezvousChecks = 0;
         // RvR stages at the realm's fixed border keep, so the leader is the
@@ -1645,9 +1697,15 @@ public static partial class AutonomousBotGroupCoordinator
             GameBot[] compatible;
             if (objectiveKind == eAutonomousObjectiveKind.GroupPve)
             {
+                FormationStats.LeadersTried++;
+                FormationStats.PoolSum += compatiblePool.Length;
                 if (!TryBuildPveRoster(leader, compatiblePool, out compatible, out pveRoles,
                         MinimumPveFormationSize, largestAllowed))
+                {
+                    FormationStats.RosterFailed++;
+                    if (compatiblePool.Length < MinimumPveFormationSize - 1) FormationStats.SmallPool++;
                     continue;
+                }
                 rolledSize = compatible.Length + 1;
             }
             else
@@ -1682,6 +1740,7 @@ public static partial class AutonomousBotGroupCoordinator
             {
                 GameBot[] unmatched = BotMembers(group);
                 group.DisbandGroup();
+                if (pve) FormationStats.NoRendezvous++;
                 foreach (GameBot member in unmatched)
                     AutonomousObjectiveAssignments.BeginSoloAfterGroupTask(member, "No connected rendezvous is available");
                 continue;
@@ -1694,6 +1753,7 @@ public static partial class AutonomousBotGroupCoordinator
             Sessions[group] = session;
             GameBot[] formedMembers = BotMembers(group);
             WriteSessionMetadata(session, formedMembers);
+            if (pve) FormationStats.Formed++;
             Log.Info($"AUTONOMOUS_GROUP_FORMED group={session.Id} realm={GlobalConstants.RealmToName(leader.Realm)} " +
                      $"size={formedMembers.Length} lockedSize={session.LockedSize} objective={objectiveKind} " +
                      $"members=\"{string.Join(",", formedMembers.Select(member => member.Name))}\" " +
