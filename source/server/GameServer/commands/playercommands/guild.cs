@@ -350,6 +350,50 @@ namespace DOL.GS.Commands
 						GuildMgr.GetGuildByName(guildname).RemovePlayer("gamemaster", ClientService.Instance.GetPlayerByExactName(playername));
 						break;
 					}
+					case "join":
+					{
+						// Single-player convenience: a character joins a guild of its own realm by name, leaving its
+						// current guild first (a guild's leader must hand the guild over before leaving it).
+						string joinName = args.Length > 2 ? String.Join(" ", args, 2, args.Length - 2).Trim() : string.Empty;
+						if (joinName.Length == 0)
+						{
+							client.Out.SendMessage("Usage: /gc join <guild name>", eChatType.CT_System, eChatLoc.CL_SystemWindow);
+							return;
+						}
+
+						Guild joinGuild = GuildMgr.GetGuildByName(joinName);
+						if (joinGuild == null)
+						{
+							client.Out.SendMessage($"There is no guild named {joinName}.", eChatType.CT_System, eChatLoc.CL_SystemWindow);
+							return;
+						}
+
+						if (client.Player.Guild == joinGuild)
+						{
+							client.Out.SendMessage($"You are already a member of {joinGuild.Name}.", eChatType.CT_System, eChatLoc.CL_SystemWindow);
+							return;
+						}
+
+						if (joinGuild.Realm != client.Player.Realm || !GameServer.ServerRules.IsAllowedToJoinGuild(client.Player, joinGuild))
+						{
+							client.Out.SendMessage($"{joinGuild.Name} is a guild of another realm; this character cannot join it.", eChatType.CT_System, eChatLoc.CL_SystemWindow);
+							return;
+						}
+
+						if (client.Player.Guild != null)
+						{
+							if (client.Player.GuildRank?.RankLevel == 0)
+							{
+								client.Out.SendMessage($"You lead {client.Player.Guild.Name}; hand it over with /gc leader before joining another guild.", eChatType.CT_System, eChatLoc.CL_SystemWindow);
+								return;
+							}
+							client.Player.Guild.RemovePlayer(client.Player.Name, client.Player);
+						}
+
+						if (!joinGuild.AddPlayer(client.Player))
+							client.Out.SendMessage($"You could not join {joinGuild.Name}.", eChatType.CT_System, eChatLoc.CL_SystemWindow);
+						break;
+					}
 					case "invite":
 					{
 						if (client.Player.Guild == null)
