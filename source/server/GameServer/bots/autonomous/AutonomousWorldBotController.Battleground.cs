@@ -535,6 +535,7 @@ namespace DOL.GS
             }
             SetStatus(bot, $"Heading to {porter.Name}", $"Battleground: {bracket.Name}",
                 $"Walking to the teleporter for {bracket.Name}", porter.Name, porter.CurrentZone?.Description ?? string.Empty);
+            TracePorterTrip(bot, porter);
             if (bot.CurrentRegionID == porter.CurrentRegionID)
                 return IssuePath(bot, AutonomousTownTeleporters.StandOff(porter, bot));
             CampDestination previous = _camp;
@@ -542,6 +543,31 @@ namespace DOL.GS
                 porter.CurrentRegionID, porter.X, porter.Y, porter.Z, 1, false, false);
             try { return TravelAcrossRegions(bot); }
             finally { _camp = previous; }
+        }
+
+        private long _porterTripSinceTick, _porterTripLastTick, _nextPorterTripTraceTick;
+
+        // 2026-10-28: eight battleground-tour bots (two at the very same spot) were still "Heading to" their realm teleporter
+        // 45 minutes after the start, 52,000-92,000 units from the crossing to the capital (a 4-8 minute walk), with no route
+        // stall or recovery logged. After ten minutes on the way, say where the bot stands, every five.
+        private void TracePorterTrip(GameBot bot, GameNPC porter)
+        {
+            long now = GameLoop.GameLoopTime;
+            if (_porterTripSinceTick == 0 || now - _porterTripLastTick > 60_000)
+                _porterTripSinceTick = now;
+            _porterTripLastTick = now;
+            if (now - _porterTripSinceTick < 600_000 || now < _nextPorterTripTraceTick) return;
+            _nextPorterTripTraceTick = now + 300_000;
+            DbZonePoint crossing = bot.CurrentRegionID == porter.CurrentRegionID
+                ? null : FindNextCrossing(bot, porter.CurrentRegionID, porter.X, porter.Y);
+            string mover = bot.movementComponent is NpcMovementComponent npcMover ? npcMover.DescribeRouteState() : "-";
+            Log.Warn($"BG_PORTER_TRIP bot={bot.Name} id={bot.DatabaseID} level={bot.Level} realm={GlobalConstants.RealmToName(bot.Realm)} " +
+                     $"porter=\"{porter.Name}\" porterRegion={porter.CurrentRegionID} region={bot.CurrentRegionID} " +
+                     $"position={bot.X},{bot.Y},{bot.Z} tripSeconds={(now - _porterTripSinceTick) / 1000} " +
+                     $"toPorter={(bot.CurrentRegionID == porter.CurrentRegionID ? (int)bot.GetDistanceTo(porter) : -1)} " +
+                     $"crossing={(crossing == null ? "-" : $"{crossing.SourceX},{crossing.SourceY} toCrossing={Distance(bot.X, bot.Y, crossing.SourceX, crossing.SourceY)}")} " +
+                     $"moving={bot.IsMoving} issued={(_issuedRouteDestination is { } d ? $"{d.X:0},{d.Y:0},{d.Z:0}" : "-")} " +
+                     $"orderIn={Math.Max(0, _nextMoveOrderTick - now)} stallReplans={_routeStallReplans} activity=\"{bot.PersistentRecord?.Activity}\" {mover}");
         }
 
         /// <summary>The bot's own-realm teleporter: one in this region first, otherwise one in the realm's capital.</summary>
