@@ -487,9 +487,32 @@ namespace DOL.GS
                      $"orderIn={Math.Max(0, controller._nextMoveOrderTick - now)} stallReplans={controller._routeStallReplans} " +
                      // 2026-10-27: stormers inside Dun Murdaigean's broken gate stood still with the lord's path "found" though
                      // the mesh walks there (navmesh probe); the mover's own route says where it ends.
+                     // 2026-10-28: 14 Albion stormers stood in a pocket at Caer Caledon; the same query on the installed mesh gives
+                     // full routes (50, 31 and 87 nodes), so the raw answer of the live mesh, doors included, is compared here.
+                     $"raw=\"{RawPathProbe(bot, controller._issuedRouteDestination ?? (gate == null ? new Vector3(lord.X, lord.Y, lord.Z) : new Vector3(gate.X, gate.Y, gate.Z)))}\" " +
                      $"route=\"{(mover is NpcMovementComponent npcMover ? npcMover.DescribeRouteState() : "-")}\"");
 
             static string Format(Vector3? point) => point is { } p ? $"{p.X:0},{p.Y:0},{p.Z:0}" : "-";
+        }
+
+        /// <summary>The live navmesh's own answer from where the bot stands: status, node count and how far the last node is from
+        /// the target, with the default filters and with the door-avoiding ones (diagnostics only).</summary>
+        private static string RawPathProbe(GameBot bot, Vector3 target)
+        {
+            Zone zone = bot.CurrentZone;
+            if (zone == null || !PathfindingProvider.Instance.IsAvailable) return "-";
+            Vector3 start = new(bot.X, bot.Y, bot.Z);
+            Span<WrappedPathfindingNode> nodes = stackalloc WrappedPathfindingNode[256];
+            return $"default={ProbeFilters(zone, start, target, PathfindingProvider.Instance.DefaultFilters, nodes)} " +
+                   $"avoidDoors={ProbeFilters(zone, start, target, PathfindingProvider.Instance.BlockingDoorAvoidanceFilters, nodes)}";
+        }
+
+        private static string ProbeFilters(Zone zone, Vector3 start, Vector3 target, EDtPolyFlags[] filters,
+            Span<WrappedPathfindingNode> nodes)
+        {
+            PathfindingResult result = PathfindingProvider.Instance.GetPathStraight(zone, start, target, filters, nodes);
+            int count = Math.Min(result.NodeCount, nodes.Length);
+            return $"{result.Status}:{result.NodeCount}:end={(count > 0 ? (int)Vector3.Distance(nodes[count - 1].Position, target) : -1)}";
         }
 
         public const int BattlegroundLordReach = 4_000;
