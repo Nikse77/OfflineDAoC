@@ -110,6 +110,9 @@ The newest version is first. For the full detail of every earlier update, see
 - /tc always takes you to your capital's Realm Exchange. /transfercorpse also claimed /tc, so the server reported an
   error at every start and the two could swap. /transfercorpse keeps its full name. (From the lometur/HearthDAoC
   fork; Nikse77 and chris4aker found the same clash.)
+- /spawn Clerics, Druids and Healers stand and heal during a fight instead of walking back to their place in the
+  formation between heals, follow you again three seconds after it, or at once if you get more than 1,500 units away,
+  and no longer walk away from you to heal or buff someone. (From the Nikse77/OfflineDAoC fork, branch mod-0.37.)
 
 **The new client (0.38c)**
 - A monster or NPC that dies stops attacking at once. It sometimes went on swinging for a second or two over its
@@ -189,6 +192,8 @@ The newest version is first. For the full detail of every earlier update, see
   OfflineDAoC-SocialExpansion) for the fix for groups waiting on members that keep dying on the way to their meetup,
   the boss recast guard, and three new-client fixes: the FACE / FOLLOW / STICK buttons, the server's target changes
   (/target, /assist) and abilities on the quickbar.
+- Thanks to the [Nikse77/OfflineDAoC](https://github.com/Nikse77/OfflineDAoC) fork (branch mod-0.37) for the /spawn
+  healer fixes.
 - Thanks to lometur's [HearthDAoC](https://github.com/lometur/HearthDAoC) fork (Thomas Farral) for the /tc fix;
   Nikse77 and chris4aker found the same clash.
 
