@@ -1,4 +1,6 @@
 using System.Collections.Concurrent;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace DOL.GS
 {
@@ -28,12 +30,17 @@ namespace DOL.GS
         /// </summary>
         public const int EnemyClearRadius = 250;
 
-        private static readonly ConcurrentDictionary<GameBot, (GameBot Healer, long Until)> Claims = new();
+        private static readonly ConcurrentDictionary<GameLiving, (GameBot Healer, long Until)> Claims = new();
 
         /// <summary>The bot belongs to the attacking army of a running siege.</summary>
         public static bool IsSiegeAttacker(GameBot bot) =>
             bot is { IsAutonomousWorldBot: true } &&
             AutonomousRvrEventLayer.TrySiegeRelease(AutonomousBotGroupCoordinator.RvrForceId(bot), bot.Realm, GameLoop.GameLoopTime, out _, out _);
+
+        /// <summary>Owner 2026-10-28: the healers of a battleground never raised anyone (0 raises in an hour with dozens of bots
+        /// and the owner's character dead there): a bot in a battleground raises its realm's dead like a siege army's healer.</summary>
+        public static bool InBattleground(GameBot bot) =>
+            bot is { IsAutonomousWorldBot: true } && BattlegroundBrackets.IsBattlegroundRegion(bot.CurrentRegionID);
 
         public static bool CanRaise(GameBot healer) =>
             healer is { IsAlive: true, IsAutonomousWorldBot: true } && healer.ResurrectionSpell is { } spell &&
@@ -46,27 +53,32 @@ namespace DOL.GS
             if (corpse == null || corpse.ObjectState != GameObject.eObjectState.Active) return false;
             foreach (GameNPC npc in corpse.GetNPCsInRadius(SearchRadius))
                 if (npc is GameBot healer && healer != corpse && healer.Realm == corpse.Realm && CanRaise(healer) &&
-                    (IsSiegeAttacker(healer) || AutonomousObjectiveAssignments.Is(healer, eAutonomousObjectiveKind.RvR)))
+                    (IsSiegeAttacker(healer) || AutonomousObjectiveAssignments.Is(healer, eAutonomousObjectiveKind.RvR) || InBattleground(healer)))
                     return true;
             return false;
         }
 
         /// <summary>The nearest fallen realm-mate within <see cref="RaiseRadius"/> (in the fight) or <see cref="SearchRadius"/>
         /// that no other healer is raising.</summary>
-        public static GameBot ClaimCorpse(GameBot healer, bool fighting = false) => ClaimCorpse(healer, fighting, out _);
+        public static GameLiving ClaimCorpse(GameBot healer, bool fighting = false) => ClaimCorpse(healer, fighting, out _);
 
         /// <summary>As <see cref="ClaimCorpse(GameBot, bool)"/>; enemyBlocked: a corpse lay in range but an enemy stood by it.</summary>
-        public static GameBot ClaimCorpse(GameBot healer, bool fighting, out bool enemyBlocked)
+        public static GameLiving ClaimCorpse(GameBot healer, bool fighting, out bool enemyBlocked)
         {
             enemyBlocked = false;
             long now = GameLoop.GameLoopTime;
-            GameBot best = null;
+            GameLiving best = null;
             int bestDistance = int.MaxValue;
+            ushort radius = fighting ? (ushort)RaiseRadius : (ushort)SearchRadius;
             // In the fight a healer raises only near itself; out of it, it walks out to the dead on the field.
-            foreach (GameNPC npc in healer.GetNPCsInRadius(fighting ? (ushort)RaiseRadius : (ushort)SearchRadius))
+            // Bots of the army, and (in a battleground) the realm's players too.
+            IEnumerable<GameLiving> fallen = healer.GetNPCsInRadius(radius).OfType<GameBot>()
+                .Where(dead => dead.IsAutonomousWorldBot).Cast<GameLiving>();
+            if (InBattleground(healer))
+                fallen = fallen.Concat(healer.GetPlayersInRadius(radius).Cast<GameLiving>());
+            foreach (GameLiving dead in fallen)
             {
-                if (npc is not GameBot dead || dead.IsAlive || dead == healer || dead.Realm != healer.Realm ||
-                    !dead.IsAutonomousWorldBot || dead.ObjectState != GameObject.eObjectState.Active)
+                if (dead.IsAlive || dead == healer || dead.Realm != healer.Realm || dead.ObjectState != GameObject.eObjectState.Active)
                     continue;
                 if (Claims.TryGetValue(dead, out var claim) && claim.Healer != healer && now < claim.Until && claim.Healer.IsAlive)
                     continue;
@@ -90,7 +102,7 @@ namespace DOL.GS
             return best;
         }
 
-        private static bool EnemyNear(GameBot corpse)
+        private static bool EnemyNear(GameLiving corpse)
         {
             foreach (GameNPC npc in corpse.GetNPCsInRadius(EnemyClearRadius))
                 // Enemy bots and their pets. Not keep guards: the dead lie at the gate under the walls, always within reach
@@ -125,6 +137,10 @@ namespace DOL.GS
             foreach (GameNPC npc in healer.GetNPCsInRadius(RaiseRadius))
                 if (npc is GameBot dead && !dead.IsAlive && dead != healer && dead.Realm == healer.Realm && dead.IsAutonomousWorldBot)
                     return true;
+            if (InBattleground(healer))
+                foreach (GamePlayer player in healer.GetPlayersInRadius(RaiseRadius))
+                    if (!player.IsAlive && player.Realm == healer.Realm)
+                        return true;
             return false;
         }
         private static long _nextReport;

@@ -5377,7 +5377,8 @@ namespace DOL.AI.Brain
             // An RvR healer of the realm that is not in the siege army itself (a roaming group at the battle) raises the
             // army's dead too, as any realm-mate would (run 27: 20-100 such checks per 5 minutes with dead beside them).
             if (!AutonomousSiegeResurrection.IsSiegeAttacker(BotBody) &&
-                !(AutonomousObjectiveAssignments.Is(BotBody, eAutonomousObjectiveKind.RvR) && AutonomousSiegeResurrection.HasFallenComradeNear(BotBody)))
+                !((AutonomousObjectiveAssignments.Is(BotBody, eAutonomousObjectiveKind.RvR) || AutonomousSiegeResurrection.InBattleground(BotBody)) &&
+                  AutonomousSiegeResurrection.HasFallenComradeNear(BotBody)))
             {
                 _nextSiegeRaiseScanTick = now + 15_000;
                 return false;
@@ -5392,7 +5393,7 @@ namespace DOL.AI.Brain
                 AutonomousSiegeResurrection.Note(AutonomousSiegeResurrection.Check.CannotCast);
                 return false;
             }
-            GameBot corpse = AutonomousSiegeResurrection.ClaimCorpse(BotBody, fighting, out bool enemyBlocked);
+            GameLiving corpse = AutonomousSiegeResurrection.ClaimCorpse(BotBody, fighting, out bool enemyBlocked);
             AutonomousSiegeResurrection.Note(corpse != null ? AutonomousSiegeResurrection.Check.Corpse :
                 enemyBlocked ? AutonomousSiegeResurrection.Check.EnemyByCorpse : AutonomousSiegeResurrection.Check.NoCorpse);
             if (corpse == null)

@@ -997,7 +997,7 @@ namespace DOL.GS
                 return 3000;
             // A siege attacker also waits for any healer of its army nearby (AutonomousSiegeResurrection), not only its party's.
             bool resurrectionPossible = HasViableResurrector() ||
-                IsAutonomousWorldBot && AutonomousSiegeResurrection.IsSiegeAttacker(this) &&
+                IsAutonomousWorldBot && (AutonomousSiegeResurrection.IsSiegeAttacker(this) || AutonomousSiegeResurrection.InBattleground(this)) &&
                 AutonomousSiegeResurrection.HasArmyResurrectorNear(this);
             // A siege attacker's release is a long walk back from its realm's muster (run 18, 2026-10-17: Dun Dagda,
             // 176,000 units), so with a resurrector in its party it waits longer for a raise, as players did.
