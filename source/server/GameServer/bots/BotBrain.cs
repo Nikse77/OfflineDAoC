@@ -1114,6 +1114,13 @@ namespace DOL.AI.Brain
                 _ambientWanderMovement = false;
                 return;
             }
+            if (!ambientWander && CompanionHealerCombatHold.Holds(BotBody, leader))
+            {
+                // Stop a formation walk already under way; other movement is left alone.
+                if (Body.IsMoving && CompanionFollowPolicy.HasFormationOrder(BotBody))
+                    Body.StopMoving();
+                return;
+            }
 
             bool tightInterior = Body.CurrentRegion?.IsDungeon == true;
             bool companionTravel = CompanionFollowPolicy.Applies(BotBody);
@@ -4779,13 +4786,25 @@ namespace DOL.AI.Brain
             Body.IsWithinRadius(member, BotSupportReach.SupportRadius) &&
             !_supportReach.IsSkipped(member, GameLoop.GameLoopTime);
 
+        // Owner 2026-10-27: a /spawn companion does not walk away from its player to heal or buff a member that is
+        // far from the player (in a battleground the Cleric and Friar ran off alone to buff a revived Paladin).
+        public const int CompanionSupportLeash = 1_500;
+
+        public static bool LeavesPlayerToSupport(bool temporaryCompanion, bool autonomous, bool playerNear, int targetToPlayer) =>
+            temporaryCompanion && !autonomous && playerNear && targetToPlayer > CompanionSupportLeash;
+
+        private bool LeavesPlayerToSupport(GameLiving target) =>
+            AssistedPlayer is { IsAlive: true } player && LeavesPlayerToSupport(BotBody?.IsTemporaryGroupHelper == true,
+                BotBody?.IsAutonomousWorldBot == true, player.CurrentRegionID == Body.CurrentRegionID,
+                player.CurrentRegionID == target.CurrentRegionID ? (int)player.GetDistanceTo(target) : int.MaxValue);
+
         /// <summary>
         /// Walks toward a group member that is out of range of a heal or buff. False once the
         /// walk has made no progress for 12 seconds (that member is then skipped for 30).
         /// </summary>
         private bool ApproachSupportTarget(GameLiving target)
         {
-            if (target == null || target == Body || !InSupportReach(target) ||
+            if (target == null || target == Body || !InSupportReach(target) || LeavesPlayerToSupport(target) ||
                 !_supportReach.KeepApproaching(target, Body.GetDistanceTo(target), GameLoop.GameLoopTime))
                 return false;
             BotBody.WalkTo(new Point3D(target.X, target.Y, target.Z), BotBody.MaxSpeed);
