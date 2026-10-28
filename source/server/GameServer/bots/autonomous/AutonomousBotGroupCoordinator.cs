@@ -1752,9 +1752,22 @@ public static partial class AutonomousBotGroupCoordinator
             }
             else
             {
-                compatible = compatiblePool.Take(rolledSize - 1).ToArray();
-                if (compatible.Length != rolledSize - 1)
+                if (compatiblePool.Length < rolledSize - 1)
                     continue;
+                if (objectiveKind == eAutonomousObjectiveKind.RvR)
+                {
+                    // Owner 2026-10-28: one speed song, two who heal, one who mezzes or roots and one tank when they can be had;
+                    // a party with a place uncovered is still formed (AutonomousRvrRoster).
+                    var poolRoles = compatiblePool.Select(AutonomousRvrRoster.RolesOf).ToArray();
+                    compatible = AutonomousRvrRoster.Select(AutonomousRvrRoster.RolesOf(leader), poolRoles, rolledSize - 1)
+                        .Select(index => compatiblePool[index]).ToArray();
+                    if (Log.IsInfoEnabled && compatible.Length >= 3)
+                        Log.Info($"AUTONOMOUS_RVR_ROSTER realm={GlobalConstants.RealmToName(leader.Realm)} size={compatible.Length + 1} " +
+                                 AutonomousRvrRoster.Summary(compatible.Select(AutonomousRvrRoster.RolesOf)
+                                     .Append(AutonomousRvrRoster.RolesOf(leader))));
+                }
+                else
+                    compatible = compatiblePool.Take(rolledSize - 1).ToArray();
             }
 
             var group = new Group(leader);

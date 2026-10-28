@@ -103,7 +103,8 @@ public static class AutonomousBattlegroundSquads
     /// Splits bots (by position) into parties: each one takes the nearest others within <paramref name="radius"/>, up
     /// to <paramref name="maximum"/>, and forms only with at least <paramref name="minimum"/>. The rest stay solo.
     /// </summary>
-    public static List<int[]> PlanSquads(IReadOnlyList<Vector3> positions, int minimum, int maximum, float radius)
+    public static List<int[]> PlanSquads(IReadOnlyList<Vector3> positions, int minimum, int maximum, float radius,
+        IReadOnlyList<AutonomousRvrRoster.Role> roles = null)
     {
         var squads = new List<int[]>();
         var free = new List<int>(Enumerable.Range(0, positions.Count));
@@ -111,11 +112,15 @@ public static class AutonomousBattlegroundSquads
         {
             int leader = free[0];
             free.RemoveAt(0);
-            int[] mates = free
+            int[] near = free
                 .Where(index => Vector3.DistanceSquared(positions[index], positions[leader]) <= radius * radius)
                 .OrderBy(index => Vector3.DistanceSquared(positions[index], positions[leader]))
-                .Take(maximum - 1)
                 .ToArray();
+            // Owner 2026-10-28: with more bots near than the party takes, the roles decide who (AutonomousRvrRoster).
+            int[] mates = roles == null || near.Length <= maximum - 1
+                ? near.Take(maximum - 1).ToArray()
+                : AutonomousRvrRoster.Select(roles[leader], near.Select(index => roles[index]).ToArray(), maximum - 1)
+                    .Select(pick => near[pick]).ToArray();
             if (mates.Length + 1 < minimum) continue;
             foreach (int mate in mates) free.Remove(mate);
             squads.Add(new[] { leader }.Concat(mates).ToArray());
@@ -208,7 +213,7 @@ public static class AutonomousBattlegroundSquads
         {
             GameBot[] bots = side.OrderBy(_ => Random.Shared.Next()).ToArray();
             foreach (int[] plan in PlanSquads(bots.Select(b => new Vector3(b.X, b.Y, b.Z)).ToArray(),
-                         MinimumSize, MaximumSize, GatherRadius))
+                         MinimumSize, MaximumSize, GatherRadius, bots.Select(AutonomousRvrRoster.RolesOf).ToArray()))
                 TryForm(side.Key.CurrentRegionID, side.Key.Realm, plan.Select(index => bots[index]).ToArray());
         }
     }
@@ -243,6 +248,7 @@ public static class AutonomousBattlegroundSquads
             return;
         }
         Log.Info($"BG_SQUAD_FORMED squad={squad.Id} battleground={BattlegroundBrackets.ForRegion(regionId)?.Name} " +
-                 $"realm={GlobalConstants.RealmToName(realm)} size={joined.Length} members=\"{string.Join(",", joined.Select(b => b.Name))}\"");
+                 $"realm={GlobalConstants.RealmToName(realm)} size={joined.Length} {AutonomousRvrRoster.Summary(joined.Select(AutonomousRvrRoster.RolesOf))} " +
+                 $"members=\"{string.Join(",", joined.Select(b => b.Name))}\"");
     }
 }
