@@ -1176,6 +1176,10 @@ public static partial class AutonomousBotGroupCoordinator
                    $"membersReady={MembersReadyForPull(members)} composition={HasActivePveComposition(session, members)} " +
                    $"defensivePull={UsesDefensivePullGroup(bot.Group)} " +
                    $"distanceToLeader={(leader == null ? -1 : (int)bot.GetDistanceTo(leader))} " +
+                   $"members={members.Length} maxMemberDistance={(leader == null ? -1 : (int)members.Max(member => member.GetDistanceTo(leader)))} " +
+                   $"otherRegion={(leader == null ? -1 : members.Count(member => member.CurrentRegionID != leader.CurrentRegionID))} " +
+                   $"stableRoute={members.Count(member => member.IsOnStableMasterRoute)} expedition={AutonomousRealmRaid.GetTravelView(bot) != null} " +
+                   $"independentActors={AutonomousRvrStaging.UsesIndependentCombatActors(session.ObjectiveKind)} cohesionRadius={PullCohesionRadius(false, bot.CurrentZone?.IsDungeon == true)} " +
                    $"hp={bot.HealthPercent} power={bot.ManaPercent} end={bot.EndurancePercent} aggro={(bot.Brain as BotBrain)?.HasAggro}";
         }
     }

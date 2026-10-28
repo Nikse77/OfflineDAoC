@@ -1682,6 +1682,9 @@ namespace DOL.AI.Brain
 
         private string _lastBetweenTaskPurchaseAssignment = string.Empty; // Ordinary vendor purchase throttle only.
 
+        // How long the merchant handler still waits before its next turn (diagnostics of a bot standing at a merchant).
+        internal long MerchantServiceWaitMilliseconds => Math.Max(0, _nextMerchantServiceTick - GameLoop.GameLoopTime);
+
         private long _nextArrivedServiceWarning;
         internal bool TryUseArrivedAutonomousService(GameNPC service)
         {

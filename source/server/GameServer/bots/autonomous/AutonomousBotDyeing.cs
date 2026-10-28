@@ -317,6 +317,31 @@ namespace DOL.GS
                     bot, merchant.CurrentRegionID, merchant.X, merchant.Y) <= MaximumTripMinutes);
         }
 
+        /// <summary>Every gate of <see cref="TryDyeAtMerchant"/> as it reads now, for the miss report of a bot that stands at a
+        /// merchant and buys nothing (2026-10-28: 14 such bots in 47 minutes with every outer gate in order).</summary>
+        public static string DescribeGates(GameBot bot, GameMerchant merchant)
+        {
+            try
+            {
+                bool plan = TryPlan(bot, out int color, out var pieces);
+                Offer[] offers = merchant?.TradeItems == null ? Array.Empty<Offer>() : OffersOf(merchant);
+                long ceiling = PriceCeiling(AutonomousBotEconomy.GetMoney(bot.DatabaseID));
+                string models = plan ? string.Join('/', pieces.Select(piece => piece.DyeModel).Distinct()) : "-";
+                int forColor = plan ? offers.Count(offer => offer.Color == color) : 0;
+                int forPieces = plan ? offers.Count(offer => offer.Color == color && pieces.Any(piece => piece.DyeModel == offer.DyeModel)) : 0;
+                int affordable = plan ? offers.Count(offer => offer.Color == color && offer.Price <= ceiling &&
+                                                              pieces.Any(piece => piece.DyeModel == offer.DyeModel)) : 0;
+                return $"dyeing={IsDyeingBot(bot)} capital={IsRealmCapital(bot, merchant)} inStock={CapitalStock(bot.Realm).Any(entry => entry.Merchant == merchant)} " +
+                       $"tripWaitMs={Math.Max(0, TripOf(bot).NextTripTick - GameLoop.GameLoopTime)} inRadius={merchant?.IsWithinRadius(bot, DOL.GS.ServerProperties.Properties.WORLD_PICKUP_DISTANCE)} " +
+                       $"plan={plan} color={color} pieces={pieces?.Count ?? 0} models={models} offers={offers.Length} offersForColor={forColor} " +
+                       $"offersForPieces={forPieces} affordable={affordable} ceiling={ceiling}";
+            }
+            catch (Exception ex)
+            {
+                return "gates failed: " + ex.Message;
+            }
+        }
+
         /// <summary>A bot that stood a minute beside a dye merchant without a transaction (Yria, 2026-10-28: fifteen minutes at
         /// Alleca Gunderson after tinting at Greip) is done with this merchant: it counts as passed, the miss is reported with the
         /// reason, and the trip goes on to the next merchant or ends.</summary>

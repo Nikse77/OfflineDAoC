@@ -1173,7 +1173,9 @@ namespace DOL.GS
                     AutonomousBotDyeing.GiveUpAtMerchant(bot, dyeMerchant,
                         $"stood a minute beside the merchant without a transaction (wantsInventory={AutonomousObjectiveAssignments.WantsBetweenTaskInventory(bot)} " +
                         $"expired={AutonomousObjectiveAssignments.BetweenTaskServiceExpired(bot)} grouped={bot.Group != null} combat={bot.InCombat} " +
-                        $"attacking={bot.IsAttacking} casting={bot.IsCasting} moving={bot.IsMoving})");
+                        $"attacking={bot.IsAttacking} casting={bot.IsCasting} moving={bot.IsMoving} " +
+                        $"merchantWaitMs={(bot.Brain as BotBrain)?.MerchantServiceWaitMilliseconds}) " +
+                        AutonomousBotDyeing.DescribeGates(bot, dyeMerchant));
                     _serviceNpc = null;
                     _serviceKind = null;
                     _nextServiceSearchTick = 0;
