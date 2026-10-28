@@ -178,7 +178,8 @@ public sealed partial class AutonomousWorldBotController
                 nearby.OfType<GameSiegeWeapon>().Cast<GameLiving>().ToArray(), Visible)
             : _frontierThreat.Visible(nearby, target => FiringOnRealm(bot, target) || nav.HasLineOfSight(bot.CurrentZone,
                 new(bot.X, bot.Y, bot.Z), new(target.X, target.Y, target.Z), nav.DefaultFilters));
-        var visibleTargets=visible.ToArray();
+        // A player is always preferred over its pet (owner 2026-10-28): pets are targets only when no player is in view.
+        var visibleTargets = AutonomousPetTargeting.WithoutPetsWhenPlayersPresent(visible.ToArray(), AutonomousPetTargeting.IsPlayerPet).ToArray();
         var operatorThreats=visibleTargets.Where(target=>target.IsAttacking && target.TargetObject is GameBot friendly &&
             friendly.Realm==bot.Realm && bot.IsWithinRadius(friendly,1000) && BotSiegeRuntime.HoldingPosition(friendly)).ToArray();
         GameLiving enemy = SelectDistributedRvrTarget(bot, operatorThreats.Length>0 ? operatorThreats : visibleTargets);

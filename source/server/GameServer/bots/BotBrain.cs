@@ -3097,7 +3097,7 @@ namespace DOL.AI.Brain
             // protecting a group member. Generic aggro may still contain the
             // previous pull and used to make archers/casters repeatedly switch
             // away from the fight their pet had already started.
-            Body.TargetObject = protectionTarget ?? directAttacker ?? activePetTarget ?? CalculateNextAttackTarget();
+            Body.TargetObject = PreferPlayerOverPet(protectionTarget ?? directAttacker ?? activePetTarget ?? CalculateNextAttackTarget());
             // A tethered boss outside its tether is immune: stop hitting it and lead it home (AutonomousTetherReset).
             if (Body.TargetObject is GameNPC tetheredBoss && AutonomousTetherReset.TryHandle(BotBody, tetheredBoss))
                 return;
@@ -3553,6 +3553,31 @@ namespace DOL.AI.Brain
                 Body.StartAttack(target);
             }
             return true;
+        }
+
+        /// <summary>
+        /// Owner 2026-10-28: in a battleground the opposing bots changed target to hit the pets (a pet that struck the bot became
+        /// its direct attacker, or its threat rose above the player's). A player is always preferred over its pet: the pet's
+        /// owner when it is there to be attacked, else the player with the most threat on the list.
+        /// </summary>
+        private GameLiving PreferPlayerOverPet(GameLiving chosen)
+        {
+            GameBot bot = BotBody;
+            if (chosen == null || bot?.IsAutonomousWorldBot != true || !BattlegroundBrackets.IsBattlegroundRegion(bot.CurrentRegionID) ||
+                !AutonomousPetTargeting.IsPlayerPet(chosen))
+                return chosen;
+
+            bool Usable(GameLiving candidate) => candidate != null && candidate != bot && !candidate.IsStealthed &&
+                                                 Body.IsWithinRadius(candidate, 1500) && CanDefendAgainst(candidate);
+            GameLiving owner = (chosen as GameNPC)?.Brain is IControlledBrain petBrain ? petBrain.GetLivingOwner() : null;
+            GameLiving preferred = Usable(owner) ? owner
+                : AggroList.Where(pair => pair.Key is GamePlayer or GameBot && !AutonomousPetTargeting.IsPlayerPet(pair.Key) && Usable(pair.Key))
+                    .OrderByDescending(pair => pair.Value.Base).Select(pair => pair.Key).FirstOrDefault();
+            if (preferred == null)
+                return chosen;
+            if (!AggroList.ContainsKey(preferred))
+                AddToAggroList(preferred, Math.Max(100, preferred.EffectiveLevel * 12));
+            return preferred;
         }
 
         private GameLiving RecentDirectAttacker()
