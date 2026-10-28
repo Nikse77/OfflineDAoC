@@ -173,6 +173,10 @@ The newest version is first. For the full detail of every earlier update, see
   and /hide work. While hidden you, and stealthed group members you can still see, are drawn as a dark green
   ghostly form; enemies who can't detect a stealther still don't see it at all. The Stealth buff also shows its own
   icon instead of another spell's picture.
+- The new client no longer freezes after a teleport. Right after /tc (or any region change, or a neighbouring zone
+  loading in), it could lock up for good and show "Not Responding": the background zone loaders were touching the
+  graphics card while it was drawing. They now leave those steps to the game's main thread, a little at a time, so
+  nothing stutters, and region changes load a bit faster than before.
 
 **Credits**
 - Thanks to chris4aker's Living Server fork
