@@ -1931,9 +1931,27 @@ namespace DOL.AI.Brain
                 return true;
             }
 
-            if (AutonomousBotDyeing.TryDyeAtMerchant(bot, merchant, out int dyed, out long dyeSpent))
+            // The merchant picked above is the nearest one, and in a capital that is often not the dye merchant the world controller
+            // walked the bot to (2026-10-28: 16 bots stood a minute beside a dye merchant while the nearest merchant, which sells no
+            // dye, took every turn and its 20-40 s wait). Every merchant in reach gets the dye step.
+            GameMerchant dyeMerchant = null;
+            int dyed = 0;
+            long dyeSpent = 0;
+            foreach (GameMerchant candidate in new[] { merchant }.Concat(bot.GetNPCsInRadius(interactionRadius).OfType<GameMerchant>()
+                         .Where(other => other != merchant && other.ObjectState == GameObject.eObjectState.Active &&
+                                         other.IsWithinRadius(bot, interactionRadius) &&
+                                         (other.Realm == eRealm.None || other.Realm == bot.Realm))
+                         .OrderBy(other => bot.GetDistanceTo(other))))
             {
-                SetMerchantStatus(bot, $"Tinted {dyed} pieces at {merchant.Name}", $"Spent {dyeSpent} saved copper on cheap dyes");
+                if (AutonomousBotDyeing.TryDyeAtMerchant(bot, candidate, out dyed, out dyeSpent))
+                {
+                    dyeMerchant = candidate;
+                    break;
+                }
+            }
+            if (dyeMerchant != null)
+            {
+                SetMerchantStatus(bot, $"Tinted {dyed} pieces at {dyeMerchant.Name}", $"Spent {dyeSpent} saved copper on cheap dyes");
                 AutonomousStuckWatchdog.MarkProgress(bot, eAutonomousProgressKind.Money);
                 AutonomousObjectiveAssignments.TryCompleteBetweenTaskServicesIfSatisfied(bot);
                 _nextMerchantServiceTick = now + 3_000;
