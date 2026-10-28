@@ -13,6 +13,11 @@ namespace DOL.GS
     {
         public const int ContactRadius = 400;
         public const int TimeoutMilliseconds = 30_000;
+        // Owner 2026-10-28: parties stood at their camp for fifteen minutes and more with the puller "ranged pulling" and nothing
+        // shot (a spell it could not cast, no line of sight, out of range): each attempt ended silently after 30 s and the next
+        // began 10 s later, for ever. After this many attempts without a shot the party pulls the ordinary way for a while.
+        public const int MaximumFailedAttempts = 2;
+        public const int MeleeFallbackMilliseconds = 300_000;
         private sealed class State
         {
             public GameBot[] Members;
@@ -24,6 +29,8 @@ namespace DOL.GS
             public readonly Dictionary<IControlledBrain, eAggressionState> Pets = new();
             public long Until, RetryAfter, NextMove;
             public bool Shot, Active;
+            public int Failures;
+            public long MeleeFallbackUntil;
         }
         private static readonly ConditionalWeakTable<Group, State> States = new();
         private static readonly ConditionalWeakTable<GameBot, State> Holding = new();
@@ -176,6 +183,7 @@ namespace DOL.GS
             lock (state)
             {
                 if (state.Active) return true;
+                if (!flyingHandoff && !companionPull && GameLoop.GameLoopTime < state.MeleeFallbackUntil) return false;
                 // A player's /pull or /grind is paced by the player; the autonomous 10-30 s retry gate does not apply.
                 if (!companionPull && GameLoop.GameLoopTime < state.RetryAfter) return true;
                 GameBot[] members = shooter.Group.GetMembersInTheGroup().OfType<GameBot>().ToArray();
@@ -282,6 +290,8 @@ namespace DOL.GS
                         member.CurrentRegion != state.Shooter.CurrentRegion || member.IsOnStableMasterRoute) ||
                     state.Target.CurrentRegion != bot.CurrentRegion || GameLoop.GameLoopTime >= state.Until)
                 {
+                    if (!state.Shot && GameLoop.GameLoopTime >= state.Until)
+                        RecordFailedAttempt(state);
                     Finish(state, false);
                     return false;
                 }
@@ -329,6 +339,7 @@ namespace DOL.GS
                 if (!state.Active || state.Shooter != actor || attack?.Attacker != actor ||
                     attack.Target != state.Target || !attack.CausesCombat) return;
                 state.Shot = true;
+                state.Failures = 0;
                 state.Shooter.StopAttack();
             }
         }
@@ -345,6 +356,38 @@ namespace DOL.GS
         {
             if (group == null || !States.TryGetValue(group, out State state)) return;
             lock (state) if (state.Active) Finish(state, false);
+        }
+
+        // An attempt that ran out its 30 s without a shot says why (the shooter's own view) and, at the second one in a row, hands
+        // the party to the ordinary pull for five minutes.
+        private static void RecordFailedAttempt(State state)
+        {
+            GameBot shooter = state.Shooter;
+            state.Failures++;
+            bool fallBack = state.Failures >= MaximumFailedAttempts;
+            try
+            {
+                int range = state.Spell?.Range ?? shooter.attackComponent.AttackRange;
+                bool lineOfSight = PathfindingProvider.Instance.HasLineOfSight(shooter.CurrentZone, new(shooter.X, shooter.Y, shooter.Z),
+                    new(state.Target.X, state.Target.Y, state.Target.Z), PathfindingProvider.Instance.DefaultFilters);
+                LoggerManager.Create(typeof(AutonomousDefensivePull)).Warn(
+                    $"AUTONOMOUS_DEFENSIVE_PULL_FAILED group={shooter.Group?.GetHashCode()} shooter={shooter.Name} class={shooter.ClassName} level={shooter.Level} " +
+                    $"target={state.Target.Name} spell={state.Spell?.Name ?? "distance weapon"} range={range} " +
+                    $"distanceToTarget={(int)shooter.GetDistanceTo(state.Target)} " +
+                    $"distanceToFiringPoint={(int)Vector3.Distance(new(shooter.X, shooter.Y, shooter.Z), state.FiringPoint)} lineOfSight={lineOfSight} " +
+                    $"mana={shooter.Mana} cost={(state.Spell == null ? 0 : shooter.PowerCost(state.Spell))} " +
+                    $"disabledMs={(state.Spell == null ? 0 : shooter.GetSkillDisabledDuration(state.Spell))} casting={shooter.IsCasting} " +
+                    $"crowdControlled={shooter.IsCrowdControlled} failures={state.Failures} meleeFallback={fallBack}");
+            }
+            catch (Exception)
+            {
+                // The report is diagnostics only (and needs a live logger and navmesh): the fallback below never depends on it.
+            }
+            if (fallBack)
+            {
+                state.Failures = 0;
+                state.MeleeFallbackUntil = GameLoop.GameLoopTime + MeleeFallbackMilliseconds;
+            }
         }
 
         private static void Finish(State state, bool engage)
