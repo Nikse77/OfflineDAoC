@@ -18,6 +18,7 @@ namespace DOL.GS.Keeps
 
         private int _oldMaxHealth;
         private byte _oldHealthPercent;
+        private int _loggedDamageStage;
 
         private bool _relicMessage75;
         private bool _relicMessage50;
@@ -144,6 +145,7 @@ namespace DOL.GS.Keeps
                 Component.Keep.LastAttackedByEnemyTick = CurrentRegion.Time;
                 AutonomousRvrEventLayer.ObserveKeepAttack(Component.Keep, source);
                 base.TakeDamage(source, damageType, damageAmount, criticalAmount);
+                LogBattlegroundDamage(source);
 
                 //only on hp change
                 if (_oldHealthPercent != HealthPercent)
@@ -541,12 +543,33 @@ namespace DOL.GS.Keeps
 
         #endregion
 
+        /// <summary>Battleground door wear for the assault diagnostics (2026-10-28: bots were held at closed keep doors and no log
+        /// said whether anyone battered them): one line each time the door drops a third of its health, none for the rest.</summary>
+        private void LogBattlegroundDamage(GameObject source)
+        {
+            int stage = HealthPercent > 66 ? 0 : HealthPercent > 33 ? 1 : 2;
+            if (stage <= _loggedDamageStage)
+            {
+                if (stage == 0)
+                    _loggedDamageStage = 0;
+                return;
+            }
+            _loggedDamageStage = stage;
+            if (BattlegroundBrackets.IsBattlegroundRegion(CurrentRegionID) && log.IsInfoEnabled)
+                log.Info($"BG_KEEP_DOOR_DAMAGE door={DoorId} name=\"{Name}\" keep=\"{Component?.Keep?.Name}\" region={CurrentRegionID} " +
+                         $"keepRealm={Component?.Keep?.Realm} health={HealthPercent}% attacker=\"{source?.Name}\" " +
+                         $"attackerType={source?.GetType().Name} attackerRealm={source?.Realm}");
+        }
+
         /// <summary>
         /// This function is called when door "die" to open door
         /// </summary>
         public override void Die(GameObject killer)
         {
             base.Die(killer);
+            if (BattlegroundBrackets.IsBattlegroundRegion(CurrentRegionID) && log.IsInfoEnabled)
+                log.Info($"BG_KEEP_DOOR_BROKEN door={DoorId} name=\"{Name}\" keep=\"{Component?.Keep?.Name}\" region={CurrentRegionID} " +
+                         $"keepRealm={Component?.Keep?.Realm} killer=\"{killer?.Name}\" killerType={killer?.GetType().Name} killerRealm={killer?.Realm}");
 
             foreach (GamePlayer player in GetPlayersInRadius(WorldMgr.INFO_DISTANCE))
                 player.Out.SendMessage($"The {Name} is broken!", eChatType.CT_System, eChatLoc.CL_SystemWindow);
