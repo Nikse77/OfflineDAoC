@@ -1103,6 +1103,45 @@ public static partial class AutonomousBotGroupCoordinator
         }
     }
 
+    /// <summary>
+    /// Why the party's puller cannot start a fight now: the same gates as <see cref="CanInitiateNewPull"/>, named, for the
+    /// pull-hold trace (diagnostics only). Run 2026-10-28: two Midgard parties of 5 and 6 stood 30 minutes at their Vanern Swamp
+    /// camps, unhurt and within 100 units of each other, until the watchdog ended both tasks with 28 and 33 minutes left.
+    /// </summary>
+    public static string DescribePullVeto(GameBot bot, out string puller)
+    {
+        puller = string.Empty;
+        if (bot?.Group == null) return "no-group";
+        lock (Sync)
+        {
+            Group group = bot.Group;
+            if (group == null || !Sessions.TryGetValue(group, out Session session)) return "no-session";
+            GameBot[] members = BotMembers(group);
+            GameBot leader = ChooseLeader(session, members);
+            GameBot designated = ChoosePuller(session, members);
+            puller = designated?.Name ?? "none";
+            if (leader == null) return "no-leader";
+            List<string> reasons = new();
+            if (IsAssemblyPhase(session.Phase)) reasons.Add("assembly");
+            if (session.Recovery.IsRegrouping) reasons.Add("regrouping");
+            if (session.Recovery.HasCasualty(RecoveryMembers(session, members, false))) reasons.Add("casualty");
+            if (session.RecoveringBetweenPulls) reasons.Add("recoveringBetweenPulls");
+            foreach (GameBot member in members)
+            {
+                if (!ReadyForGroupPull(member.HealthPercent, member.ManaPercent, member.EndurancePercent, member.MaxMana > 0))
+                    reasons.Add($"notReady({member.Name} {member.ClassName} hp={member.HealthPercent} power={member.ManaPercent} end={member.EndurancePercent} resting={member.IsRecoveryResting})");
+                if (member.IsOnStableMasterRoute) reasons.Add($"stableRoute({member.Name})");
+                if (member.CurrentRegionID != leader.CurrentRegionID) reasons.Add($"otherRegion({member.Name})");
+                else if (member.GetDistanceTo(leader) > PullCohesionRadius(false, bot.CurrentZone?.IsDungeon == true))
+                    reasons.Add($"far({member.Name} {member.GetDistanceTo(leader)})");
+            }
+            if (session.ObjectiveKind == eAutonomousObjectiveKind.GroupPve && !HasActivePveComposition(session, members))
+                reasons.Add("composition");
+            if (members.Length < 2) reasons.Add("alone");
+            return reasons.Count == 0 ? "none" : string.Join(",", reasons);
+        }
+    }
+
     // A corridor monster can separate followers from their leader by more than
     // the normal 500-unit formation radius. Let the designated tank clear that
     // obstruction; otherwise nobody may cross it to satisfy the pull gate.

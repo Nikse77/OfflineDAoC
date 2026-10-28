@@ -163,6 +163,7 @@ namespace DOL.GS
         private string _lastFailedTargetName = string.Empty;
         private AutonomousBotGroupCoordinator.Directive _groupDirective;
         private Group _observedGroup;
+        private long _pullHoldSinceTick, _pullHoldLastTick, _nextPullHoldTraceTick;
         private long _nextGroupPulseTick;
         private string _activeDynamicGroupId = string.Empty;
         private bool _regroupRouteCleared;
@@ -1543,6 +1544,21 @@ namespace DOL.GS
             return true;
         }
 
+        // A party that holds before a pull for three minutes says why, every five minutes (see DescribePullVeto).
+        private void TraceGroupPullHold(GameBot bot, AutonomousBotGroupCoordinator.Directive directive)
+        {
+            long now = GameLoop.GameLoopTime;
+            if (_pullHoldSinceTick == 0 || now - _pullHoldLastTick > 60_000)
+                _pullHoldSinceTick = now;
+            _pullHoldLastTick = now;
+            if (now - _pullHoldSinceTick < 180_000 || now < _nextPullHoldTraceTick) return;
+            _nextPullHoldTraceTick = now + 300_000;
+            string veto = AutonomousBotGroupCoordinator.DescribePullVeto(bot, out string puller);
+            Log.Warn($"AUTONOMOUS_GROUP_PULL_HOLD group={directive.GroupId} leader={bot.Name} puller={puller} phase={directive.Phase} " +
+                     $"size={bot.Group?.MemberCount} heldSeconds={(now - _pullHoldSinceTick) / 1000} camp=\"{_camp?.Id}\" " +
+                     $"position={bot.X},{bot.Y},{bot.Z} reasons=\"{veto}\"");
+        }
+
         private bool HoldBeforeNewGroupPull(BotBrain brain, GameBot bot)
         {
             if (AutonomousBotGroupCoordinator.CanInitiateNewPull(bot)) return false;
@@ -1554,6 +1570,7 @@ namespace DOL.GS
                 return HandleGroupRendezvous(bot, _groupDirective);
             if (_groupDirective.Leader != bot)
                 return FollowDynamicGroupLeader(bot, _groupDirective);
+            TraceGroupPullHold(bot, _groupDirective);
             bot.StopMovingOnPath();
             bot.StopMoving();
             SetStatus(bot, "Holding group formation", _groupDirective.SharedGoal,
