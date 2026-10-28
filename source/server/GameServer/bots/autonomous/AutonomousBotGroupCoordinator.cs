@@ -1154,6 +1154,32 @@ public static partial class AutonomousBotGroupCoordinator
         }
     }
 
+    /// <summary>
+    /// The pull gates as the designated puller itself sees them (diagnostics only). Run 2026-10-28: a party stood 30 minutes at
+    /// its camp, the leader holding and the puller following the leader, while <see cref="DescribePullVeto"/> named no gate.
+    /// </summary>
+    public static string DescribePullerView(GameBot bot, out string designatedPuller)
+    {
+        designatedPuller = string.Empty;
+        if (bot?.Group == null) return "no-group";
+        lock (Sync)
+        {
+            if (!Sessions.TryGetValue(bot.Group, out Session session)) return "no-session";
+            GameBot[] members = BotMembers(bot.Group);
+            GameBot leader = ChooseLeader(session, members);
+            GameBot designated = ChoosePuller(session, members);
+            designatedPuller = designated?.Name ?? "none";
+            return $"canInitiate={CanInitiateNewPull(bot)} isDesignated={bot == designated} sessionPuller={session.Puller?.Name ?? "none"} " +
+                   $"leader={leader?.Name ?? "none"} phase={session.Phase} assembly={IsAssemblyPhase(session.Phase)} " +
+                   $"regrouping={session.Recovery.IsRegrouping} recoveringBetweenPulls={session.RecoveringBetweenPulls} " +
+                   $"casualty={session.Recovery.HasCasualty(RecoveryMembers(session, members, false))} " +
+                   $"membersReady={MembersReadyForPull(members)} composition={HasActivePveComposition(session, members)} " +
+                   $"defensivePull={UsesDefensivePullGroup(bot.Group)} " +
+                   $"distanceToLeader={(leader == null ? -1 : (int)bot.GetDistanceTo(leader))} " +
+                   $"hp={bot.HealthPercent} power={bot.ManaPercent} end={bot.EndurancePercent} aggro={(bot.Brain as BotBrain)?.HasAggro}";
+        }
+    }
+
     // A corridor monster can separate followers from their leader by more than
     // the normal 500-unit formation radius. Let the designated tank clear that
     // obstruction; otherwise nobody may cross it to satisfy the pull gate.

@@ -170,6 +170,7 @@ namespace DOL.GS
         private AutonomousBotGroupCoordinator.Directive _groupDirective;
         private Group _observedGroup;
         private long _pullHoldSinceTick, _pullHoldLastTick, _nextPullHoldTraceTick;
+        private long _pullerFollowSinceTick, _pullerFollowLastTick, _nextPullerFollowTraceTick;
         private long _nextGroupPulseTick;
         private string _activeDynamicGroupId = string.Empty;
         private bool _regroupRouteCleared;
@@ -1601,6 +1602,22 @@ namespace DOL.GS
                      $"position={bot.X},{bot.Y},{bot.Z} reasons=\"{veto}\"");
         }
 
+        // The puller that follows the leader instead of pulling for three minutes says why, every five minutes
+        // (see DescribePullerView).
+        private void TracePullerFollowing(GameBot bot, AutonomousBotGroupCoordinator.Directive directive)
+        {
+            long now = GameLoop.GameLoopTime;
+            if (_pullerFollowSinceTick == 0 || now - _pullerFollowLastTick > 60_000)
+                _pullerFollowSinceTick = now;
+            _pullerFollowLastTick = now;
+            if (now - _pullerFollowSinceTick < 180_000 || now < _nextPullerFollowTraceTick) return;
+            _nextPullerFollowTraceTick = now + 300_000;
+            string view = AutonomousBotGroupCoordinator.DescribePullerView(bot, out string designated);
+            Log.Warn($"AUTONOMOUS_GROUP_PULLER_FOLLOWS group={directive.GroupId} puller={bot.Name} designated={designated} " +
+                     $"followingSeconds={(now - _pullerFollowSinceTick) / 1000} phase={directive.Phase} camp=\"{_camp?.Id}\" " +
+                     $"position={bot.X},{bot.Y},{bot.Z} {view}");
+        }
+
         private bool HoldBeforeNewGroupPull(BotBrain brain, GameBot bot)
         {
             if (AutonomousBotGroupCoordinator.CanInitiateNewPull(bot)) return false;
@@ -1611,7 +1628,11 @@ namespace DOL.GS
             if (AutonomousBotGroupCoordinator.IsAssemblyPhase(_groupDirective.Phase))
                 return HandleGroupRendezvous(bot, _groupDirective);
             if (_groupDirective.Leader != bot)
+            {
+                if (_groupDirective.Puller == bot)
+                    TracePullerFollowing(bot, _groupDirective);
                 return FollowDynamicGroupLeader(bot, _groupDirective);
+            }
             TraceGroupPullHold(bot, _groupDirective);
             bot.StopMovingOnPath();
             bot.StopMoving();
