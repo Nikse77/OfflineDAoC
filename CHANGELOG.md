@@ -125,6 +125,12 @@ The newest version is first. For the full detail of every earlier update, see
   so a following /invite found no target. (From the chris4aker/OfflineDAoC-SocialExpansion fork.)
 - Abilities such as Sprint, Stealth and Quickcast can be dragged onto the quickbar, as the skills sheet says.
   (From the chris4aker/OfflineDAoC-SocialExpansion fork.)
+- Stealth works. Stealth is a specialization, not an ability, and the new client had no way to use it: it was
+  missing from the Abilities window, could not go on the quickbar, and /stealth answered "unrecognized command"
+  (issue #16). Stealth now has its own row in the Abilities window to click or drag onto the quickbar, and /stealth
+  and /hide work. While hidden you, and stealthed group members you can still see, are drawn as a dark green
+  ghostly form; enemies who can't detect a stealther still don't see it at all. The Stealth buff also shows its own
+  icon instead of another spell's picture.
 
 **Credits**
 - Thanks to the [chris4aker/OfflineDAoC-SocialExpansion](https://github.com/chris4aker/OfflineDAoC-SocialExpansion)
