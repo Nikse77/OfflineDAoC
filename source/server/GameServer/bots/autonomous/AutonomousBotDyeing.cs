@@ -56,6 +56,7 @@ namespace DOL.GS
         }
 
         private static readonly ConcurrentDictionary<long, Trip> Trips = new();
+        private static readonly ConcurrentDictionary<long, long> LastMissReport = new();
         private static readonly ConcurrentDictionary<eRealm, (long ExpiresTick, MerchantStock[] Stock)> StockCache = new();
 
         /// <summary>Which dye model colours an item worn in this slot (0: none). Mirrors GamePlayerInventory.DyeItem.</summary>
@@ -275,6 +276,24 @@ namespace DOL.GS
             return NextMerchant(bot, color, pieces) != null || FinishTrip(bot, "no merchant in reach", RetryDelay);
         }
 
+        /// <summary>Whether the bot has already been served (or tried) at this merchant on its current trip: the world controller
+        /// then looks for the next one instead of keeping the bot where it stands.</summary>
+        public static bool HasPassed(GameBot bot, GameMerchant merchant) =>
+            merchant != null && bot?.DatabaseID > 0 && TripOf(bot).Visited.Contains(merchant.ObjectID);
+
+        /// <summary>One line per bot every five minutes saying why a bot at a capital dye merchant bought nothing (2026-10-28: a
+        /// Friar stood fifteen minutes at Dyemaster Emma and nothing said why).</summary>
+        private static void ReportMiss(GameBot bot, GameMerchant merchant, string reason)
+        {
+            long now = GameLoop.GameLoopTime;
+            if (LastMissReport.TryGetValue(bot.DatabaseID, out long last) && now - last < 5 * 60_000) return;
+            LastMissReport[bot.DatabaseID] = now;
+            if (Log.IsInfoEnabled)
+                Log.Info($"AUTONOMOUS_DYE_MISS bot=\"{bot.Name}\" id={bot.DatabaseID} level={bot.Level} class=\"{bot.ClassName}\" " +
+                         $"merchant=\"{merchant?.Name}\" reason=\"{reason}\" money={AutonomousBotEconomy.GetMoney(bot.DatabaseID)} " +
+                         $"ceiling={PriceCeiling(AutonomousBotEconomy.GetMoney(bot.DatabaseID))} visited={TripOf(bot).Visited.Count}");
+        }
+
         /// <summary>The nearest capital merchant (not yet passed on this trip) that sells the bot's colour for a piece it still
         /// has to tint, or null.</summary>
         public static GameMerchant FindTripMerchant(GameBot bot)
@@ -321,10 +340,18 @@ namespace DOL.GS
             dyed = 0;
             spent = 0;
             if (!IsDyeingBot(bot) || !IsRealmCapital(bot, merchant) || merchant.TradeItems == null ||
-                GameLoop.GameLoopTime < TripOf(bot).NextTripTick ||
-                !merchant.IsWithinRadius(bot, DOL.GS.ServerProperties.Properties.WORLD_PICKUP_DISTANCE) ||
-                !TryPlan(bot, out int color, out var pieces))
+                GameLoop.GameLoopTime < TripOf(bot).NextTripTick)
                 return false;
+            if (!merchant.IsWithinRadius(bot, DOL.GS.ServerProperties.Properties.WORLD_PICKUP_DISTANCE))
+            {
+                ReportMiss(bot, merchant, "out of reach of the merchant");
+                return false;
+            }
+            if (!TryPlan(bot, out int color, out var pieces))
+            {
+                ReportMiss(bot, merchant, "no colour or no piece to tint that the bot can pay for");
+                return false;
+            }
 
             Trip trip = TripOf(bot);
             trip.Visited.Add(merchant.ObjectID);
@@ -347,6 +374,10 @@ namespace DOL.GS
                 spent += options[0].Price;
             }
 
+            if (dyed == 0)
+                ReportMiss(bot, merchant, $"the merchant sells nothing for colour {color} within the ceiling " +
+                                          $"(pieces {pieces.Count}, models {string.Join('/', pieces.Select(piece => piece.DyeModel).Distinct())}, " +
+                                          $"offers {offers.Length})");
             if (dyed > 0)
             {
                 bot.BroadcastLivingEquipmentUpdate();

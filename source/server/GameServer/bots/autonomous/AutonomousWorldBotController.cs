@@ -1010,6 +1010,15 @@ namespace DOL.GS
                 return false;
             }
 
+            if (needed == eWorldServiceKind.DyeMerchant && _serviceNpc is GameMerchant served &&
+                AutonomousBotDyeing.HasPassed(bot, served))
+            {
+                // Already tried here: the bot used to stay at this merchant, the chosen NPC being kept while the need stays the same.
+                _serviceNpc = null;
+                _serviceKind = null;
+                _nextServiceSearchTick = 0;
+            }
+
             if (_serviceNpc?.ObjectState is not GameObject.eObjectState.Active || _serviceKind != needed)
             {
                 // A failed search is repeated at most every ten seconds for the
@@ -1575,10 +1584,14 @@ namespace DOL.GS
                 _pullHoldSinceTick = now;
             _pullHoldLastTick = now;
             if (now - _pullHoldSinceTick < 180_000 || now < _nextPullHoldTraceTick) return;
+            // A leader that is not the puller always waits while the puller fights (43 such lines in 47 minutes, all with no
+            // reason): only a party without shared progress (experience, leader moving) for three minutes is worth a line.
+            long idle = AutonomousBotGroupCoordinator.GroupIdleSeconds(bot);
+            if (idle < 180) return;
             _nextPullHoldTraceTick = now + 300_000;
             string veto = AutonomousBotGroupCoordinator.DescribePullVeto(bot, out string puller);
             Log.Warn($"AUTONOMOUS_GROUP_PULL_HOLD group={directive.GroupId} leader={bot.Name} puller={puller} phase={directive.Phase} " +
-                     $"size={bot.Group?.MemberCount} heldSeconds={(now - _pullHoldSinceTick) / 1000} camp=\"{_camp?.Id}\" " +
+                     $"size={bot.Group?.MemberCount} heldSeconds={(now - _pullHoldSinceTick) / 1000} idleSeconds={idle} camp=\"{_camp?.Id}\" " +
                      $"position={bot.X},{bot.Y},{bot.Z} reasons=\"{veto}\"");
         }
 

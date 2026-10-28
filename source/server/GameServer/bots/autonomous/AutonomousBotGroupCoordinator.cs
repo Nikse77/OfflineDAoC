@@ -1103,6 +1103,18 @@ public static partial class AutonomousBotGroupCoordinator
         }
     }
 
+    /// <summary>Seconds since the party last made shared progress (experience gained, or the leader moved 96 units), or -1 when
+    /// it is not tracked: a party whose leader waits while its puller fights is not idle.</summary>
+    public static long GroupIdleSeconds(GameBot bot)
+    {
+        if (bot?.Group == null) return -1;
+        lock (Sync)
+        {
+            if (!Sessions.TryGetValue(bot.Group, out Session session) || session.SharedWatchdogProgressTick == 0) return -1;
+            return Math.Max(0, (GameLoop.GameLoopTime - session.SharedWatchdogProgressTick) / 1000);
+        }
+    }
+
     /// <summary>
     /// Why the party's puller cannot start a fight now: the same gates as <see cref="CanInitiateNewPull"/>, named, for the
     /// pull-hold trace (diagnostics only). Run 2026-10-28: two Midgard parties of 5 and 6 stood 30 minutes at their Vanern Swamp
