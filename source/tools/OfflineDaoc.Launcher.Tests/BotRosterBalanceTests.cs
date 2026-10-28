@@ -49,6 +49,22 @@ public class BotRosterBalanceTests
         Assert.That(counts.Count, Is.GreaterThanOrEqualTo(8));
     }
 
+    [TestCase(1)]
+    [TestCase(2)]
+    [TestCase(3)]
+    public void GenerateBalancedMakesEveryBotOfAPoolClass(int realm)
+    {
+        var reserved = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var counts = new Dictionary<int, int>();
+        for (int index = 0; index < 200; index++)
+        {
+            var identity = BotCharacterGenerator.GenerateBalanced(realm, reserved, allowSluaghbinder: false, counts);
+            Assert.That(identity.Realm, Is.EqualTo(realm));
+            Assert.That(identity.ClassId, Is.Not.EqualTo(63));
+        }
+        Assert.That(counts.Values.Sum(), Is.EqualTo(200));
+    }
+
     [Test]
     public void APaladinIsATankNotAHealer()
     {

@@ -151,10 +151,16 @@ internal static class BotCharacterGenerator
         int gender = Random.Shared.Next(1, 3);
         // The "no custom class" edition (0.33, 0.34, 0.35; classes/enable_sluaghbinder = False) never rolls class 63.
         Choice[] pool = allowSluaghbinder ? Choices[realm] : Choices[realm].Where(entry => entry.ClassId != 63).ToArray();
-        Choice choice = classCounts == null
-            ? pool[Random.Shared.Next(pool.Length)]
-            : pool.First(entry => entry.ClassId == ChooseBalancedClass(pool.Select(entry => entry.ClassId).ToArray(),
-                (IReadOnlyDictionary<int, int>)classCounts, Random.Shared));
+        Choice choice;
+        if (classCounts == null)
+            choice = pool[Random.Shared.Next(pool.Length)];
+        else
+        {
+            // Rolled once: the choice is random among equal gaps, so asking again for each class would not agree with itself.
+            int classId = ChooseBalancedClass(pool.Select(entry => entry.ClassId).ToArray(),
+                (IReadOnlyDictionary<int, int>)classCounts, Random.Shared);
+            choice = pool.First(entry => entry.ClassId == classId);
+        }
         if (classCounts != null)
             classCounts[choice.ClassId] = (classCounts.TryGetValue(choice.ClassId, out int existing) ? existing : 0) + 1;
         var race = choice.Races[Random.Shared.Next(choice.Races.Length)];
