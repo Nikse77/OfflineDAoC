@@ -49,6 +49,35 @@ The newest version is first. For the full detail of every earlier update, see
   the group goes on without it, instead of waiting the full fifteen minutes (a low-level group was seen dying
   about 70 times near its meetup during one wait and then being dropped anyway). (From the
   chris4aker/OfflineDAoC-SocialExpansion fork.)
+- Bots and companions use their area spells on two or more monsters (GitHub issue #17). Point blank spells (centred on
+  the caster) were never cast at all, because of a range check that could not pass. Now:
+  - Thanes, Reavers, Clerics and Shamans use their instant point blank spells when two or more monsters already in the
+    fight are around them.
+  - Wizards, Theurgists, Eldritches, Enchanters, Mentalists, Spiritmasters, Runemasters and Bonedancers cast theirs
+    where they stand, or walk a short way in (up to 700 units) to reach two or more while their group holds the
+    monsters and nothing is hitting them. A caster that is hit or interrupted waits 15 seconds, and two failures end
+    it for that fight, so it never walks in and out in a loop.
+  - An area nuke is chosen over a single nuke when its total over the monsters it hits is bigger.
+  - No area spell is cast when it would also hit a mesmerized monster (waking it) or one not in the fight yet (pulling
+    it).
+  - Ground-targeted area spells land on the target; bots never set a ground target, so these always failed.
+- Every class with a mesmerize or stun now controls adds, not only Bards: a monster attacking the group that nobody
+  is killing gets mesmerized (an area mez only where it cannot reach the monster being killed), and a stun protects
+  someone an add is hitting while they fight something else. The instant mez and stun with a ten-minute reuse are kept
+  for three or more adds. Healers, Clerics and Druids in a group never did this, because their support turn cancelled
+  any harmful spell; they now do, after heals, and keep a quarter of their power for healing.
+- Augmentation Healers cast Celerity while a melee groupmate is fighting in melee without it. The buff choice had no
+  place for it, so it was never cast.
+- Cabalist, Enchanter and Spiritmaster bots and companions use their pet focus damage shield again. It had been
+  turned off because a bot shielding its pet stood still for good: every later spell was queued behind the shield's
+  channel. Now a bot's next spell ends the channel, as a player's does, and the shield is used as a player uses it:
+  only while a monster is hitting the pet (the pet tanking, as when soloing), in a fight that will last, with nothing
+  hitting the caster and power to save. It is dropped two seconds after nobody hits the pet any more (and so when the
+  fight ends), when the caster has to move or is hit, and for heals or a mez, and the bot carries on.
+- A monster's area spell that recasts itself from each target it lands on (Lydsyg's disease in Iarnvidiur's Lair)
+  could fill the server's memory against a large raid until it stopped. A monster can no longer ask for the same
+  instant spell on the same target within a second, queue it twice, or hold more than 16 casts. (From the
+  chris4aker/OfflineDAoC-LivingServer fork.)
 
 **World**
 - The Huntsmen and Woodsmen of Campacorentin Forest patrol the roads in pairs again instead of standing still. Period
@@ -63,6 +92,19 @@ The newest version is first. For the full detail of every earlier update, see
   server makes on the spot, but the stand-in started out already open, so opening it changed nothing and the
   door stayed shut. The server log now also names any door it doesn't know (DOOR_NOT_IN_DATABASE), so missing
   ones can be found and added.
+
+**Companions and commands**
+- /spawn specs opens a menu like /spawn that lists every class of your realm with its builds, such as
+  [Healer (Mending)] [Healer (Augmentation)] [Healer (Pacification)]; click one to add that companion. /spawn healer
+  augmentation does the same from a macro, and /spawn healer still picks a build at random. Each build is named after
+  the spec line it really trains highest; melee builds are named by their weapon setup (One Handed and Shield, Two
+  Handed, Celtic Dual, Hand to Hand, Left Axe).
+- Companions with Stealth hide when you stealth and come out when you do, or when they are drawn into a fight. They
+  follow the same rules you do (not in combat or casting, not too close to an enemy), a Minstrel stops its songs first,
+  and while hidden they cast nothing but heals.
+- /tc always takes you to your capital's Realm Exchange. /transfercorpse also claimed /tc, so the server reported an
+  error at every start and the two could swap. /transfercorpse keeps its full name. (From the lometur/HearthDAoC
+  fork; Nikse77 and chris4aker found the same clash.)
 
 **The new client (0.38c)**
 - A monster or NPC that dies stops attacking at once. It sometimes went on swinging for a second or two over its
@@ -133,10 +175,13 @@ The newest version is first. For the full detail of every earlier update, see
   icon instead of another spell's picture.
 
 **Credits**
-- Thanks to the [chris4aker/OfflineDAoC-SocialExpansion](https://github.com/chris4aker/OfflineDAoC-SocialExpansion)
-  fork for the fix for groups waiting on members that keep dying on the way to their meetup, and for three new-client
-  fixes: the FACE / FOLLOW / STICK buttons, the server's target changes (/target, /assist) and abilities on the
-  quickbar.
+- Thanks to chris4aker's Living Server fork
+  ([chris4aker/OfflineDAoC-LivingServer](https://github.com/chris4aker/OfflineDAoC-LivingServer), formerly
+  OfflineDAoC-SocialExpansion) for the fix for groups waiting on members that keep dying on the way to their meetup,
+  the boss recast guard, and three new-client fixes: the FACE / FOLLOW / STICK buttons, the server's target changes
+  (/target, /assist) and abilities on the quickbar.
+- Thanks to lometur's [HearthDAoC](https://github.com/lometur/HearthDAoC) fork (Thomas Farral) for the /tc fix;
+  Nikse77 and chris4aker found the same clash.
 
 ## 0.37 / 0.37b / 0.37c — 2026-10-18
 
