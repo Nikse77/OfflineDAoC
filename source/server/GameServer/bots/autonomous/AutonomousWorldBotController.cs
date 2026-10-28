@@ -4461,7 +4461,7 @@ namespace DOL.GS
         private static long _nextRouteStallTraceTick;
         private static int _routeStallTraces;
 
-        private static void TraceRouteStall(GameBot bot, Vector3 current, Vector3 destination, long now)
+        private void TraceRouteStall(GameBot bot, Vector3 current, Vector3 destination, long now)
         {
             if (now >= System.Threading.Interlocked.Read(ref _nextRouteStallTraceTick))
             {
@@ -4472,7 +4472,11 @@ namespace DOL.GS
             string mover = bot.movementComponent is NpcMovementComponent npcMover ? npcMover.DescribeRouteState() : "-";
             Log.Info($"AUTONOMOUS_ROUTE_STALL_TRACE bot={bot.Name} id={bot.DatabaseID} realm={GlobalConstants.RealmToName(bot.Realm)} " +
                      $"region={bot.CurrentRegionID} position={(int)current.X},{(int)current.Y},{(int)current.Z} " +
-                     $"destination={(int)destination.X},{(int)destination.Y},{(int)destination.Z} {mover}");
+                     $"destination={(int)destination.X},{(int)destination.Y},{(int)destination.Z} " +
+                     // Run 2026-10-28: five Albion party members stood 14 minutes at a Darkness Falls camp with a 0-node path to
+                     // a point 5,000 units away; which camp, chain waypoint and group phase ordered it was not in the trace.
+                     $"camp=\"{_camp?.Id}\" dfRoute=\"{_darknessFallsRouteKey}\" dfWaypoint={_darknessFallsNextWaypoint}/{_darknessFallsWaypoints?.Length ?? 0} " +
+                     $"phase={_groupDirective?.Phase} {mover}");
         }
 
         // Run 29 (2026-10-20, Dun Dagda): the siege army's healers fought in the melee like everyone else, so they were
