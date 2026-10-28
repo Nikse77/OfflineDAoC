@@ -13,35 +13,45 @@ namespace DOL.GS
     public static class AutonomousRvrRoster
     {
         [Flags]
-        public enum Role { None = 0, Speed = 1, Healer = 2, Control = 4, Tank = 8 }
+        public enum Role { None = 0, Speed = 1, Healer = 2, Control = 4, Tank = 8, Attacker = 16 }
 
         public static bool IsSpeedClass(eCharacterClass characterClass) =>
             characterClass is eCharacterClass.Bard or eCharacterClass.Minstrel or eCharacterClass.Skald;
 
-        /// <summary>Classes that can heal in an RvR party (not the Paladin).</summary>
+        /// <summary>Classes that heal in an RvR party: not the Paladin, and the Friar is an attacker (owner 2026-10-28).</summary>
         public static bool IsHealerClass(eCharacterClass characterClass) =>
-            characterClass is eCharacterClass.Cleric or eCharacterClass.Friar or eCharacterClass.Druid or
-                eCharacterClass.Warden or eCharacterClass.Healer or eCharacterClass.Shaman;
+            characterClass is eCharacterClass.Cleric or eCharacterClass.Druid or eCharacterClass.Warden or
+                eCharacterClass.Healer or eCharacterClass.Shaman;
 
-        public static Role RolesOf(eCharacterClass characterClass, bool canControl)
+        /// <summary>Who mezzes or roots in a party. Albion: the Sorcerer and the Theurgist only (owner 2026-10-28); the other realms
+        /// from the game's spell lines, the Bonedancer being an attacker only. The launcher keeps the same lists when it rolls a
+        /// new bot's class.</summary>
+        public static bool IsControlClass(eCharacterClass characterClass) =>
+            characterClass is eCharacterClass.Sorcerer or eCharacterClass.Theurgist or
+                eCharacterClass.Skald or eCharacterClass.Healer or eCharacterClass.Spiritmaster or eCharacterClass.Shaman or
+                eCharacterClass.Runemaster or
+                eCharacterClass.Enchanter or eCharacterClass.Mentalist or eCharacterClass.Bard or eCharacterClass.Druid;
+
+        /// <summary>Who tanks in a party: the Paladin alone in Albion (owner 2026-10-28), the Warrior and the Thane in Midgard, the
+        /// Hero and the Champion in Hibernia (and the Sluaghbinder). Not the PvE tank list of BotPartyRoles.</summary>
+        public static bool IsTankClass(eCharacterClass characterClass) =>
+            characterClass is eCharacterClass.Paladin or eCharacterClass.Warrior or eCharacterClass.Thane or
+                eCharacterClass.Hero or eCharacterClass.Champion or eCharacterClass.Sluaghbinder;
+
+        public static Role RolesOf(eCharacterClass characterClass)
         {
             Role roles = Role.None;
             if (IsSpeedClass(characterClass)) roles |= Role.Speed;
             if (IsHealerClass(characterClass)) roles |= Role.Healer;
-            if (canControl) roles |= Role.Control;
-            if (BotPartyRoles.For(characterClass) == BotPartyRole.Tank) roles |= Role.Tank;
+            if (IsControlClass(characterClass)) roles |= Role.Control;
+            if (IsTankClass(characterClass)) roles |= Role.Tank;
+            // Whoever has no other role attacks.
+            if (roles == Role.None) roles |= Role.Attacker;
             return roles;
         }
 
-        /// <summary>The roles of a bot as it is now: its class, and a mez or a root among the spells it already has.</summary>
-        public static Role RolesOf(GameBot bot)
-        {
-            if (bot?.CharacterClass == null) return Role.None;
-            bool canControl = bot.CrowdControlSpells?.Any(spell => spell != null && spell.Level <= bot.Level &&
-                                  spell.Target == eSpellTarget.ENEMY &&
-                                  (spell.SpellType is eSpellType.Mesmerize or eSpellType.Mez || ShamanBotCombatPolicy.IsRoot(spell))) == true;
-            return RolesOf((eCharacterClass)bot.CharacterClass.ID, canControl);
-        }
+        public static Role RolesOf(GameBot bot) =>
+            bot?.CharacterClass == null ? Role.None : RolesOf((eCharacterClass)bot.CharacterClass.ID);
 
         // The places of a party, kept in this order when it is small: the last of the list is dropped first (attackers
         // are not listed: they are what is left).
@@ -84,7 +94,7 @@ namespace DOL.GS
 
             // The rest: attackers first, then whoever is nearest in the caller's order.
             foreach (int index in Enumerable.Range(0, pool.Count).Where(index => !chosen.Contains(index))
-                         .OrderBy(index => pool[index] == Role.None ? 0 : 1))
+                         .OrderBy(index => pool[index].HasFlag(Role.Attacker) ? 0 : 1))
             {
                 if (chosen.Count >= count) break;
                 chosen.Add(index);
@@ -98,7 +108,7 @@ namespace DOL.GS
             Role[] all = members.ToArray();
             return $"speed={all.Count(role => role.HasFlag(Role.Speed))} healers={all.Count(role => role.HasFlag(Role.Healer))} " +
                    $"control={all.Count(role => role.HasFlag(Role.Control))} tanks={all.Count(role => role.HasFlag(Role.Tank))} " +
-                   $"attackers={all.Count(role => role == Role.None)}";
+                   $"attackers={all.Count(role => role.HasFlag(Role.Attacker))}";
         }
     }
 }

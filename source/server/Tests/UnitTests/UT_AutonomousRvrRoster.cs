@@ -7,7 +7,7 @@ namespace DOL.GS.Tests;
 [TestFixture]
 public sealed class UT_AutonomousRvrRoster
 {
-    private const Role A = Role.None, S = Role.Speed, H = Role.Healer, C = Role.Control, T = Role.Tank;
+    private const Role A = Role.Attacker, S = Role.Speed, H = Role.Healer, C = Role.Control, T = Role.Tank;
 
     [Test]
     public void AnEightAsksForTwoHealersOneSpeedOneControlAndOneTank()
@@ -50,12 +50,34 @@ public sealed class UT_AutonomousRvrRoster
     [Test]
     public void APaladinIsATankNotAHealer()
     {
-        Role paladin = RolesOf(eCharacterClass.Paladin, false);
+        Role paladin = RolesOf(eCharacterClass.Paladin);
         Assert.That(paladin.HasFlag(Role.Tank), Is.True);
         Assert.That(paladin.HasFlag(Role.Healer), Is.False);
-        Assert.That(RolesOf(eCharacterClass.Cleric, false).HasFlag(Role.Healer), Is.True);
-        Assert.That(RolesOf(eCharacterClass.Shaman, true).HasFlag(Role.Healer | Role.Control), Is.True);
-        Assert.That(RolesOf(eCharacterClass.Bard, true).HasFlag(Role.Speed | Role.Control), Is.True);
+        Assert.That(RolesOf(eCharacterClass.Cleric).HasFlag(Role.Healer), Is.True);
+        Assert.That(RolesOf(eCharacterClass.Shaman).HasFlag(Role.Healer | Role.Control), Is.True);
+        Assert.That(RolesOf(eCharacterClass.Bard).HasFlag(Role.Speed | Role.Control), Is.True);
+    }
+
+    [Test]
+    public void AFriarIsAnAttackerAndAlbionControlIsTheSorcererAndTheTheurgist()
+    {
+        Assert.That(RolesOf(eCharacterClass.Friar), Is.EqualTo(Role.Attacker));
+        Assert.That(RolesOf(eCharacterClass.Bonedancer), Is.EqualTo(Role.Attacker));
+        Assert.That(RolesOf(eCharacterClass.Sorcerer).HasFlag(Role.Control), Is.True);
+        Assert.That(RolesOf(eCharacterClass.Theurgist).HasFlag(Role.Control), Is.True);
+        Assert.That(RolesOf(eCharacterClass.Wizard).HasFlag(Role.Control), Is.False);
+        Assert.That(RolesOf(eCharacterClass.Cabalist).HasFlag(Role.Control), Is.False);
+        Assert.That(RolesOf(eCharacterClass.Minstrel), Is.EqualTo(Role.Speed));
+    }
+
+    [Test]
+    public void AlbionTanksWithThePaladinAlone()
+    {
+        Assert.That(RolesOf(eCharacterClass.Paladin), Is.EqualTo(Role.Tank));
+        Assert.That(RolesOf(eCharacterClass.Reaver), Is.EqualTo(Role.Attacker));
+        Assert.That(RolesOf(eCharacterClass.Armsman), Is.EqualTo(Role.Attacker));
+        Assert.That(RolesOf(eCharacterClass.Warrior), Is.EqualTo(Role.Tank));
+        Assert.That(RolesOf(eCharacterClass.Hero), Is.EqualTo(Role.Tank));
     }
 
     [Test]
