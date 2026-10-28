@@ -14,8 +14,9 @@ namespace DOL.GS
         public const int ContactRadius = 400;
         public const int TimeoutMilliseconds = 30_000;
         // Owner 2026-10-28: parties stood at their camp for fifteen minutes and more with the puller "ranged pulling" and nothing
-        // shot (a spell it could not cast, no line of sight, out of range): each attempt ended silently after 30 s and the next
-        // began 10 s later, for ever. After this many attempts without a shot the party pulls the ordinary way for a while.
+        // shot (a spell it could not cast, no line of sight, out of range) or with the target shot but never coming: each attempt
+        // ended silently after 30 s and the next began 10 s later, for ever. After this many attempts in a row without contact the
+        // party pulls the ordinary way for a while.
         public const int MaximumFailedAttempts = 2;
         public const int MeleeFallbackMilliseconds = 300_000;
         private sealed class State
@@ -227,6 +228,15 @@ namespace DOL.GS
                     }
                     LoggerManager.Create(typeof(AutonomousDefensivePull)).Info(
                         $"AUTONOMOUS_DEFENSIVE_PULL_UNREACHABLE bot={shooter.Name} target={target.Name} region={shooter.CurrentRegionID} x={shooter.X} y={shooter.Y} z={shooter.Z}");
+                    // The same target again and again (26 times for one party, 2026-10-28): after the second the party pulls the
+                    // ordinary way for a while instead of standing at its camp.
+                    if (!flyingHandoff && ++state.Failures >= MaximumFailedAttempts)
+                    {
+                        state.Failures = 0;
+                        state.MeleeFallbackUntil = GameLoop.GameLoopTime + MeleeFallbackMilliseconds;
+                        state.RetryAfter = 0;
+                        return false;
+                    }
                     return true;
                 }
                 state.Members = members;
@@ -290,7 +300,7 @@ namespace DOL.GS
                         member.CurrentRegion != state.Shooter.CurrentRegion || member.IsOnStableMasterRoute) ||
                     state.Target.CurrentRegion != bot.CurrentRegion || GameLoop.GameLoopTime >= state.Until)
                 {
-                    if (!state.Shot && GameLoop.GameLoopTime >= state.Until)
+                    if (GameLoop.GameLoopTime >= state.Until)
                         RecordFailedAttempt(state);
                     Finish(state, false);
                     return false;
@@ -339,7 +349,6 @@ namespace DOL.GS
                 if (!state.Active || state.Shooter != actor || attack?.Attacker != actor ||
                     attack.Target != state.Target || !attack.CausesCombat) return;
                 state.Shot = true;
-                state.Failures = 0;
                 state.Shooter.StopAttack();
             }
         }
@@ -358,7 +367,7 @@ namespace DOL.GS
             lock (state) if (state.Active) Finish(state, false);
         }
 
-        // An attempt that ran out its 30 s without a shot says why (the shooter's own view) and, at the second one in a row, hands
+        // An attempt that ran out its 30 s without contact (nothing shot, or the shot target never came) says why (the shooter's own view) and, at the second one in a row, hands
         // the party to the ordinary pull for five minutes.
         private static void RecordFailedAttempt(State state)
         {
@@ -372,7 +381,7 @@ namespace DOL.GS
                     new(state.Target.X, state.Target.Y, state.Target.Z), PathfindingProvider.Instance.DefaultFilters);
                 LoggerManager.Create(typeof(AutonomousDefensivePull)).Warn(
                     $"AUTONOMOUS_DEFENSIVE_PULL_FAILED group={shooter.Group?.GetHashCode()} shooter={shooter.Name} class={shooter.ClassName} level={shooter.Level} " +
-                    $"target={state.Target.Name} spell={state.Spell?.Name ?? "distance weapon"} range={range} " +
+                    $"target={state.Target.Name} spell={state.Spell?.Name ?? "distance weapon"} range={range} shot={state.Shot} " +
                     $"distanceToTarget={(int)shooter.GetDistanceTo(state.Target)} " +
                     $"distanceToFiringPoint={(int)Vector3.Distance(new(shooter.X, shooter.Y, shooter.Z), state.FiringPoint)} lineOfSight={lineOfSight} " +
                     $"mana={shooter.Mana} cost={(state.Spell == null ? 0 : shooter.PowerCost(state.Spell))} " +
@@ -393,6 +402,7 @@ namespace DOL.GS
         private static void Finish(State state, bool engage)
         {
             state.Active = false;
+            if (engage) state.Failures = 0;
             state.RetryAfter = GameLoop.GameLoopTime + 10_000;
             state.Shooter.StopAttack();
             state.Shooter.SwitchWeapon(state.PreviousWeapon);
