@@ -346,20 +346,20 @@ namespace DOL.GS
             // (Hibernia Magicals, 2026-10-28) is neither a miss nor a stop of the trip.
             if (!CapitalStock(bot.Realm).Any(entry => entry.Merchant == merchant))
                 return false;
-            if (!merchant.IsWithinRadius(bot, DOL.GS.ServerProperties.Properties.WORLD_PICKUP_DISTANCE))
-            {
-                ReportMiss(bot, merchant, "out of reach of the merchant");
+            if (!merchant.IsWithinRadius(bot, DOL.GS.ServerProperties.Properties.WORLD_PICKUP_DISTANCE) ||
+                !TryPlan(bot, out int color, out var pieces))
                 return false;
-            }
-            if (!TryPlan(bot, out int color, out var pieces))
-            {
-                ReportMiss(bot, merchant, "no colour or no piece to tint that the bot can pay for");
+
+            // A dye stop for this bot is a merchant that sells its colour for a piece it can pay for: the step also runs at any
+            // capital merchant used for another service, and there it neither reports a miss nor counts as passed on the trip.
+            Offer[] offers = OffersOf(merchant);
+            long firstCeiling = PriceCeiling(AutonomousBotEconomy.GetMoney(bot.DatabaseID));
+            if (!pieces.Any(piece => offers.Any(offer => offer.Color == color && offer.DyeModel == piece.DyeModel &&
+                                                         offer.Price <= firstCeiling)))
                 return false;
-            }
 
             Trip trip = TripOf(bot);
             trip.Visited.Add(merchant.ObjectID);
-            Offer[] offers = OffersOf(merchant);
             foreach ((DbInventoryItem item, int model) in pieces)
             {
                 // The ceiling is read again for every piece: the bot's money falls with each purchase.
@@ -370,6 +370,8 @@ namespace DOL.GS
                     continue;
                 if (!AutonomousBotEconomy.TrySpend(bot.DatabaseID, options[0].Price))
                 {
+                    if (dyed == 0)
+                        ReportMiss(bot, merchant, $"the payment of {options[0].Price} copper failed");
                     FinishTrip(bot, "no money");
                     break;
                 }
@@ -379,7 +381,7 @@ namespace DOL.GS
             }
 
             if (dyed == 0)
-                ReportMiss(bot, merchant, $"the merchant sells nothing for colour {color} within the ceiling " +
+                ReportMiss(bot, merchant, $"bought nothing at a merchant that sells colour {color} for a piece it can pay for " +
                                           $"(pieces {pieces.Count}, models {string.Join('/', pieces.Select(piece => piece.DyeModel).Distinct())}, " +
                                           $"offers {offers.Length})");
             if (dyed > 0)
