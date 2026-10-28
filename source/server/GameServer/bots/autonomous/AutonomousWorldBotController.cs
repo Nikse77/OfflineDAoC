@@ -171,6 +171,8 @@ namespace DOL.GS
         private Group _observedGroup;
         private long _pullHoldSinceTick, _pullHoldLastTick, _nextPullHoldTraceTick;
         private long _pullerFollowSinceTick, _pullerFollowLastTick, _nextPullerFollowTraceTick;
+        private long _dyeStandSinceTick, _dyeStandLastTick;
+        private const int DyeStandGiveUpMilliseconds = 60_000;
         private long _nextGroupPulseTick;
         private string _activeDynamicGroupId = string.Empty;
         private bool _regroupRouteCleared;
@@ -1159,6 +1161,26 @@ namespace DOL.GS
                     bot.StopAttack();
                 serviceBrain.TryUseArrivedAutonomousService(_serviceNpc);
             }
+            if (needed == eWorldServiceKind.DyeMerchant && _serviceNpc is GameMerchant dyeMerchant)
+            {
+                long standNow = GameLoop.GameLoopTime;
+                long standLast = _dyeStandLastTick;
+                _dyeStandLastTick = standNow;
+                if (_dyeStandSinceTick == 0 || standNow - standLast > 10_000) _dyeStandSinceTick = standNow;
+                else if (standNow - _dyeStandSinceTick >= DyeStandGiveUpMilliseconds)
+                {
+                    _dyeStandSinceTick = 0;
+                    AutonomousBotDyeing.GiveUpAtMerchant(bot, dyeMerchant,
+                        $"stood a minute beside the merchant without a transaction (wantsInventory={AutonomousObjectiveAssignments.WantsBetweenTaskInventory(bot)} " +
+                        $"expired={AutonomousObjectiveAssignments.BetweenTaskServiceExpired(bot)} grouped={bot.Group != null} combat={bot.InCombat} " +
+                        $"attacking={bot.IsAttacking} casting={bot.IsCasting} moving={bot.IsMoving})");
+                    _serviceNpc = null;
+                    _serviceKind = null;
+                    _nextServiceSearchTick = 0;
+                }
+            }
+            else
+                _dyeStandSinceTick = 0;
             return true;
         }
 

@@ -317,6 +317,20 @@ namespace DOL.GS
                     bot, merchant.CurrentRegionID, merchant.X, merchant.Y) <= MaximumTripMinutes);
         }
 
+        /// <summary>A bot that stood a minute beside a dye merchant without a transaction (Yria, 2026-10-28: fifteen minutes at
+        /// Alleca Gunderson after tinting at Greip) is done with this merchant: it counts as passed, the miss is reported with the
+        /// reason, and the trip goes on to the next merchant or ends.</summary>
+        public static void GiveUpAtMerchant(GameBot bot, GameMerchant merchant, string reason)
+        {
+            if (bot?.DatabaseID <= 0 || merchant == null) return;
+            TripOf(bot).Visited.Add(merchant.ObjectID);
+            LastMissReport.TryRemove(bot.DatabaseID, out _);
+            ReportMiss(bot, merchant, reason);
+            if (!TryPlan(bot, out int color, out var pieces) || NextMerchant(bot, color, pieces) == null)
+                FinishTrip(bot, "gave up at the merchant");
+            AutonomousBotEconomy.MarkEconomyChanged(bot.DatabaseID);
+        }
+
         /// <summary>Ends the trip: the next one waits the cooldown (two hours unless told otherwise) from now, and the merchants
         /// passed are forgotten. Always returns false.</summary>
         public static bool FinishTrip(GameBot bot, string reason, TimeSpan? delay = null)
