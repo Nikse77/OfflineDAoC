@@ -33,6 +33,17 @@ namespace DOL.GS.PacketHandler
         // circlet 1291 (e.g. fine alloy superior war circlet) and its variants. Extension 3 hides the head.
         private static readonly HashSet<int> NorseTiaraModels = [1291, 4169, 4228, 4229, 4230, 4231, 4465];
 
+        // The Albion "helm1" mesh (items.csv 403, Head # 2, alternates 0/0): the leather cap 62 (Friar companions wear it), the
+        // chain helm 1236 and their variants. By the same layout as the Hibernian Helm 1 mesh, extension 2 hides the face.
+        // Owner 2026-10-28: Friar and Cleric companions came out without a face; not yet confirmed one extension at a time.
+        private static readonly HashSet<int> AlbionHelm1Models =
+            [62, 64, 94, 823, 824, 1229, 1230, 1233, 1236, 1241, 2710, 2722, 2744, 2756, 2806, 2818];
+
+        // The Albion "helm3" mesh (items.csv 401, Head # 4, alternates 0/0): the chain cap 63 (Cleric companions wear it), the
+        // leather helm 1231 and their variants. By the same layout as the Hibernian Helm 3 mesh, extensions 2 and 3 hide the face.
+        private static readonly HashSet<int> AlbionHelm3Models =
+            [63, 1231, 1234, 1238, 1242, 1244, 2716, 2750, 2800, 2812, 3461];
+
         public static byte VisibleExtension(int slot, int model, byte extension)
         {
             if (slot != (int)eInventorySlot.HeadArmor)
@@ -48,6 +59,12 @@ namespace DOL.GS.PacketHandler
                 return 0;
 
             if (NorseTiaraModels.Contains(model) && extension == 3)
+                return 0;
+
+            if (AlbionHelm1Models.Contains(model) && extension == 2)
+                return 0;
+
+            if (AlbionHelm3Models.Contains(model) && (extension == 2 || extension == 3))
                 return 0;
 
             return extension;

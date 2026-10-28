@@ -348,6 +348,10 @@ namespace DOL.GS
                     {
                         DbItemTemplate itemTemplate = pair.Value[Util.Random(pair.Value.Count - 1)];
                         AddItem(player, itemTemplate);
+                        // The helmet a companion comes out with (faceless companions, 2026-10-28): model and extension decide it.
+                        if (pair.Key == Slot.HELM && player is GameBot { IsTemporaryGroupHelper: true } helmetBot && log.IsInfoEnabled)
+                            log.Info($"COMPANION_HEAD bot=\"{helmetBot.Name}\" class={helmetBot.ClassName} level={helmetBot.Level} " +
+                                     $"item=\"{itemTemplate.Name}\" model={itemTemplate.Model} extension={itemTemplate.Extension}");
                     }
                 }
             }

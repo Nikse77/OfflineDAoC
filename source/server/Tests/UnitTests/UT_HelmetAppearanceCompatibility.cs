@@ -39,6 +39,18 @@ namespace DOL.UnitTests
         [TestCase(1291, 1, 1)]
         [TestCase(4465, 3, 0)]
         [TestCase(4465, 2, 2)]
+        [TestCase(62, 2, 0)]    // Albion leather cap, Albion Helm 1 mesh (Friar companions)
+        [TestCase(62, 0, 0)]
+        [TestCase(62, 1, 1)]
+        [TestCase(62, 3, 3)]
+        [TestCase(824, 2, 0)]
+        [TestCase(1236, 2, 0)]
+        [TestCase(63, 2, 0)]    // Albion chain cap, Albion Helm 3 mesh (Cleric companions)
+        [TestCase(63, 3, 0)]
+        [TestCase(63, 0, 0)]
+        [TestCase(63, 1, 1)]
+        [TestCase(2812, 3, 0)]
+        [TestCase(1231, 2, 0)]
         public void OnlyConfirmedBrokenCoifExtensionsAreRemapped(int model, byte itemExtension, byte visibleExtension)
         {
             Assert.That(HelmetAppearanceCompatibility.VisibleExtension(
