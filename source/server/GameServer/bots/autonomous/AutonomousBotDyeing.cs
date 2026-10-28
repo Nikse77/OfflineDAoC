@@ -342,6 +342,10 @@ namespace DOL.GS
             if (!IsDyeingBot(bot) || !IsRealmCapital(bot, merchant) || merchant.TradeItems == null ||
                 GameLoop.GameLoopTime < TripOf(bot).NextTripTick)
                 return false;
+            // The step runs at any capital merchant the bot uses for another service: a merchant that sells no dye at all
+            // (Hibernia Magicals, 2026-10-28) is neither a miss nor a stop of the trip.
+            if (!CapitalStock(bot.Realm).Any(entry => entry.Merchant == merchant))
+                return false;
             if (!merchant.IsWithinRadius(bot, DOL.GS.ServerProperties.Properties.WORLD_PICKUP_DISTANCE))
             {
                 ReportMiss(bot, merchant, "out of reach of the merchant");
