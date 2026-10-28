@@ -293,6 +293,8 @@ public static class AutonomousObjectiveAssignments
                     : TargetForPopulation(members.Length, bucket.Key.Band == 50);
                 target = LimitBattlegrounds(target, members.Count(CanTakeBattleground));
                 int currentRvr = members.Count(bot => Is(bot, eAutonomousObjectiveKind.RvR));
+                int groupInQueue = members.Count(bot => Is(bot, eAutonomousObjectiveKind.GroupPve));
+                int coreInQueue = members.Count(bot => Is(bot, eAutonomousObjectiveKind.GroupPve) && IsPartyCore(bot));
                 foreach (GameBot bot in members.Where(bot => bot.Group == null &&
                              Is(bot, eAutonomousObjectiveKind.GroupPve) &&
                              GroupMatchmakingTimedOutOnline(bot)).ToArray())
@@ -307,6 +309,20 @@ public static class AutonomousObjectiveAssignments
                             fallback = AutonomousBotGoalPolicy.Choose(bot.Level, excludeGroup: true);
                     }
                     if (useRvr) currentRvr++;
+                    // 2026-10-28: solo held about half of all bots (the weights say a tenth), and with it 28 of 68 Albion healers,
+                    // 25 of 67 Midgard and 29 of 62 Hibernian: a tank or a healer that times out stays in the group queue (it
+                    // grinds alone while it waits, as everyone does) unless the queue already holds the cap of them.
+                    bool isCore = IsPartyCore(bot);
+                    if (fallback == eAutonomousObjectiveKind.SoloPve && isCore && AutonomousBotGoalPolicy.GroupsAllowed(bot.Level) &&
+                        (!AutonomousBotGoalPolicy.IsConfigured ||
+                         AutonomousBotGoalPolicy.Settings.ForLevel(bot.Level).Allows((int)eAutonomousObjectiveKind.GroupPve)) &&
+                        ShouldKeepCoreInQueue(coreInQueue, groupInQueue))
+                        fallback = eAutonomousObjectiveKind.GroupPve;
+                    if (fallback != eAutonomousObjectiveKind.GroupPve)
+                    {
+                        groupInQueue--;
+                        if (isCore) coreInQueue--;
+                    }
                     DOL.Logging.LoggerManager.Create(typeof(AutonomousObjectiveAssignments)).Warn(
                         $"AUTONOMOUS_GROUP_MATCHMAKING_TIMEOUT bot=\"{bot.Name}\" id={bot.DatabaseID} " +
                         $"realm={GlobalConstants.RealmToName(bot.Realm)} level={bot.Level} waitedMinutes=20 fallback={fallback}");
@@ -316,7 +332,8 @@ public static class AutonomousObjectiveAssignments
                     bot.PersistentRecord.TravelDestination = string.Empty;
                     bot.PersistentRecord.ObjectivePhase =
                         fallback == eAutonomousObjectiveKind.GroupPve
-                            ? "Group-only setting: no complete role roster yet; restarting the 20-minute queue"
+                            ? isCore ? "Tank or healer: no complete role roster yet; keeping its place in the group queue for another 20 minutes"
+                                : "Group-only setting: no complete role roster yet; restarting the 20-minute queue"
                             : $"No complete eight-member role roster formed within 20 minutes; assigned {fallback}";
                     bot.MarkAutonomousStateDirty();
                     AutonomousBotStatusPersistence.Queue(bot);
@@ -331,7 +348,17 @@ public static class AutonomousObjectiveAssignments
                 int assignedSolo = lockedPve.Count(bot => Parse(bot.PersistentRecord.ObjectiveKind) == eAutonomousObjectiveKind.SoloPve);
                 int assignedGroup = lockedPve.Count(bot => Parse(bot.PersistentRecord.ObjectiveKind) == eAutonomousObjectiveKind.GroupPve);
                 int assignedBattleground = lockedPve.Count(bot => Parse(bot.PersistentRecord.ObjectiveKind) == eAutonomousObjectiveKind.Battleground);
+                int assignedCoreInGroup = lockedPve.Count(bot => Parse(bot.PersistentRecord.ObjectiveKind) == eAutonomousObjectiveKind.GroupPve &&
+                                                                 IsPartyCore(bot));
                 int assignedRvr = lockedRvr.Length;
+                // A tank or a healer drawn for a solo slot takes a group slot instead while the group slots hold fewer of them
+                // than a party needs; the solo slot stays open for the next bot (an attacker).
+                eAutonomousObjectiveKind KeepCoreOutOfSolo(GameBot bot, eAutonomousObjectiveKind kind) =>
+                    kind == eAutonomousObjectiveKind.SoloPve && IsPartyCore(bot) && AutonomousBotGoalPolicy.GroupsAllowed(bot.Level) &&
+                    (!AutonomousBotGoalPolicy.IsConfigured ||
+                     AutonomousBotGoalPolicy.Settings.ForLevel(bot.Level).Allows((int)eAutonomousObjectiveKind.GroupPve)) &&
+                    ShouldKeepCoreOutOfSolo(target.GroupPve - assignedGroup, assignedCoreInGroup, target.GroupPve)
+                        ? eAutonomousObjectiveKind.GroupPve : kind;
                 // A battleground slot is drawn with the same odds as the remaining solo/group need.
                 bool TakesBattleground(GameBot bot, int otherNeeded)
                 {
@@ -347,12 +374,16 @@ public static class AutonomousObjectiveAssignments
                         ? eAutonomousObjectiveKind.Battleground
                         : ChoosePveObjective(target, assignedSolo, assignedGroup);
                     kind = SoloBelowGroupLevel(bot, kind);
+                    kind = KeepCoreOutOfSolo(bot, kind);
                     if (kind == eAutonomousObjectiveKind.Battleground)
                         assignedBattleground++;
                     else if (kind == eAutonomousObjectiveKind.SoloPve)
                         assignedSolo++;
                     else
+                    {
                         assignedGroup++;
+                        if (IsPartyCore(bot)) assignedCoreInGroup++;
+                    }
                     Assign(bot, kind, bucket.Key, _epoch);
                 }
 
@@ -373,11 +404,15 @@ public static class AutonomousObjectiveAssignments
                     else
                         kind = ChoosePveObjective(target, assignedSolo, assignedGroup);
                     kind = SoloBelowGroupLevel(bot, kind);
+                    kind = KeepCoreOutOfSolo(bot, kind);
 
                     switch (kind)
                     {
                         case eAutonomousObjectiveKind.SoloPve: assignedSolo++; break;
-                        case eAutonomousObjectiveKind.GroupPve: assignedGroup++; break;
+                        case eAutonomousObjectiveKind.GroupPve:
+                            assignedGroup++;
+                            if (IsPartyCore(bot)) assignedCoreInGroup++;
+                            break;
                         case eAutonomousObjectiveKind.RvR: assignedRvr++; break;
                         case eAutonomousObjectiveKind.Battleground: assignedBattleground++; break;
                     }
@@ -386,6 +421,29 @@ public static class AutonomousObjectiveAssignments
             }
         }
     }
+
+    /// <summary>The roles a party cannot do without: a tank or a healer (the classes that can fill those slots).</summary>
+    public static bool IsPartyCoreClass(eCharacterClass characterClass) =>
+        BotPartyRoles.CanFill(characterClass, BotPveGroupRole.Tank) || BotPartyRoles.CanFill(characterClass, BotPveGroupRole.Healer);
+
+    private static bool IsPartyCore(GameBot bot) =>
+        bot?.CharacterClass != null && IsPartyCoreClass((eCharacterClass)bot.CharacterClass.ID);
+
+    /// <summary>Tanks and healers in the group slots are capped at this share: a party of five wants a tank and a healer for
+    /// three attackers, so more than two fifths would only move the shortage to the attackers.</summary>
+    public const double CoreShareOfGroupSlots = 0.4;
+
+    public static int CoreLimitInGroupSlots(int groupSlots) => (int)Math.Ceiling(Math.Max(0, groupSlots) * CoreShareOfGroupSlots);
+
+    /// <summary>A tank or healer whose queue time ran out stays in the group queue while the queue holds no more of them than the
+    /// cap (the bot itself counts), instead of leaving for a solo task of 45 to 120 minutes.</summary>
+    public static bool ShouldKeepCoreInQueue(int coreInQueue, int groupInQueue) =>
+        coreInQueue <= CoreLimitInGroupSlots(groupInQueue);
+
+    /// <summary>A tank or healer drawn for a solo slot goes to a group slot while there is one left and the group slots hold fewer
+    /// of them than the cap.</summary>
+    public static bool ShouldKeepCoreOutOfSolo(int groupSlotsLeft, int coreInGroup, int groupSlots) =>
+        groupSlotsLeft > 0 && coreInGroup < CoreLimitInGroupSlots(groupSlots);
 
     // Counted as solo here so the band's group share goes to bots that may group.
     private static eAutonomousObjectiveKind SoloBelowGroupLevel(GameBot bot, eAutonomousObjectiveKind kind) =>
