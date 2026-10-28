@@ -1003,7 +1003,7 @@ namespace DOL.GS
         private bool TryRouteToNeededService(GameBot bot)
         {
             eWorldServiceKind? needed = AutonomousBotEconomy.GetNeededService(bot);
-            if (needed is not eWorldServiceKind.RealmExchange and not eWorldServiceKind.Vendor)
+            if (needed is not eWorldServiceKind.RealmExchange and not eWorldServiceKind.Vendor and not eWorldServiceKind.DyeMerchant)
             {
                 _serviceNpc = null;
                 _serviceKind = null;
@@ -1024,6 +1024,14 @@ namespace DOL.GS
                 {
                     _serviceNpc = null;
                 }
+            }
+            if (_serviceNpc == null && needed == eWorldServiceKind.DyeMerchant)
+            {
+                // Tinting is a nicety: no reachable dye merchant means no trip for two hours, never a bot held in place.
+                AutonomousBotDyeing.FinishTrip(bot, "no reachable merchant", AutonomousBotDyeing.RetryDelay);
+                AutonomousBotEconomy.MarkEconomyChanged(bot.DatabaseID);
+                _serviceKind = null;
+                return false;
             }
             if (_serviceNpc == null)
             {
@@ -1097,7 +1105,7 @@ namespace DOL.GS
                         _nextServiceSearchTick = 0;
                         bot.StopMovingOnPath();
                         bot.StopMoving();
-                        SetStatus(bot, "Choosing another merchant", needed == eWorldServiceKind.RealmExchange ? "Use the Realm Exchange" : "Sell ordinary backpack loot",
+                        SetStatus(bot, "Choosing another merchant", ServiceGoalText(needed.Value),
                             "The chosen service has no reachable spot to stand beside it", string.Empty, destination.ZoneName);
                         return true;
                     }
@@ -1105,7 +1113,7 @@ namespace DOL.GS
                 if (TryBeginFasterStableRoute(bot, point, _serviceNpc.Name))
                     return true;
                 IssuePath(bot, point, preciseArrival: true);
-                SetStatus(bot, $"Traveling to {_serviceNpc.Name}", needed == eWorldServiceKind.RealmExchange ? "Use the Realm Exchange" : "Sell ordinary backpack loot",
+                SetStatus(bot, $"Traveling to {_serviceNpc.Name}", ServiceGoalText(needed.Value),
                     "Routing to a real world service before resuming progression", _serviceNpc.Name, destination.ZoneName);
                 return true;
             }
@@ -1120,7 +1128,7 @@ namespace DOL.GS
             }
             bot.StopMovingOnPath();
             bot.StopMoving();
-            SetStatus(bot, $"Ready to use {_serviceNpc.Name}", needed == eWorldServiceKind.RealmExchange ? "Use the Realm Exchange" : "Sell ordinary backpack loot",
+            SetStatus(bot, $"Ready to use {_serviceNpc.Name}", ServiceGoalText(needed.Value),
                 "Reached the real service; BotBrain will transact only within range", _serviceNpc.Name, destination.ZoneName);
             bot.StopFollowing();
             // Hand the exact reached broker to the transaction layer after
@@ -1138,8 +1146,23 @@ namespace DOL.GS
             return true;
         }
 
+        private static string ServiceGoalText(eWorldServiceKind kind) => kind switch
+        {
+            eWorldServiceKind.RealmExchange => "Use the Realm Exchange",
+            eWorldServiceKind.DyeMerchant => "Tint the worn armor at the capital dye merchants",
+            _ => "Sell ordinary backpack loot"
+        };
+
         private static GameNPC FindReachableService(GameBot bot, eWorldServiceKind kind)
         {
+            if (kind == eWorldServiceKind.DyeMerchant)
+            {
+                GameMerchant dyer = AutonomousBotDyeing.FindTripMerchant(bot);
+                return dyer != null && IsServiceCandidate(bot, dyer) &&
+                       !AutonomousServiceReachability.IsSkipped(AutonomousServiceReachability.Key(dyer), bot.DatabaseID, GameLoop.GameLoopTime)
+                    ? dyer : null;
+            }
+
             HashSet<ushort> reachable = ReachableRegions(bot.Realm, bot.CurrentRegionID);
             bool exchange = kind == eWorldServiceKind.RealmExchange;
             GameNPC best = null;
@@ -5371,6 +5394,37 @@ namespace DOL.GS
                      $"edge={crossing.Id} from={region}:{oldX},{oldY},{oldZ} " +
                      $"to={region}:{bot.X},{bot.Y},{bot.Z} goal=\"{bot.PersistentRecord?.CurrentGoal}\"");
             return true;
+        }
+
+        /// <summary>
+        /// Minutes on foot to a point, crossing by crossing, when the bot and every region on the way are classic (Albion,
+        /// Midgard and Hibernia with their capitals and dungeons); 9999 otherwise, and for more than four crossings. The general
+        /// estimate below counts only the first crossing and adds a flat six minutes for the rest, which makes a bot in Caer
+        /// Sidi look as close to Camelot as one at its gate. Each leg is a straight line at the bot's top speed.
+        /// </summary>
+        public static double EstimateClassicTripMinutes(GameBot bot, ushort regionId, int x, int y)
+        {
+            const int MaximumCrossings = 4;
+            double speed = Math.Max(1d, bot.MaxSpeed);
+            ushort region = bot.CurrentRegionID;
+            int px = bot.X, py = bot.Y;
+            double units = 0;
+            for (int crossings = 0; crossings <= MaximumCrossings; crossings++)
+            {
+                Region current = WorldMgr.GetRegion(region);
+                if (current == null || current.Expansion != 1)
+                    return 9999;
+                if (region == regionId)
+                    return (units + Distance(px, py, x, y)) / speed / 60d + crossings;
+                DbZonePoint crossing = FindNextCrossing(bot.Realm, region, regionId, x, y);
+                if (crossing == null)
+                    return 9999;
+                units += Distance(px, py, crossing.SourceX, crossing.SourceY);
+                region = crossing.TargetRegion;
+                px = crossing.TargetX;
+                py = crossing.TargetY;
+            }
+            return 9999;
         }
 
         private static double EstimateTravelMinutes(GameBot bot, ushort regionId, int x, int y)

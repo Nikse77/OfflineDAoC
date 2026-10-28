@@ -639,6 +639,11 @@ public static class AutonomousObjectiveAssignments
         // when completely full: otherwise the next task leaves loot on the ground.
         BetweenTaskPlan plan = RollBetweenTaskPlan(bot.HasSpendableAutonomousTrainingPoints,
             AutonomousBotEconomy.IsBackpackNearlyFull(bot), Random.Shared.NextDouble(), Random.Shared.NextDouble());
+        // Services are only looked for while the inventory flag is set, and that flag came only with a nearly full bag: a bot
+        // with pieces to tint (and a dye trip due) takes the inventory phase too, so that it reaches the capital dye merchants.
+        bool dye = !plan.Unload && AutonomousBotDyeing.NeedsTrip(bot);
+        if (dye)
+            plan = plan with { Unload = true };
         bool downtime = AutonomousTownDowntime.RollAtTaskBoundary(Random.Shared.NextDouble());
         if (!plan.Train && !plan.Unload && !downtime) return false;
         OfflineWorldBotRecord record = bot.PersistentRecord;
@@ -656,7 +661,7 @@ public static class AutonomousObjectiveAssignments
         record.TargetName = string.Empty;
         record.TravelDestination = string.Empty;
         record.ObjectiveProgress = "Task complete; " + (plan.Train ? "train earned specialization points; " : "") +
-            (plan.Unload ? "unload backpack; " : "") + (downtime ? "15-30 minute town break if reachable within the maintenance budget; " : "") + "then choose the next task";
+            (plan.Unload ? (dye ? "tint armor at the capital dye merchants; " : "unload backpack; ") : "") + (downtime ? "15-30 minute town break if reachable within the maintenance budget; " : "") + "then choose the next task";
         AutonomousBotEconomy.MarkInventoryChanged(bot);
         bot.MarkAutonomousStateDirty();
         AutonomousBotStatusPersistence.Queue(bot);

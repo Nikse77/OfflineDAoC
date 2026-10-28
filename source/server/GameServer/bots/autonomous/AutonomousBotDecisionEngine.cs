@@ -28,6 +28,8 @@ public enum eWorldServiceKind
     VaultKeeper,
     RealmExchange,
     CraftStation,
+    /// <summary>A dye merchant of the realm's capital: the bot tints its worn armor and cloak (AutonomousBotDyeing).</summary>
+    DyeMerchant,
 }
 
 /// <summary>

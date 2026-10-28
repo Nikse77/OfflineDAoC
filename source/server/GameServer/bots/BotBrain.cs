@@ -1928,6 +1928,15 @@ namespace DOL.AI.Brain
                 return true;
             }
 
+            if (AutonomousBotDyeing.TryDyeAtMerchant(bot, merchant, out int dyed, out long dyeSpent))
+            {
+                SetMerchantStatus(bot, $"Tinted {dyed} pieces at {merchant.Name}", $"Spent {dyeSpent} saved copper on cheap dyes");
+                AutonomousStuckWatchdog.MarkProgress(bot, eAutonomousProgressKind.Money);
+                AutonomousObjectiveAssignments.TryCompleteBetweenTaskServicesIfSatisfied(bot);
+                _nextMerchantServiceTick = now + 3_000;
+                return true;
+            }
+
             _nextMerchantServiceTick = now + 20_000 + Random.Shared.Next(20_001);
             AutonomousBotEconomy.MarkEconomyChanged(bot.DatabaseID);
             return false;

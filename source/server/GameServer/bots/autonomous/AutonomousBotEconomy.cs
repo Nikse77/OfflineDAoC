@@ -375,9 +375,11 @@ namespace DOL.GS;
             // The vendor phase has now made room. If the bot arrived with its
             // one listing slot already occupied, it naturally skipped the first
             // branch and reaches this realm-local upgrade appraisal directly.
-            return !IsBackpackFull(bot) && FindBestUsefulExchangePurchase(bot) != null
-                ? eWorldServiceKind.RealmExchange
-                : null;
+            if (!IsBackpackFull(bot) && FindBestUsefulExchangePurchase(bot) != null)
+                return eWorldServiceKind.RealmExchange;
+
+            // Tinting the worn armor comes last: every need above is a bag, a listing or a better piece of gear.
+            return AutonomousBotDyeing.NeedsTrip(bot) ? eWorldServiceKind.DyeMerchant : null;
         }
 
         public const int NearlyFullFreeSlots = 6;
