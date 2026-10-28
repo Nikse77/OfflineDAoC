@@ -83,7 +83,7 @@ be deleted afterwards (the `.downloads` folder next to the helper).
 
 A new install starts with an empty world:
 1. Each realm's card in the launcher (**ALBION**, **MIDGARD**, **HIBERNIA**) has buttons to create
-   level 1 or level 50 gamebots, 1, 10 or 100 at a time.
+   level 1 or level 50 gamebots, 5, 10 or 100 at a time.
 2. New bots log in gradually and then play on their own.
 
 The launcher's bot goals settings choose how much bots solo, group or go to RvR at each level

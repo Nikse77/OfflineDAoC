@@ -23,4 +23,7 @@
     <EmbeddedResource Include="Assets\offline-daoc-realm-emblem.png"
                       LogicalName="OfflineDaoc.Launcher.Assets.offline-daoc-realm-emblem.png" />
   </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="OfflineDaoc.Launcher.Tests" />
+  </ItemGroup>
 </Project>

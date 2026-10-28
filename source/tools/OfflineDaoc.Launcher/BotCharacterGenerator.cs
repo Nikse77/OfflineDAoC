@@ -80,12 +80,83 @@ internal static class BotCharacterGenerator
         [3] = ["", "ae", "el", "in", "or"],
     };
 
-    public static Identity Generate(int realm, ISet<string> reservedNames, bool allowSluaghbinder = true)
+    // Owner 2026-10-28: the server's roster should keep the proportions of the perfect party of eight: one speed song, two who
+    // heal, one who can mez or root, one tank and three attackers. The roles are those of the server's RvR rosters
+    // (AutonomousRvrRoster): a class counts in every role it has, and a Paladin is a tank, not a healer.
+    [Flags]
+    internal enum Role { None = 0, Speed = 1, Healer = 2, Control = 4, Tank = 8, Attacker = 16 }
+
+    private static readonly IReadOnlySet<int> SpeedClasses = new HashSet<int> { 4, 24, 48 };
+    // The Friar is an attacker (owner 2026-10-28): the healers are the Cleric, Druid, Warden, Healer and Shaman.
+    private static readonly IReadOnlySet<int> HealerClasses = new HashSet<int> { 6, 47, 46, 26, 28 };
+    // Albion tanks with the Paladin alone (owner 2026-10-28).
+    private static readonly IReadOnlySet<int> TankClasses = new HashSet<int> { 1, 22, 21, 44, 45, 63 };
+    // Who mezzes or roots in a party. Albion: the Sorcerer and the Theurgist only (owner 2026-10-28); the others from the game's
+    // spell lines (Midgard Skald, Healer, Spiritmaster, Shaman, Runemaster; Hibernia Enchanter, Mentalist, Bard, Druid). The
+    // Bonedancer is an attacker only (owner 2026-10-28).
+    private static readonly IReadOnlySet<int> ControlClasses = new HashSet<int> { 5, 8, 24, 26, 27, 28, 29, 41, 42, 48, 47 };
+
+    internal static Role RolesOf(int classId)
+    {
+        Role roles = Role.None;
+        if (SpeedClasses.Contains(classId)) roles |= Role.Speed;
+        if (HealerClasses.Contains(classId)) roles |= Role.Healer;
+        if (ControlClasses.Contains(classId)) roles |= Role.Control;
+        if (TankClasses.Contains(classId)) roles |= Role.Tank;
+        // Whoever has no other role attacks.
+        if (roles == Role.None) roles |= Role.Attacker;
+        return roles;
+    }
+
+    // What the roster of one realm should hold, as a share of its bots: speed 1/8, healers 2/8, control 1/8, tanks 1/8 and
+    // attackers (classes with no role) 3/8.
+    private static readonly (Role Role, double Share)[] Targets =
+    [
+        (Role.Speed, 1 / 8d), (Role.Healer, 2 / 8d), (Role.Control, 1 / 8d), (Role.Tank, 1 / 8d), (Role.Attacker, 3 / 8d)
+    ];
+
+    /// <summary>
+    /// The class that fills the largest gap between the realm's roster (class id to number of bots) and the proportions of
+    /// the perfect party of eight; a tie, or a roster with no gap, is settled at random. The counts are not changed.
+    /// </summary>
+    internal static int ChooseBalancedClass(IReadOnlyCollection<int> classIds, IReadOnlyDictionary<int, int> counts, Random random)
+    {
+        int[] ids = classIds.ToArray();
+        int total = counts.Values.Sum() + 1;
+        double Gap(Role role, double share) =>
+            share * total - counts.Where(pair => RolesOf(pair.Key).HasFlag(role)).Sum(pair => pair.Value);
+        var gaps = Targets.ToDictionary(target => target.Role, target => Math.Max(0, Gap(target.Role, target.Share)));
+        double Score(int id)
+        {
+            Role roles = RolesOf(id);
+            return Targets.Where(target => roles.HasFlag(target.Role)).Sum(target => gaps[target.Role]);
+        }
+        double best = ids.Max(Score);
+        if (best <= 0) return ids[random.Next(ids.Length)];
+        int[] top = ids.Where(id => Score(id) >= best - 1e-9).ToArray();
+        return top[random.Next(top.Length)];
+    }
+
+    public static Identity Generate(int realm, ISet<string> reservedNames, bool allowSluaghbinder = true) =>
+        Create(realm, reservedNames, allowSluaghbinder, null);
+
+    /// <summary>As <see cref="Generate"/>, but the class is the one the realm's roster (class id to number of bots, updated
+    /// here) lacks most for the proportions of the perfect party of eight.</summary>
+    public static Identity GenerateBalanced(int realm, ISet<string> reservedNames, bool allowSluaghbinder,
+        IDictionary<int, int> classCounts) => Create(realm, reservedNames, allowSluaghbinder, classCounts);
+
+    private static Identity Create(int realm, ISet<string> reservedNames, bool allowSluaghbinder,
+        IDictionary<int, int>? classCounts)
     {
         int gender = Random.Shared.Next(1, 3);
         // The "no custom class" edition (0.33, 0.34, 0.35; classes/enable_sluaghbinder = False) never rolls class 63.
         Choice[] pool = allowSluaghbinder ? Choices[realm] : Choices[realm].Where(entry => entry.ClassId != 63).ToArray();
-        Choice choice = pool[Random.Shared.Next(pool.Length)];
+        Choice choice = classCounts == null
+            ? pool[Random.Shared.Next(pool.Length)]
+            : pool.First(entry => entry.ClassId == ChooseBalancedClass(pool.Select(entry => entry.ClassId).ToArray(),
+                (IReadOnlyDictionary<int, int>)classCounts, Random.Shared));
+        if (classCounts != null)
+            classCounts[choice.ClassId] = (classCounts.TryGetValue(choice.ClassId, out int existing) ? existing : 0) + 1;
         var race = choice.Races[Random.Shared.Next(choice.Races.Length)];
         var parts = Names[(realm, gender)];
         string[] bridges = NameBridges[realm];

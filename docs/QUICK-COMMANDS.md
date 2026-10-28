@@ -8,7 +8,7 @@ release; some still have level, target, party or state requirements.
 
 Click **+ Lv.1** or **+ Lv.50** under a faction to create bots for that faction.
 Hold **Ctrl** for **+100 bots** per click, or **Shift** for **+10**. Without a
-modifier, create one bot. Start small and increase population for your PC's capacity.
+modifier, create five bots. Start small and increase population for your PC's capacity.
 
 ## Travel and finding mobs
 

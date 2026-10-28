@@ -481,7 +481,8 @@ internal sealed partial class MainForm : Form
             return 100;
         if ((GetAsyncKeyState(VkLeftShift) & 0x8000) != 0)
             return 10;
-        return 1;
+        // A click makes five bots at a time (owner 2026-10-28), so the roster keeps the proportions of a party of eight.
+        return 5;
     }
 
     private void SetRealmGenerationEnabled(bool enabled)
@@ -2165,7 +2166,7 @@ internal sealed partial class MainForm : Form
     {
         if (!File.Exists(_database))
             throw new InvalidOperationException("The prepared world database is missing.");
-        if (count is not (1 or 10 or 100))
+        if (count is not (5 or 10 or 100))
             throw new ArgumentOutOfRangeException(nameof(count));
         if (level is not (1 or 50)) throw new ArgumentOutOfRangeException(nameof(level));
 
@@ -2188,10 +2189,20 @@ internal sealed partial class MainForm : Form
         }
 
         bool allowSluaghbinder = SluaghbinderEnabled(connection, transaction);
+        // The realm's roster by class: each new bot takes the class the proportions of a perfect party of eight lack most.
+        var classCounts = new Dictionary<int, int>();
+        using (var roster = connection.CreateCommand())
+        {
+            roster.Transaction = transaction;
+            roster.CommandText = "SELECT ClassId, COUNT(*) FROM offline_world_bots WHERE Realm=@realm AND IsRetired=0 GROUP BY ClassId";
+            roster.Parameters.AddWithValue("@realm", realm);
+            using var counts = roster.ExecuteReader();
+            while (counts.Read()) classCounts[counts.GetInt32(0)] = counts.GetInt32(1);
+        }
         var identities = new List<BotCharacterGenerator.Identity>(count);
         for (int index = 0; index < count; index++)
         {
-            BotCharacterGenerator.Identity identity = BotCharacterGenerator.Generate(realm, reserved, allowSluaghbinder);
+            BotCharacterGenerator.Identity identity = BotCharacterGenerator.GenerateBalanced(realm, reserved, allowSluaghbinder, classCounts);
             BotStartingLocation start = level == 50
                 ? CapitalBotStartingLocation(identity.Realm)
                 : ChooseBotStartingLocation(connection, transaction, identity.Realm, identity.RaceId, identity.ClassId);
