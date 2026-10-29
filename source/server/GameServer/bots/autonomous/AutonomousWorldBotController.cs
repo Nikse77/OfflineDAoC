@@ -1635,7 +1635,7 @@ namespace DOL.GS
             if (_pullHoldSinceTick == 0 || now - _pullHoldLastTick > 60_000)
                 _pullHoldSinceTick = now;
             _pullHoldLastTick = now;
-            // A party that has made no shared progress for fifteen minutes in its Grinding phase gives its camp up (see
+            // A party that has made no shared progress for ten minutes in its Grinding phase gives its camp up (see
             // AutonomousBotGroupCoordinator.IdleCampGiveUpSeconds): the individual watchdog does not end it while a failing pull
             // keeps a member in combat.
             if (_camp != null && directive.Phase == "Grinding" && now >= _nextGroupIdleCheckTick)

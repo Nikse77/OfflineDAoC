@@ -5,8 +5,8 @@ namespace DOL.GS.Tests;
 [TestFixture]
 public sealed class UT_GroupIdleCampGiveUp
 {
-    [TestCase("Grinding", 899L, ExpectedResult = false, TestName = "Fifteen minutes not yet")]
-    [TestCase("Grinding", 900L, ExpectedResult = true, TestName = "Fifteen minutes without shared progress: another camp")]
+    [TestCase("Grinding", 599L, ExpectedResult = false, TestName = "Ten minutes not yet")]
+    [TestCase("Grinding", 600L, ExpectedResult = true, TestName = "Ten minutes without shared progress: another camp")]
     [TestCase("Grinding", 3_502L, ExpectedResult = true, TestName = "Albion 052 stood 58 minutes")]
     [TestCase("Traveling", 3_000L, ExpectedResult = false, TestName = "Only the grinding phase")]
     [TestCase("Regrouping", 3_000L, ExpectedResult = false, TestName = "A regroup has its own deadlines")]

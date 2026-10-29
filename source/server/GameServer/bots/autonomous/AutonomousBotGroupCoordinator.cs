@@ -746,9 +746,9 @@ public static partial class AutonomousBotGroupCoordinator
     /// puller pulling or in its ordinary fallback, every gate open. The individual watchdog never ended them: while any member is in
     /// combat (a shot that hit, a monster in an aggro list) all members are protected, and a pull that draws nothing keeps
     /// somebody "in combat" for ever. A party in the Grinding phase without shared progress (experience, the leader moving) for this
-    /// long gives its camp up and chooses another target.
+    /// long (ten minutes) gives its camp up and chooses another target.
     /// </summary>
-    public const int IdleCampGiveUpSeconds = 15 * 60;
+    public const int IdleCampGiveUpSeconds = 10 * 60;
 
     public static bool ShouldGiveUpIdleCamp(string phase, long idleSeconds) =>
         phase == "Grinding" && idleSeconds >= IdleCampGiveUpSeconds;
