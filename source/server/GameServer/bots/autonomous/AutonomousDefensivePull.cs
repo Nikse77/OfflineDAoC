@@ -8,6 +8,44 @@ using DOL.Logging;
 
 namespace DOL.GS
 {
+    /// <summary>
+    /// The monsters a party's ranged pull could not draw. A monster that was struck and did not come, or failed
+    /// <see cref="AutonomousDefensivePull.AttemptsPerTarget"/> attempts, is set aside for a while (the party pulls another one);
+    /// <see cref="AutonomousDefensivePull.MaximumBlockedTargets"/> set aside in a row ask for the ordinary (melee) pull.
+    /// </summary>
+    public sealed class PullTargetLedger
+    {
+        private readonly Dictionary<int, int> _attempts = new();
+        private readonly Dictionary<int, long> _blockedUntil = new();
+
+        /// <summary>Monsters set aside in a row since the last one that came.</summary>
+        public int BlockedInARow { get; set; }
+
+        /// <summary>One failed attempt; true when the party should now pull the ordinary way (and the count starts again).</summary>
+        public bool Note(int targetId, bool struck, long now)
+        {
+            _attempts.TryGetValue(targetId, out int attempts);
+            attempts++;
+            if (struck || attempts >= AutonomousDefensivePull.AttemptsPerTarget)
+            {
+                _attempts.Remove(targetId);
+                if (_blockedUntil.Count > 64)
+                    foreach (int old in _blockedUntil.Where(pair => pair.Value <= now).Select(pair => pair.Key).ToArray())
+                        _blockedUntil.Remove(old);
+                _blockedUntil[targetId] = now + AutonomousDefensivePull.BlockedTargetMilliseconds;
+                BlockedInARow++;
+            }
+            else
+                _attempts[targetId] = attempts;
+            if (BlockedInARow < AutonomousDefensivePull.MaximumBlockedTargets)
+                return false;
+            BlockedInARow = 0;
+            return true;
+        }
+
+        public bool IsBlocked(int targetId, long now) => _blockedUntil.TryGetValue(targetId, out long until) && now < until;
+    }
+
     /// <summary>One bounded, real ranged pull per level-50 PvE party. No new timers or world scans.</summary>
     public static class AutonomousDefensivePull
     {
@@ -15,10 +53,15 @@ namespace DOL.GS
         public const int TimeoutMilliseconds = 30_000;
         // Owner 2026-10-28: parties stood at their camp for fifteen minutes and more with the puller "ranged pulling" and nothing
         // shot (a spell it could not cast, no line of sight, out of range) or with the target shot but never coming: each attempt
-        // ended silently after 30 s and the next began 10 s later, for ever. After this many attempts in a row without contact the
-        // party pulls the ordinary way for a while.
-        public const int MaximumFailedAttempts = 2;
+        // ended silently after 30 s and the next began 10 s later, for ever. After the targets below have been set aside in a row
+        // the party pulls the ordinary way for a while.
         public const int MeleeFallbackMilliseconds = 300_000;
+        // Owner 2026-10-29: the puller must keep pulling until the monster comes, or change target. A target that did not come
+        // after this many attempts is set aside for the party for a while and the next camp target is pulled; only when this many
+        // targets in a row have been set aside does the party pull the ordinary way (melee) for five minutes.
+        public const int AttemptsPerTarget = 2;
+        public const int MaximumBlockedTargets = 3;
+        public const long BlockedTargetMilliseconds = 300_000;
         // 2026-10-29 log: 645 failed pulls in two hours, nearly all "shot=True" with the target 600-1,100 away and never coming.
         // A target that was shot and has not come in this time is not coming: the attempt ends without waiting out its 30 s.
         public const int ShotWaitMilliseconds = 15_000;
@@ -35,7 +78,8 @@ namespace DOL.GS
             public bool Shot, Active;
             public long ShotTick;
             public eAttackResult ShotResult;
-            public int Failures;
+            public readonly PullTargetLedger Ledger = new();
+            public int Failures { get => Ledger.BlockedInARow; set => Ledger.BlockedInARow = value; }
             public long MeleeFallbackUntil;
         }
         private static readonly ConditionalWeakTable<Group, State> States = new();
@@ -74,6 +118,19 @@ namespace DOL.GS
         public static bool HasRangedPull(GameBot bot) => bot?.CharacterClass != null &&
             !SavageBotCombatPolicy.MustMeleePull((eCharacterClass)bot.CharacterClass.ID) &&
             (PullSpell(bot) != null || BotRangedCombat.CanUse(bot, bot.Inventory?.GetItem(eInventorySlot.DistanceWeapon)));
+
+        /// <summary>The party's ranged-pull state for the pull-hold trace (diagnostics only).</summary>
+        public static string Describe(Group group)
+        {
+            if (group == null || !States.TryGetValue(group, out State state)) return "dp=none";
+            lock (state)
+            {
+                long now = GameLoop.GameLoopTime;
+                return $"dp(active={state.Active} failures={state.Failures} retryInMs={Math.Max(0, state.RetryAfter - now)} " +
+                       $"meleeFallbackInMs={Math.Max(0, state.MeleeFallbackUntil - now)} shooter={state.Shooter?.Name} " +
+                       $"target={state.Target?.Name} shot={state.Shot})";
+            }
+        }
 
         public static bool OwnsRangedPosition(GameNPC npc) => npc is GameBot bot && bot.Group != null &&
             States.TryGetValue(bot.Group, out State state) && state.Active && state.Shooter == bot;
@@ -235,10 +292,8 @@ namespace DOL.GS
                         $"AUTONOMOUS_DEFENSIVE_PULL_UNREACHABLE bot={shooter.Name} target={target.Name} region={shooter.CurrentRegionID} x={shooter.X} y={shooter.Y} z={shooter.Z}");
                     // The same target again and again (26 times for one party, 2026-10-28): after the second the party pulls the
                     // ordinary way for a while instead of standing at its camp.
-                    if (!flyingHandoff && ++state.Failures >= MaximumFailedAttempts)
+                    if (!flyingHandoff && NoteFailedTarget(state, target.ObjectID, struck: true))
                     {
-                        state.Failures = 0;
-                        state.MeleeFallbackUntil = GameLoop.GameLoopTime + MeleeFallbackMilliseconds;
                         state.RetryAfter = 0;
                         return false;
                     }
@@ -378,15 +433,36 @@ namespace DOL.GS
             lock (state) if (state.Active) Finish(state, false);
         }
 
+        /// <summary>
+        /// A failed attempt on one target. A target that was struck and did not come, or failed <see cref="AttemptsPerTarget"/>
+        /// times, is set aside for <see cref="BlockedTargetMilliseconds"/> (the party then pulls another one); true when
+        /// <see cref="MaximumBlockedTargets"/> targets in a row were set aside: the party pulls the ordinary way for a while.
+        /// </summary>
+        private static bool NoteFailedTarget(State state, int targetId, bool struck)
+        {
+            long now = GameLoop.GameLoopTime;
+            if (!state.Ledger.Note(targetId, struck, now))
+                return false;
+            state.MeleeFallbackUntil = now + MeleeFallbackMilliseconds;
+            return true;
+        }
+
+        /// <summary>True when the party's ranged pull set this monster aside (it did not come); the camp search skips it.</summary>
+        public static bool IsTargetBlocked(Group group, GameLiving target)
+        {
+            if (group == null || target == null || !States.TryGetValue(group, out State state)) return false;
+            lock (state)
+                return state.Ledger.IsBlocked(target.ObjectID, GameLoop.GameLoopTime);
+        }
+
         // An attempt that ran out its 30 s without contact (nothing shot, or the shot target never came) says why (the shooter's own view) and, at the second one in a row, hands
         // the party to the ordinary pull for five minutes.
         private static void RecordFailedAttempt(State state)
         {
             GameBot shooter = state.Shooter;
-            // A shot that struck and still did not bring the target says the ranged pull does not draw this one: no second try.
+            // A shot that struck and still did not bring the target says the ranged pull does not draw this one: another target.
             bool struck = state.Shot && state.ShotResult is eAttackResult.HitUnstyled or eAttackResult.HitStyle;
-            state.Failures += struck ? MaximumFailedAttempts : 1;
-            bool fallBack = state.Failures >= MaximumFailedAttempts;
+            bool fallBack = NoteFailedTarget(state, state.Target.ObjectID, struck);
             try
             {
                 int range = state.Spell?.Range ?? shooter.attackComponent.AttackRange;
@@ -402,16 +478,12 @@ namespace DOL.GS
                     $"shotResult={state.ShotResult} msSinceShot={(state.ShotTick > 0 ? GameLoop.GameLoopTime - state.ShotTick : -1)} " +
                     $"targetInCombat={state.Target.InCombat} targetTargets={state.Target.TargetObject?.Name ?? "none"} " +
                     $"targetFlying={(state.Target as GameNPC)?.Flags.HasFlag(GameNPC.eFlags.FLYING)} " +
-                    $"crowdControlled={shooter.IsCrowdControlled} failures={state.Failures} meleeFallback={fallBack}");
+                    $"crowdControlled={shooter.IsCrowdControlled} failures={state.Failures} meleeFallback={fallBack} " +
+                    $"targetSetAside={state.Ledger.IsBlocked(state.Target.ObjectID, GameLoop.GameLoopTime)}");
             }
             catch (Exception)
             {
                 // The report is diagnostics only (and needs a live logger and navmesh): the fallback below never depends on it.
-            }
-            if (fallBack)
-            {
-                state.Failures = 0;
-                state.MeleeFallbackUntil = GameLoop.GameLoopTime + MeleeFallbackMilliseconds;
             }
         }
 

@@ -1637,9 +1637,16 @@ namespace DOL.GS
             if (idle < 180) return;
             _nextPullHoldTraceTick = now + 300_000;
             string veto = AutonomousBotGroupCoordinator.DescribePullVeto(bot, out string puller);
+            // 2026-10-29: the veto above is the leader's view and read "none" for a party of seven that stood 30 minutes at its
+            // camp with no kill after one failed ranged pull; the puller's own view and its pull state say what it waits for.
+            GameBot pullerBot = directive.Puller;
+            string pullerLine = pullerBot == null ? "puller=none" :
+                $"pullerView=[{AutonomousBotGroupCoordinator.DescribePullerView(pullerBot, out _)}] " +
+                $"pullerActivity=\"{pullerBot.PersistentRecord?.Activity}\" pullerMoving={pullerBot.IsMoving} pullerInCombat={pullerBot.InCombat} " +
+                $"pullerAt={pullerBot.X},{pullerBot.Y},{pullerBot.Z} {AutonomousDefensivePull.Describe(bot.Group)}";
             Log.Warn($"AUTONOMOUS_GROUP_PULL_HOLD group={directive.GroupId} leader={bot.Name} puller={puller} phase={directive.Phase} " +
                      $"size={bot.Group?.MemberCount} heldSeconds={(now - _pullHoldSinceTick) / 1000} idleSeconds={idle} camp=\"{_camp?.Id}\" " +
-                     $"position={bot.X},{bot.Y},{bot.Z} reasons=\"{veto}\"");
+                     $"position={bot.X},{bot.Y},{bot.Z} reasons=\"{veto}\" {pullerLine}");
         }
 
         // The puller that follows the leader instead of pulling for three minutes says why, every five minutes
@@ -3198,7 +3205,9 @@ namespace DOL.GS
                     _failedSoloPullRoutes.Remove(id);
                 _nextFailedSoloPullRoutePruneTick = nowTick + 10_000;
             }
-            GameNPC FindWithin(ushort radius) => bot.GetNPCsInRadius(radius)
+            GameNPC FindWithin(ushort radius, bool honorSetAside = true) => bot.GetNPCsInRadius(radius)
+                // A monster the party's ranged pull could not draw is set aside for a while: the next target is pulled.
+                .Where(npc => !honorSetAside || !AutonomousDefensivePull.IsTargetBlocked(bot.Group, npc))
                 .Where(npc => IsExperienceMonster(npc) && npc.IsAlive && npc.CurrentRegionID == _camp.RegionId &&
                     !AutonomousAuditedCampPolicy.IsBotExcludedNpc(npc) &&
                     !AutonomousPveTargetPolicy.IsUnreachableFlyer(npc.Flags, npc.Z, bot.Z))
@@ -3270,7 +3279,9 @@ namespace DOL.GS
 
             // Preserve the old cheap local lookup for ordinary pulls. Only an
             // empty local ring pays for the requested 5,000-unit expansion.
-            return FindWithin(ImmediateTargetSearchRadius) ?? FindWithin(TargetSearchRadius);
+            // Only when every target is set aside is one of them pulled again.
+            return FindWithin(ImmediateTargetSearchRadius) ?? FindWithin(TargetSearchRadius) ??
+                   FindWithin(TargetSearchRadius, honorSetAside: false);
         }
 
         private void PatrolCamp(GameBot bot)
