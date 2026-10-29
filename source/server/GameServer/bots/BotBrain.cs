@@ -4336,8 +4336,14 @@ namespace DOL.AI.Brain
 
         protected virtual bool CheckInstantDefensiveSpells(Spell spell)
         {
+            // 2026-10-29: a NullReferenceException in this method (one in 84 minutes among 650 bots) ended a gamebot's turn in
+            // NpcService, which took it out of the world. The stack names the method but not the line (optimized code reports the
+            // first one). Its own dereferences are of the brain's body, the bot, the spell, the effect list and, twice in a row,
+            // the body's TargetObject, which other threads of the loop change (a target that dies or is taken away between the
+            // test and the use). All of them are read once and tested here.
+            if (spell == null || Body == null || BotBody == null) return false;
             if (CompanionFollowPolicy.DeferBuff(BotBody, spell)) return false;
-            if (spell == null || spell.Level > Body.Level || Body.Mana < BotBody.PowerCost(spell) ||
+            if (spell.Level > Body.Level || Body.Mana < BotBody.PowerCost(spell) ||
                 !BotBody.CanAffordConcentration(spell) ||
                 BotSongTwistPolicy.IsReservedPulse(BotBody, spell) ||
                 spell.HasRecastDelay && Body.GetSkillDisabledDuration(spell) > 0)
@@ -4359,16 +4365,17 @@ namespace DOL.AI.Brain
                 case eSpellType.SavageDPSBuff:
                 case eSpellType.SavageParryBuff:
                 case eSpellType.SavageEvadeBuff:
-                    int activeSavageBuffs = Body.effectListComponent.GetEffects(eEffect.SavageBuff)
-                        .Count(effect => effect?.SpellHandler?.Spell != null);
+                    int activeSavageBuffs = Body.effectListComponent?.GetEffects(eEffect.SavageBuff)
+                        ?.Count(effect => effect?.SpellHandler?.Spell != null) ?? 0;
                     // Health-cost buffs only once the Savage is actually at its
                     // target, never while still walking up (a level 1 Savage
                     // arrived half dead), and just one of them below level 10.
-                    bool atTarget = Body.TargetObject is GameLiving buffTarget && buffTarget.IsAlive &&
-                        Body.IsWithinRadius(buffTarget, Body.MeleeAttackRange + 150);
+                    GameLiving savageTarget = Body.TargetObject as GameLiving;
+                    bool atTarget = savageTarget != null && savageTarget.IsAlive &&
+                        Body.IsWithinRadius(savageTarget, Body.MeleeAttackRange + 150);
                     if (atTarget &&
                         SavageBotCombatPolicy.ShouldUseBuff(spell.SpellType, Body.HealthPercent, activeSavageBuffs, Body.Level,
-                            ((GameLiving)Body.TargetObject).HealthPercent) &&
+                            savageTarget.HealthPercent) &&
                         !LivingHasEffect(Body, spell))
                         castSpell = true;
                     break;
@@ -4390,7 +4397,8 @@ namespace DOL.AI.Brain
                 case eSpellType.OffensiveProc:
                     if (spell.SpellType == eSpellType.CombatSpeedBuff)
                     {
-                        if (Body.TargetObject != null && !Body.IsWithinRadius(Body.TargetObject, Body.MeleeAttackRange))
+                        GameObject speedTarget = Body.TargetObject;
+                        if (speedTarget != null && !Body.IsWithinRadius(speedTarget, Body.MeleeAttackRange))
                             break;
                     }
 
@@ -4438,10 +4446,13 @@ namespace DOL.AI.Brain
                         castSpell = InstantPointBlankWorthwhile(spell, Body.TargetObject as GameLiving);
                         break;
                     }
-                    if (AreaBlastVetoed(spell, Body.TargetObject))
+                    GameObject offensiveTarget = Body.TargetObject;
+                    if (offensiveTarget is not GameLiving offensiveLiving)
+                        break;
+                    if (AreaBlastVetoed(spell, offensiveTarget))
                         break;
 
-                    if (!LivingHasEffect((GameLiving)Body.TargetObject, spell) && Body.IsWithinRadius(Body.TargetObject, spell.Range))
+                    if (!LivingHasEffect(offensiveLiving, spell) && Body.IsWithinRadius(offensiveTarget, spell.Range))
                         castSpell = true;
                     break;
             }
