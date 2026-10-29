@@ -57,6 +57,16 @@ namespace DOL.GS
             return For(bot).Observe(new(leader.X, leader.Y, leader.Z), leader.IsMoving, GameLoop.GameLoopTime);
         }
 
+        // Owner 2026-10-29: when the player walks on out of combat, a companion drops whatever it is doing
+        // (resting, a buff, a pet summon, a heal) at once and follows. Only a mobile song, the native group
+        // speed cast, a stable route, crowd control and any fight keep it where it is.
+        public static bool DropsActivityToFollow(GameBot bot) => Applies(bot) && bot.IsTemporaryGroupHelper &&
+            bot.PlayerGroupLeader is { IsMoving: true, InCombat: false, IsAttacking: false } leader &&
+            !(leader.IsCasting && leader.castingComponent?.SpellHandler?.Spell?.IsHarmful == true) &&
+            bot.IsAlive && !bot.InCombat && !bot.IsAttacking && !bot.IsOnStableMasterRoute && !bot.IsCrowdControlled &&
+            !bot.IsStealthed && !leader.IsStealthed && !NativeTravelSpeedCastInProgress(bot) &&
+            bot.Brain is not BotBrain { HasAggro: true } && !TemporaryCompanionRecovery.HasPartyCombat(bot);
+
         public static bool IsOrdinaryBuff(GameLiving caster, Spell spell)
         {
             if (spell == null || spell.IsHarmful || spell.IsHealing || BotSongTwistPolicy.IsMobileSong(caster, spell) ||

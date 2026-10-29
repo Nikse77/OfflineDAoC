@@ -1350,6 +1350,18 @@ namespace DOL.AI.Brain
                 (BotBody.TryReturnTemporaryCompanionToLeader() || TryResurrectCompanionOwner()))
                 return;
 
+            // The player walks on out of combat: stop resting, casting and upkeep at once and follow.
+            // A performer keeps its own mobile-song job below, which already follows.
+            if (CompanionFollowPolicy.DropsActivityToFollow(BotBody) && !IsClassicSongClass(BotBody))
+            {
+                BotBody.WakeTemporaryCompanionRest();
+                if (BotBody.IsCasting && !BotSongTwistPolicy.HasMobileSongCast(BotBody))
+                    BotBody.StopCurrentSpellcast();
+                MarkTemporaryCompanionRestActivity();
+                FollowFormation();
+                return;
+            }
+
             if (PlayerLedPullCoordinator.IsWaiting(BotBody))
             {
                 // The tank alone owns the approach. Waiting allies may heal or
@@ -1571,7 +1583,7 @@ namespace DOL.AI.Brain
             if (owner?.ControlledBrain is not NecromancerPetBrain servantBrain ||
                 servantBrain.Body?.IsAlive != true || !servantBrain.HasPendingSelfBuffCommand ||
                 ActiveOrderedPullTarget?.IsAlive == true ||
-                BotRestRecovery.BlocksRest(owner))
+                BotRestRecovery.BlocksRest(owner) || CompanionFollowPolicy.DropsActivityToFollow(owner))
             {
                 return false;
             }
