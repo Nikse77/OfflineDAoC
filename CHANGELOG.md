@@ -3,6 +3,200 @@
 The newest version is first. For the full detail of every earlier update, see
 [docs/history/CHANGELOG-0.3-to-0.32b.md](docs/history/CHANGELOG-0.3-to-0.32b.md).
 
+## 0.38 / 0.38b / 0.38c (not released yet)
+
+0.37 / 0.37b / 0.37c is the latest release.
+
+**Bots and raids**
+- Hibernian bots no longer get stuck at the door of their portal keep in Odin's Gate. Once out of the keep's
+  inner door, the route they planned led back in to the keep yard and then out again, over and over, until they
+  gave up and went home (47 bots and 292 give-ups in one test run). A planned route no longer starts by going back
+  through a door the bot has just come out of when that leads no nearer its goal.
+- Bots no longer fight things a player can't target. In Galladoria the Corrupt Primal of Fire leaves short-lived
+  patches of fire behind it (they can't be targeted, resist nearly everything and burn out in six seconds), and
+  nearly the whole raid by the Earthmenders was swinging at them instead of the Earthmenders and the primal; the
+  Fire primal was given up at 99%.
+- When only a handful of a raid fight its current target while many stand around it, up to a third of those already
+  busy with something else now switch to it as well. Before, only idle raiders were called over until the target had
+  gone untouched for three minutes, which never happens while a few keep chipping at it (Galladoria's Magical
+  Earthmender: 2 of 207 raiders on it).
+- The patches of fire Galladoria's Corrupt Primal of Fire leaves behind hit for less: 120 heat damage in a 300 radius
+  every 2 seconds (was 220 in a 450 radius).
+- Siege armies' healers go out to their dead. A fallen attacker now waits for a raise while one of its army's healers
+  is within 5,000 (it was 2,000; with nobody that close it released after 20 seconds and walked back from its portal
+  keep, about 185,000 units at Dun Dagda), healers out of the fight walk out to the dead on the field, and the realm's
+  other RvR healers at the battle raise them too. At Dun Dagda most attackers fall on the slopes 3,000 to 4,500 below
+  the keep, out of reach of the healers at the gate.
+- Albion bots no longer get sent home to Camelot from beside their portal keep in Odin's Gate. A walled-in floor just
+  south of the keep joins nothing; bots that ended up on it now step back into the keep yard and go on.
+- Bots can now finish Caer Sidi: a bot raid killed the four horsemen and Apocalypse for the first time. The hidden
+  controller that starts the horsemen's challenge only woke up for players, so it never noticed the raid waiting at
+  its trigger (over a hundred bots stood there for half an hour with nothing happening). Hidden encounter controllers
+  now always run, whoever is near.
+- Galladoria's Olcasgean wakes for a bot raid once all four primals are dead. He slept on as a statue, because only his
+  own brain starts the timer that wakes him, and bots never woke a monster that couldn't attack them. Raid bots now
+  wake any scripted encounter boss near them, as a player would.
+- A relic or keep army stays together on the march. When its leader stopped leading, the next one was simply the first
+  marcher on the list, wherever it was; a straggler 64,000 units behind could take over, and the front of the army
+  walked back to it (at Dun Dagda the siege then opened with 62 of 170 attackers there). The new leader is the marcher
+  with most of the army around it. In the next test the army marched in 22 minutes and opened the siege with 161 at
+  the keep.
+- A siege army's healers stay behind the line. Those that can raise the dead no longer pick fights of their own in the
+  melee: they step back from an enemy close to them and heal and raise their army from behind, and fight back only
+  when they are hit. They used to fight in the front with everyone else and were always under attack or dead when
+  their army fell, so no fallen attacker was ever raised at Dun Dagda.
+- A group member that dies three times on its way to the group's meetup point counts as a no-show at once, and
+  the group goes on without it, instead of waiting the full fifteen minutes (a low-level group was seen dying
+  about 70 times near its meetup during one wait and then being dropped anyway). (From the
+  chris4aker/OfflineDAoC-SocialExpansion fork.)
+- Bots and companions use their area spells on two or more monsters (GitHub issue #17). Point blank spells (centred on
+  the caster) were never cast at all, because of a range check that could not pass. Now:
+  - Thanes, Reavers, Clerics and Shamans use their instant point blank spells when two or more monsters already in the
+    fight are around them.
+  - Wizards, Theurgists, Eldritches, Enchanters, Mentalists, Spiritmasters, Runemasters and Bonedancers cast theirs
+    where they stand, or walk a short way in (up to 700 units) to reach two or more while their group holds the
+    monsters and nothing is hitting them. A caster that is hit or interrupted waits 15 seconds, and two failures end
+    it for that fight, so it never walks in and out in a loop.
+  - An area nuke is chosen over a single nuke when its total over the monsters it hits is bigger.
+  - No area spell is cast when it would also hit a mesmerized monster (waking it) or one not in the fight yet (pulling
+    it).
+  - Ground-targeted area spells land on the target; bots never set a ground target, so these always failed.
+- Every class with a mesmerize or stun now controls adds, not only Bards: a monster attacking the group that nobody
+  is killing gets mesmerized (an area mez only where it cannot reach the monster being killed), and a stun protects
+  someone an add is hitting while they fight something else. The instant mez and stun with a ten-minute reuse are kept
+  for three or more adds. Healers, Clerics and Druids in a group never did this, because their support turn cancelled
+  any harmful spell; they now do, after heals, and keep a quarter of their power for healing.
+- Augmentation Healers cast Celerity while a melee groupmate is fighting in melee without it. The buff choice had no
+  place for it, so it was never cast.
+- Cabalist, Enchanter and Spiritmaster bots and companions use their pet focus damage shield again. It had been
+  turned off because a bot shielding its pet stood still for good: every later spell was queued behind the shield's
+  channel. Now a bot's next spell ends the channel, as a player's does, and the shield is used as a player uses it:
+  only while a monster is hitting the pet (the pet tanking, as when soloing), in a fight that will last, with nothing
+  hitting the caster and power to save. It is dropped two seconds after nobody hits the pet any more (and so when the
+  fight ends), when the caster has to move or is hit, and for heals or a mez, and the bot carries on.
+- A monster's area spell that recasts itself from each target it lands on (Lydsyg's disease in Iarnvidiur's Lair)
+  could fill the server's memory against a large raid until it stopped. A monster can no longer ask for the same
+  instant spell on the same target within a second, queue it twice, or hold more than 16 casts. (From the
+  chris4aker/OfflineDAoC-LivingServer fork.)
+
+**World**
+- Monsters with no faction bring friends again: their own kind. Bring A Friend only counted monsters of the same or an
+  allied faction, and two thirds of the aggressive monsters in the game have no faction, so they never brought anyone,
+  whatever the size of the group (Midgard's frore liches, windswept wraiths and chillsome wights, for example). A
+  monster with no faction now brings others of the same name that have no faction either, the way wraiths brought
+  wraiths; monsters with a faction work as before. The server setting baf_same_name_without_faction turns it off.
+- The Huntsmen and Woodsmen of Campacorentin Forest patrol the roads in pairs again instead of standing still. Period
+  sightings show a Huntsman and a Woodsman together all along the forest's main roads; each Huntsman now walks one
+  stretch of road up and down with a Woodsman at his side, along the same road the horse routes take.
+- Helmets that showed nothing on the head now look like a normal helm. Fifteen helmet looks have no head model in the
+  game client at all, so the client drew nothing when one was worn; the commonest was the Albion cloth cap (most random
+  Albion cloth caps rolled it), along with crowns, circlets, a leather cap and the Dragonsworn full helms. Every such
+  helmet now uses its realm's usual helm for its armour type (Albion cloth caps the plain Albion cloth helm), random
+  helmets no longer roll them, and the ones already in the game were changed.
+- A door the server has no record of opens again when you use it. Such a door is opened by a stand-in that the
+  server makes on the spot, but the stand-in started out already open, so opening it changed nothing and the
+  door stayed shut. The server log now also names any door it doesn't know (DOOR_NOT_IN_DATABASE), so missing
+  ones can be found and added.
+
+**Companions and commands**
+- /spawn specs opens a menu like /spawn that lists every class of your realm with its builds, such as
+  [Healer (Mending)] [Healer (Augmentation)] [Healer (Pacification)]; click one to add that companion. /spawn healer
+  augmentation does the same from a macro, and /spawn healer still picks a build at random. Each build is named after
+  the spec line it really trains highest; melee builds are named by their weapon setup (One Handed and Shield, Two
+  Handed, Celtic Dual, Hand to Hand, Left Axe).
+- Companions with Stealth hide when you stealth and come out when you do, or when they are drawn into a fight. They
+  follow the same rules you do (not in combat or casting, not too close to an enemy), a Minstrel stops its songs first,
+  and while hidden they cast nothing but heals.
+- /tc always takes you to your capital's Realm Exchange. /transfercorpse also claimed /tc, so the server reported an
+  error at every start and the two could swap. /transfercorpse keeps its full name. (From the lometur/HearthDAoC
+  fork; Nikse77 and chris4aker found the same clash.)
+- /spawn Clerics, Druids and Healers stand and heal during a fight instead of walking back to their place in the
+  formation between heals, follow you again three seconds after it, or at once if you get more than 1,500 units away,
+  and no longer walk away from you to heal or buff someone. (From the Nikse77/OfflineDAoC fork, branch mod-0.37.)
+
+**The new client (0.38c)**
+- A monster or NPC that dies stops attacking at once. It sometimes went on swinging for a second or two over its
+  death, when a blow of its own arrived just after the killing blow; the original client never animates a dead body.
+- The new client keeps a log of the spells it sees cast and land around you (spell_log.txt in its save folder, the
+  last few hundred lines), to attach to a bug report when a spell's animation or effect doesn't show.
+- A spell at a target you can't see (behind a wall or a hill) is refused at once with "You can't see your target
+  from here!", as in the original client. It used to cast in full and only then fail with that message.
+- Ghostly characters (Spiritmaster spirits, ghost NPCs) keep their hair from every angle. Part of it vanished
+  depending on where you looked from, so a ghostly dwarf's braided head looked bald from the front.
+- Robes hang as long robes, as in the original client. They were drawn on the vest body with sleeves and trousers
+  showing under them (a troll Bonedancer's robe looked like a striped tunic). Now a robe uses the long robe body,
+  with the arms and legs (and a Highlander's kilt) hidden and shorter boots and gloves, and every other armour piece
+  takes the body, boot or glove shape its item names (its extension), where everything used to fall back to the
+  first shape.
+- Helms and hats wear their own material. The Norse Cloth Cap that many cloth casters wear showed a sheet of
+  chain and scales; it is padded leather again, as are 23 other helms that had the same wrong texture (Celtic cloth,
+  reinforced and scale caps, the tiaras, some guard helms).
+- Snow wolves (savage winterwolves and the like) fall over when they die. They stood on in their idle pose,
+  because they had been built with the animations of the wolf puppy pets, which look the same but have no death.
+  Every monster now plays its own animation set, which also gives the Labyrinth's living Undead Minotaur its own
+  moves (it had the dead one's), and Fomorians and Red Caps with and without weapons their own.
+- A buff overridden by a stronger one of its kind (and an immunity) shows tinted red on your effects bar, as in
+  the original client. Both used to look active.
+- Weapons you aren't using stay on you, as in the original client: a two-hander rides on your back while you
+  fight with one hand and a shield, and a one-hander hangs at your belt while you use your two-hander or bow.
+  Shields, bows, staves and polearms you aren't using are put away out of sight.
+- Sheathed weapons hang the way the original client hangs them: a two-hander's hilt comes up over your left shoulder
+  with the blade down your back under the cloak, and one-handers hang head down at the belt. They used to hang out
+  across the cloak.
+- A cloak covers the spiked shoulder pieces of some chain chests (on Kobolds most of all), which came through the
+  cloak's inner edges when standing still.
+- A Necromancer's necroservant no longer shows up carrying a two-handed sword. A creature with no gear of its own
+  could show the weapons of whatever had been in its place before (an abomination's sword after switching pets).
+- Shift + right-click on a quickbar slot empties it, as in the original client. Dragging it off the bar still works.
+- Helmets show on every race that can wear them: Briton women, Half Ogres, Frostalfs and Shar had no helmets in
+  many sets, and some full helms (the Albion full plate helm) showed on Briton men only.
+- Paladin chants look like the original client: the Refreshment chants' golden chalice appears over each healed
+  group member again (it had been left out of the effect), and chant pulses no longer make the paladin wave their
+  arms. The blessing halo and the Mjolnir and Gungnir effects got their missing parts back too.
+- The Necromancer's abomination (and other glowing demon knights) has its glowing eyes in its helmet again, not on
+  its chest armour.
+- Weapon enchantment glows stay on the blade instead of trailing far behind a swinging sword.
+- Names no longer peek around building walls when the character behind the wall is hidden.
+- Four campfires that floated above the ground (one in Camelot Hills, among others) sit on the ground.
+- The Crafted Keeper's arms no longer stretch into long thin strands when it moves. Its model file keeps its bones
+  with the arms held straight out, while the body is fitted to them with the arms down; the client now fits the body
+  the way the original client does. Some other monsters move more cleanly for the same reason, among them the stone
+  and wolf dragons, the Dracolich, Soulkeeper, harpies, slugs, beetles, crabs, scorpions and eels.
+- Avalonian, Elf and Sylvan men's feet no longer go through their cloak when they run. Their skeletons give two
+  bones the same name, and the right side of the cloak followed the wrong one, so that panel never swung with the
+  run. The client now picks the same bone the original client does. Dark Elves, Half Orcs, Xaphans, mammoths and some
+  other monsters with the same quirk move more like the original too.
+- Snowdonia Fortress's metal gates (portcullises) open when the levers are pulled. Gates that slide instead of
+  swinging never moved; the other border keep gates, Caer Diogel's bars and two stone halls' portcullises open too.
+- The target window's FACE, FOLLOW and STICK buttons work when playing on the server (they answered "No such
+  command"), and pressing the same one again on the same target turns it off, as in the original client. (From the
+  chris4aker/OfflineDAoC-SocialExpansion fork.)
+- /target <name> and /assist fill the target window. The server picked the target, but the client never showed it,
+  so a following /invite found no target. (From the chris4aker/OfflineDAoC-SocialExpansion fork.)
+- Abilities such as Sprint, Stealth and Quickcast can be dragged onto the quickbar, as the skills sheet says.
+  (From the chris4aker/OfflineDAoC-SocialExpansion fork.)
+- Stealth works. Stealth is a specialization, not an ability, and the new client had no way to use it: it was
+  missing from the Abilities window, could not go on the quickbar, and /stealth answered "unrecognized command"
+  (issue #16). Stealth now has its own row in the Abilities window to click or drag onto the quickbar, and /stealth
+  and /hide work. While hidden you, and stealthed group members you can still see, are drawn as a dark green
+  ghostly form; enemies who can't detect a stealther still don't see it at all. The Stealth buff also shows its own
+  icon instead of another spell's picture.
+- The new client no longer freezes after a teleport. Right after /tc (or any region change, or a neighbouring zone
+  loading in), it could lock up for good and show "Not Responding": the background zone loaders were touching the
+  graphics card while it was drawing. They now leave those steps to the game's main thread, a little at a time, so
+  nothing stutters, and region changes load a bit faster than before.
+
+**Credits**
+- Thanks to chris4aker's Living Server fork
+  ([chris4aker/OfflineDAoC-LivingServer](https://github.com/chris4aker/OfflineDAoC-LivingServer), formerly
+  OfflineDAoC-SocialExpansion) for the fix for groups waiting on members that keep dying on the way to their meetup,
+  the boss recast guard, and three new-client fixes: the FACE / FOLLOW / STICK buttons, the server's target changes
+  (/target, /assist) and abilities on the quickbar.
+- Thanks to the [Nikse77/OfflineDAoC](https://github.com/Nikse77/OfflineDAoC) fork (branch mod-0.37) for the /spawn
+  healer fixes.
+- Thanks to lometur's [HearthDAoC](https://github.com/lometur/HearthDAoC) fork (Thomas Farral) for the /tc fix;
+  Nikse77 and chris4aker found the same clash.
+
 ## 0.37 / 0.37b / 0.37c — 2026-10-18
 
 The first version that comes as an update to 0.36: the overview is in [docs/RELEASE-0.37.md](docs/RELEASE-0.37.md);

@@ -7,6 +7,7 @@ extends NpcManager
 ## its updates a mover keeps walking toward where the server said it is going (the client's own dead reckoning).
 ## Also the server's chat lines, your health / power / endurance, swings, casts, emotes and deaths.
 
+const StealthLook := preload("res://game/stealth_look.gd")   # the dark green ghost of a hidden figure
 const RUN_UNITS := 150.0                     # a mover faster than this (units / s) runs, slower walks
 const SNAP_M := 6.0                          # an update this far from where it is drawn: jump there
 # eChatType -> the chat window's kinds
@@ -140,6 +141,8 @@ func _on_world(kind: String, d: Dictionary) -> void:
 		"dialog": _dialog(d)
 		"sound_effect": _sound_effect(d)
 		"door_state": _door_state(d)
+		"change_target": _change_target(int(d.oid))
+		"model_type": _model_type(d)
 		"siege_window", "siege_close": _siege_window(kind, d)
 		"siege_anim": _siege_anim(d)
 		"warmap_keeps", "warmap_fights":
@@ -348,6 +351,11 @@ func _add_npc(d: Dictionary) -> void:
 		_remove(oid, false)
 	var f := int(d.flags)
 	var f2 := int(d.flags2)
+	# no 0x02 (PacketLib1124: "mob has equipment ... the 0xBD packet" follows): this living has none - not the gear of
+	# whatever had this object id before (owner 2026-10-19: a necroservant, which has no inventory, showed the two-handed
+	# sword of an abomination released before it)
+	if f & 0x02 == 0:
+		data.equipment.erase("srv%d" % oid)
 	# the packet's flags -> the database's eFlags (what Npc / NamePlates read)
 	var flags := 0
 	if f & 0x01: flags |= 0x01                                  # ghost
@@ -367,6 +375,7 @@ func _add_npc(d: Dictionary) -> void:
 	st.level = int(d.level) & 0x7F
 	st.yaw = Server.yaw_of(int(d.heading))
 	st.stealthed = false                                        # (the server only sends what you can see)
+	st.stealth_look = (f2 & 0x04) != 0                          # hidden, but you can see it: the green ghost
 	st.wait = 1e9                                               # (no roaming of its own)
 	states.append(st)
 	by_oid[oid] = st
@@ -489,6 +498,9 @@ func _update_npc(st: NpcState, d: Dictionary) -> void:
 	st.spawn["level"] = int(d.level) & 0x7F
 	st.level = int(d.level) & 0x7F
 	st.spawn["quest"] = _quest_indicator(d)
+	# a gamebot stealthing / coming out: the server sends it again with its STEALTH flag (GameNPC.Flags) to everyone
+	# who can still see it - those who can't detect it get it removed instead
+	st.stealth_look = (int(d.get("flags2", 0)) & 0x04) != 0
 	var p := scene_pos(float(d.x), float(d.y), float(d.z))
 	if st.pos.distance_to(p) > SNAP_M:
 		st.pos = p
@@ -677,7 +689,8 @@ func _equip(d: Dictionary) -> void:
 	var rows := []
 	for it in d.get("items", []):
 		rows.append({"slot": int(it.slot), "model": int(it.model), "color": int(it.get("color", 0)),
-				"effect": int(it.get("effect", 0)), "emblem": int(it.get("emblem", 0))})   # (a cloak / shield's guild emblem)
+				"effect": int(it.get("effect", 0)), "emblem": int(it.get("emblem", 0)),     # (a cloak / shield's guild emblem)
+				"extension": int(it.get("extension", 0))})                 # (an armour piece's mesh: Fig3Figure.item_armor)
 	var st: NpcState = by_oid.get(oid)
 	var gear := {"hood": (int(d.get("hood", 0)) & 1) != 0, "cloak_hidden": (int(d.get("hidden", 0)) & 1) != 0,
 			"helm_hidden": (int(d.get("hidden", 0)) & 2) != 0}
@@ -870,7 +883,8 @@ func select(n: Npc) -> void:
 	target_object = 0
 	var nm := String(n.spawn.name)
 	var lower := nm.length() > 0 and nm[0] == nm[0].to_lower()
-	PlayerData.message.emit(("You target the [%s]." % nm) if lower else ("You target [%s]." % nm), "system")
+	if not _server_chose_target:                           # the server already said "You target ..."
+		PlayerData.message.emit(("You target the [%s]." % nm) if lower else ("You target [%s]." % nm), "system")
 	PlayerData.set_target({"name": nm, "level": n.state.level, "con_color": n.con_color(PlayerData.level),
 			"health": n.state.health, "guild": String(n.spawn.get("guild", ""))})
 	if Server.client:
@@ -1190,10 +1204,43 @@ func _sounds_of(v: Node) -> CharacterSounds:
 	return null
 
 
+## The spell log (owner 2026-10-19: a /spawn bonedancer's pet buffs - "didn't see shield", two casts with no
+## animation): every cast and landing the server sends, with what the client did - user://spell_log.txt, the last
+## SPELL_LOG_MAX lines, written every few seconds.
+const SPELL_LOG_MAX := 600
+var _spell_log: Array = []
+var _spell_log_due := false
+
+
+func _slog(line: String) -> void:
+	_spell_log.append("%s %s" % [Time.get_time_string_from_system(), line])
+	if _spell_log.size() > SPELL_LOG_MAX:
+		_spell_log = _spell_log.slice(_spell_log.size() - SPELL_LOG_MAX)
+	if not _spell_log_due and is_inside_tree():
+		_spell_log_due = true
+		get_tree().create_timer(3.0).timeout.connect(func():
+			_spell_log_due = false
+			var f := FileAccess.open("user://spell_log.txt", FileAccess.WRITE)
+			if f:
+				f.store_string("
+".join(_spell_log) + "
+")
+				f.close())
+
+
+func _who(oid: int) -> String:
+	if oid == Server.me_oid:
+		return "you"
+	var st: NpcState = by_oid.get(oid)
+	return ("%s#%d" % [String(st.spawn.get("name", "?")), oid]) if st else "?#%d" % oid
+
+
 func _cast(d: Dictionary) -> void:
 	var oid := int(d.caster)
 	var v := _view_of(oid)
 	var ce := int(d.spell)
+	_slog("CAST  %s  %d %s  %.1fs  view=%s" % [_who(oid), ce, String(SpellFx.effect(ce).get("name", "")), int(d.get("time", 0)) / 10.0,
+			"yes" if v else "NOT YET"])
 	SpellFx.prefetch(ce)                                          # its effects load now, on a worker, not as it lands
 	_late_cast.erase(oid)
 	if v == null:
@@ -1280,6 +1327,9 @@ func _spell_effect(d: Dictionary) -> void:
 	var caster := _view_of(int(d.caster)) as Node3D
 	var target := _view_of(int(d.target)) as Node3D
 	var ce := int(d.spell)
+	_slog("LAND  %s -> %s  %d %s  cast=%s  target view=%s  %s" % [_who(int(d.caster)), _who(int(d.target)), ce,
+			String(SpellFx.effect(ce).get("name", "")), "yes" if _gathers.has(int(d.caster)) else "no",
+			"yes" if target else "NOT YET", "resisted" if int(d.success) == 0 else "ok"])
 	_late_cast.erase(int(d.caster))                              # (landed before its caster was drawn: no cast now)
 	var handles: Array = []
 	var g: Array = _gathers.get(int(d.caster), [])
@@ -1327,7 +1377,10 @@ func _spell_effect(d: Dictionary) -> void:
 			if c < anims.size() and String(anims[c]) != "":
 				clip = String(anims[c])
 				break
-		if clip != "" and caster.has_method("_one_shot") and not (caster is Player and (caster as Player).casting_spell):
+		# only a song's instrument (drums / lute / flute): a paladin's chant pulses with no motion (owner 2026-10-20:
+		# "paladins are doing animations for their chants") - as an instant spell shows none (owner 2026-10-15)
+		var instrument := clip.begins_with("cast_drums") or clip.begins_with("cast_lute") or clip.begins_with("cast_flute")
+		if instrument and caster.has_method("_one_shot") and not (caster is Player and (caster as Player).casting_spell):
 			caster.call("_one_shot", clip)
 		SpellFx.sound(_sounds_of(caster), int(SpellFx.effect(ce).get("sound_set", 0)), "gather")
 	# one burst, one sound: the server sends a spell's effect once per target (a group buff on eight: eight packets
@@ -1688,6 +1741,39 @@ func request_door(door: ZoneDoor) -> void:
 	Server.client.call("DoorRequest", door.door_id, 0 if door.is_open else 1)
 
 
+## PlayerModelTypeChange: 3 you went into stealth, 2 you came out (StealthECSGameEffect; 1 / 0 are the GM wireframe) -
+## the old client draws your own hidden figure as the dark green ghost (owner 2026-10-28). Another living's.
+var _me_stealth := false
+
+
+func _model_type(d: Dictionary) -> void:
+	var t := int(d.type)
+	if t != 2 and t != 3:
+		return
+	if int(d.oid) == Server.me_oid:
+		_me_stealth = t == 3
+		_sync_my_stealth()
+	else:
+		var st: NpcState = by_oid.get(int(d.oid))
+		if st:
+			st.stealth_look = t == 3
+
+
+## Your figure as the ghost while you are hidden (again on a new figure: a shapechange, a mount).
+func _sync_my_stealth() -> void:
+	if viewer == null or viewer.player == null or not is_instance_valid(viewer.player):
+		return
+	var m = viewer.player.get("_model")
+	if m is Node3D and is_instance_valid(m) and (m as Node).has_node(StealthLook.NAME) != _me_stealth:
+		StealthLook.set_on(m, _me_stealth)
+
+
+func _process(delta: float) -> void:
+	super(delta)
+	if _me_stealth:
+		_sync_my_stealth()
+
+
 ## DoorState: open / shut a door of a loaded zone (both leaves of a double door).
 func _door_state(d: Dictionary) -> void:
 	var id := int(d.door_id)
@@ -1849,6 +1935,22 @@ func _ridden(st: NpcState) -> bool:
 		if by_oid.get(_riders[r]) == st:
 			return true
 	return false
+
+
+## The server's ChangeTarget (/target <name>, /assist): select that object as a click would - the client then sends
+## its Target packet, which is what sets the server's target. Missing until 2026-10-17: "/target Haralhelm" answered
+## "[GM] You target Haralhelm." but the target window stayed empty and /invite found no target.
+var _server_chose_target := false
+
+
+func _change_target(oid: int) -> void:
+	if oid <= 0:
+		if target or target_door:
+			clear_target()
+		return
+	_server_chose_target = true
+	target_oid(oid)
+	_server_chose_target = false
 
 
 ## A raid window slot clicked: target that member (its view if drawn, else straight on the server).
