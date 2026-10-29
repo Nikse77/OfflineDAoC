@@ -56,8 +56,20 @@ namespace DOL.GS
 
         public static bool IsAtAssignedIdleTown(GameBot bot)
         {
-            return bot?.CurrentRegion?.IsCapitalCity == true || bot?.CurrentAreas?.OfType<AbstractArea>()
-                .Any(area => IsIdleTownArea(area) && area.Description == bot.PersistentRecord?.TravelDestination) == true;
+            if (bot?.CurrentRegion?.IsCapitalCity == true || bot?.CurrentAreas?.OfType<AbstractArea>()
+                    .Any(area => IsIdleTownArea(area) && area.Description == bot.PersistentRecord?.TravelDestination) == true)
+                return true;
+            // 2026-10-29: a circle area tests the height too (distance in three dimensions when the area has a Z), and the idle spots
+            // of Caer Witrin lie 940 above the centre of its circle (radius 1,000): three bots idled there and the watchdog moved each
+            // to Camelot after fifteen minutes of a break that lasts 16 to 19. The idle code itself tests the town in two dimensions
+            // (IsInsideIdleTown); so does this.
+            string destination = bot?.PersistentRecord?.TravelDestination;
+            if (bot == null || string.IsNullOrEmpty(destination))
+                return false;
+            Point3D here = new(bot.X, bot.Y, bot.Z);
+            return IdleTownCatalog().Any(town => town.RegionId == bot.CurrentRegionID &&
+                string.Equals(town.Name, destination, StringComparison.Ordinal) &&
+                town.Area?.IsContaining(here, false) == true);
         }
 
         private bool HandleTownIdle(BotBrain brain, GameBot bot)

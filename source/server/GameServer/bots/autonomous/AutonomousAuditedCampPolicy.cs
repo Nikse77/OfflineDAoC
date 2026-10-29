@@ -75,6 +75,17 @@ namespace DOL.GS
         /// spawn or a named quest monster), so a bot never takes a player's quest kill.
         /// </summary>
         public static bool IsBotExcludedNpc(GameNPC npc) =>
-            npc != null && (IsBotExcludedSpawn(npc.InternalID) || Quests.ClassicQuests.IsQuestMonster(npc));
+            npc != null && (IsBotExcludedSpawn(npc.InternalID) || IsTrainingDummyName(npc.Name) ||
+                            Quests.ClassicQuests.IsQuestMonster(npc));
+
+        /// <summary>
+        /// Owner 2026-10-29: "Grind training dummy in Dales of Devwy" was a goal. Four bots of level 33 to 43 hit a training dummy for
+        /// fifteen minutes each (no experience, a watchdog recovery every time). Training and fighting dummies are targets for
+        /// practice, not monsters: no camp is built on them and no bot pulls them.
+        /// </summary>
+        public static bool IsTrainingDummyName(string name) =>
+            !string.IsNullOrEmpty(name) &&
+            (name.Contains("training dummy", StringComparison.OrdinalIgnoreCase) ||
+             name.Contains("fighting dummy", StringComparison.OrdinalIgnoreCase));
     }
 }

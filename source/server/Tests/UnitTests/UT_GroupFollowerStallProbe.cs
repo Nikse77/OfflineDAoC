@@ -15,6 +15,10 @@ public class UT_GroupFollowerStallProbe
 {
     [TestCase((ushort)100, 715535f, 902535f, 5794f, 806197f, 701339f, 4963f)]
     [TestCase((ushort)200, 321186f, 603853f, 10243f, 297155f, 642943f, 4851f)]
+    // 2026-10-29: two level 16 and 30 mentalists stood 15 minutes at the same spot 220 units from the merchant Rinon Samhaoir,
+    // 238 below him (Grove of Domnann), and a cleric 260 from Dyemaster Emma in Camelot.
+    [TestCase((ushort)181, 425352f, 445590f, 6220f, 425242f, 445781f, 6458f)]
+    [TestCase((ushort)10, 35339f, 31257f, 8334f, 35400f, 31029f, 8208f)]
     public void TheStandingSpotToTheRendezvous(ushort regionId, float x, float y, float z, float rx, float ry, float rz)
     {
         string root = Environment.GetEnvironmentVariable("OFFLINE_DAOC_NAV_ROOT");
