@@ -1285,6 +1285,8 @@ namespace DOL.AI.Brain
             AutonomousSummonActivity.RecoverOwner(BotBody);
             BotAnimistPolicy.RestoreEncounterTarget(BotBody);
             ObserveLeaderActivity();
+            CompanionStealth.Maintain(BotBody);
+            WatchPetFocusShield();
             BotBody?.WakeRecoveryRestIfCombatBlocked();
             BotBody?.EnsureAutonomousRecoveryTimers();
 
@@ -3086,6 +3088,13 @@ namespace DOL.AI.Brain
                 return;
             }
 
+            // A pet focus shield channel stands still; heals and add control may take over it.
+            if (WatchPetFocusShield())
+            {
+                ContinuePetFocusShield();
+                return;
+            }
+
             // The native handler owns an accepted cast through completion (and
             // handles real hits, range/LOS loss and death). Do not replace it
             // with a melee/range/pull decision merely because an enemy is near.
@@ -3372,8 +3381,9 @@ namespace DOL.AI.Brain
         private void TryEnterStealthWhileIdle()
         {
             // Idle is not a reason to hide (and slow travel). Stealth belongs to
-            // the approach to a legal enemy player/bot, not random PvE pauses.
-            if (Body.IsStealthed) Body.Stealth(false);
+            // the approach to a legal enemy player/bot, not random PvE pauses,
+            // or to a companion hidden with its hidden player (CompanionStealth).
+            if (Body.IsStealthed && !CompanionStealth.HoldsStealth(BotBody)) Body.Stealth(false);
         }
 
         private bool TryApproachAmbush(GameLiving target)
@@ -3708,7 +3718,9 @@ namespace DOL.AI.Brain
         {
             Body.StopAttack();
             if (!UsesDefensiveOnlyPet) Body.ControlledBrain?.Disengage();
-            if (Body.IsCasting && Body.castingComponent?.SpellHandler?.Spell?.IsHarmful == true)
+            // A mez or stun on an add (TryPveAddControl) is a support action and finishes.
+            if (Body.IsCasting && Body.castingComponent?.SpellHandler?.Spell is { IsHarmful: true } casting &&
+                !IsAddControlSpell(casting))
                 Body.StopCurrentSpellcast();
         }
 
@@ -3717,7 +3729,8 @@ namespace DOL.AI.Brain
             if (CompanionFollowPolicy.SendsDruidPet(BotBody))
                 TryCommandCompanionDruidPet(CalculateNextAttackTarget());
             HoldSupportCombat();
-            if (!CheckHeals() && !TryPvpCrowdControl()) CheckSpells(eCheckSpellType.Defensive);
+            if (!CheckHeals() && !TryPvpCrowdControl() && !TryPveAddControl() && !TryGroupCelerity())
+                CheckSpells(eCheckSpellType.Defensive);
             if (BotBody.IsPlayerLedGroup)
             {
                 if (!Body.IsCasting && Body.castingComponent?.HasPendingSkillRequests != true)
@@ -3984,6 +3997,8 @@ namespace DOL.AI.Brain
             {
                 if (TryPvpCrowdControl()) return true;
                 if (TryBardPveAddMez()) return true;
+                if (TryPveAddControl()) return true;
+                if (TryGroupCelerity()) return true;
                 if (TryShamanPveAddRoot()) return true;
                 if (TryShortCombatShield()) return true;
                 if (BotBody.CharacterClass.ID == (int)eCharacterClass.Cleric)
@@ -4030,6 +4045,14 @@ namespace DOL.AI.Brain
                 // Nightshade melee focus
                 if (BotBody.CharacterClass.ID == (int)eCharacterClass.Nightshade)
                     return false;
+
+                // A point blank spell with a cast time: cast in place, or walk in while the group holds the monsters.
+                if (TryPointBlankArea())
+                    return true;
+
+                // A pet being hit, power to save: the pet focus shield instead of nukes (BotPetFocusShieldPolicy).
+                if (Body.ManaPercent <= BotPetFocusShieldPolicy.MaxPowerPercent && TryStartPetFocusShield(false))
+                    return true;
 
                 // Melee hybrids prefer melee when in range
                 if (!PrefersCurrentSpellRange() && (BotBody.CanUsePositionalStyles || BotBody.CanUseAnytimeStyles) && (Body.IsWithinRadius(Body.TargetObject, 550) || Body.ManaPercent <= 10))
@@ -4089,6 +4112,10 @@ namespace DOL.AI.Brain
                     }
                 }
 
+                // Nothing else to cast while the pet is being hit: the shield, above 60% power too.
+                if (spellsToCast.Count == 0 && TryStartPetFocusShield(true))
+                    return true;
+
                 if (spellsToCast.Count > 0)
                 {
                     // Do not roll a DoT/debuff already on this mob and mistake
@@ -4101,12 +4128,16 @@ namespace DOL.AI.Brain
                     if (PrefersCurrentSpellRange() && spellsToCast.Exists(BotCasterPriority.IsDamage))
                         spellsToCast.RemoveAll(spell => !BotCasterPriority.IsDamage(spell));
                     bool shamanHybrid = ShamanBotCombatPolicy.IsHybrid((eCharacterClass)BotBody.CharacterClass.ID);
-                    Spell spellToCast = shamanHybrid
+                    // Two or more monsters in the fight within an area damage spell's reach: that spell, when its total
+                    // beats the best single nuke. Area spells that would wake a mez or pull a monster are dropped here.
+                    Spell areaChoice = ChooseAreaDamage(spellsToCast, Body.TargetObject as GameLiving);
+                    if (spellsToCast.Count == 0) return Body.IsCasting;
+                    Spell spellToCast = areaChoice ?? (shamanHybrid
                         ? spellsToCast.OrderBy(ShamanBotCombatPolicy.RotationPriority)
                             .ThenByDescending(spell => spell.Level).First()
                         : BotBody.IsEndgameCompanion
                         ? TemporaryCompanionBalance.HighestSpell(spellsToCast)
-                        : spellsToCast[Util.Random(spellsToCast.Count - 1)];
+                        : spellsToCast[Util.Random(spellsToCast.Count - 1)]);
 
                     if (spellToCast.Uninterruptible || !Body.IsBeingInterrupted)
                         casted = CheckOffensiveSpells(spellToCast);
@@ -4295,6 +4326,7 @@ namespace DOL.AI.Brain
 
             if (Body.TargetObject is GameLiving living && NeedsOffensiveSpellApplication(living, spell))
             {
+                AimGroundSpell(spell, living);
                 casted = Body.CastSpell(spell, m_mobSpellLine);
             }
 
@@ -4390,6 +4422,7 @@ namespace DOL.AI.Brain
                 case eSpellType.CombatSpeedDebuff:
                 case eSpellType.DamageOverTime:
                 case eSpellType.MeleeDamageDebuff:
+                case eSpellType.ArmorAbsorptionDebuff:
                 case eSpellType.AllStatsPercentDebuff:
                 case eSpellType.CrushSlashThrustDebuff:
                 case eSpellType.EffectivenessDebuff:
@@ -4397,7 +4430,14 @@ namespace DOL.AI.Brain
                 case eSpellType.Stun:
                 case eSpellType.Mez:
                 case eSpellType.Mesmerize:
-                    if (spell.IsPBAoE && !Body.IsWithinRadius(Body.TargetObject, spell.Radius))
+                    // A point blank spell (range 0) hits around the caster: the old check wanted the target within range 0,
+                    // so these were never cast (issue #17). Two or more monsters in the fight around it, nothing woken or pulled.
+                    if (spell.IsPBAoE)
+                    {
+                        castSpell = InstantPointBlankWorthwhile(spell, Body.TargetObject as GameLiving);
+                        break;
+                    }
+                    if (AreaBlastVetoed(spell, Body.TargetObject))
                         break;
 
                     if (!LivingHasEffect((GameLiving)Body.TargetObject, spell) && Body.IsWithinRadius(Body.TargetObject, spell.Range))

@@ -22,6 +22,27 @@ namespace DOL.GS
         private readonly Queue<CastSpellRequest> _castSpellRequestPool = new();
         private readonly Queue<UseAbilityRequest> _useAbilityRequestPool = new();
         private readonly Lock _startSkillRequestsLock = new();
+
+        /// <summary>
+        /// A monster's instant spell may not be asked for again on the same target within this time, nor queued twice, and a
+        /// monster keeps at most <see cref="MaxNpcPendingRequests"/> requests. Live run of 2026-10-21: 69 scripted encounters cast
+        /// from OnAttackEnemy, and a spell's hit on each target is reported as an attack too. Lydsyg (Iarnvidiur's Lair) recast his
+        /// area disease on every one of 150 raiders it landed on (45% each): the queue grew without end, the server took 35 GB in
+        /// ten minutes and stopped. With one player and a few targets the chain died out by itself.
+        /// </summary>
+        public const int NpcInstantRecastGapMs = 1_000;
+        public const int MaxNpcPendingRequests = 16;
+        private int _lastNpcSpellId = -1;
+        private int _lastNpcSpellTarget; // the target's ObjectID: no reference is kept
+        private long _lastNpcSpellTime;
+
+        /// <summary>True when a monster's request repeats the instant spell it just cast, or one already waiting (see the fields above).</summary>
+        public static bool NpcRecastBlocked(bool instant, int spellId, int target, int lastSpellId, int lastTarget, long lastTime,
+            long now, int pending, bool duplicatePending) =>
+            pending >= MaxNpcPendingRequests || duplicatePending ||
+            instant && spellId == lastSpellId && target == lastTarget && now - lastTime < NpcInstantRecastGapMs;
+
+        private bool IsGuardedNpc => Owner is GameNPC and not GameBot;
         private readonly DuringCastLosCheckListener _duringCastLosCheckListener;
         private readonly EndOfCastLosCheckListener _endOfCastLosCheckListener;
 
@@ -30,6 +51,9 @@ namespace DOL.GS
         public SpellHandler QueuedSpellHandler { get; private set; }
         public ServiceObjectId ServiceObjectId { get; } = new(ServiceObjectType.CastingComponent);
         public bool IsCasting => SpellHandler != null; // May not be actually casting yet.
+
+        /// <summary>A focus spell's channel after its cast (the caster stands; its next spell ends the focus).</summary>
+        public bool IsFocusChanneling => SpellHandler is { CastState: eCastState.Focusing } handler && handler.Spell?.IsFocus == true;
 
         // A requested cast is asynchronous: IsCasting alone does not cover the
         // interval before the casting service accepts it. Bots must not build a
@@ -93,6 +117,12 @@ namespace DOL.GS
                 {
                     if (!_startSkillRequests.TryDequeue(out startSkillRequest))
                         break;
+                    if (IsGuardedNpc && startSkillRequest is CastSpellRequest starting && starting.Spell != null)
+                    {
+                        _lastNpcSpellId = starting.Spell.ID;
+                        _lastNpcSpellTarget = starting.Target?.ObjectID ?? 0;
+                        _lastNpcSpellTime = GameLoop.GameLoopTime;
+                    }
                 }
                 startSkillRequest.StartSkill();
                 startSkillRequest.ResetAndReturn();
@@ -129,8 +159,24 @@ namespace DOL.GS
             lock (_startSkillRequestsLock)
             {
                 if (Owner is GameBot bot && (_startSkillRequests.Count != 0 ||
-                    BotSpellPower.IsOffensiveCaster(bot) && IsCasting))
+                    BotSpellPower.IsOffensiveCaster(bot) && IsCasting && !IsFocusChanneling))
                     return false;
+
+                if (IsGuardedNpc && spell != null)
+                {
+                    bool duplicate = false;
+                    foreach (StartSkillRequest pending in _startSkillRequests)
+                    {
+                        if (pending is CastSpellRequest queued && queued.Spell?.ID == spell.ID && queued.Target == target)
+                        {
+                            duplicate = true;
+                            break;
+                        }
+                    }
+                    if (NpcRecastBlocked(spell.IsInstantCast, spell.ID, target?.ObjectID ?? 0, _lastNpcSpellId, _lastNpcSpellTarget, _lastNpcSpellTime,
+                            GameLoop.GameLoopTime, _startSkillRequests.Count, duplicate))
+                        return false;
+                }
 
                 if (!_castSpellRequestPool.TryDequeue(out CastSpellRequest request))
                     request = new();
@@ -392,6 +438,15 @@ namespace DOL.GS
                     {
                         if (CastingComponent.Owner is not GamePlayer player)
                         {
+                            // A bot's focus channel gives way to its next spell, as a player's does: the new spell's
+                            // CheckBeginCast ends the focus. Queued behind the channel, every later spell waited for it
+                            // to end and the bot stood in place (why bots' pet focus shields were disabled).
+                            if (CastingComponent.Owner is GameBot && currentSpell.IsFocus &&
+                                currentSpellHandler.CastState is eCastState.Focusing)
+                            {
+                                CastingComponent.SpellHandler = newSpellHandler;
+                                return;
+                            }
                             CastingComponent.QueuedSpellHandler = newSpellHandler;
                             return;
                         }
