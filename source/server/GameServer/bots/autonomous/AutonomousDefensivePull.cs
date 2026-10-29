@@ -19,6 +19,9 @@ namespace DOL.GS
         // party pulls the ordinary way for a while.
         public const int MaximumFailedAttempts = 2;
         public const int MeleeFallbackMilliseconds = 300_000;
+        // 2026-10-29 log: 645 failed pulls in two hours, nearly all "shot=True" with the target 600-1,100 away and never coming.
+        // A target that was shot and has not come in this time is not coming: the attempt ends without waiting out its 30 s.
+        public const int ShotWaitMilliseconds = 15_000;
         private sealed class State
         {
             public GameBot[] Members;
@@ -30,6 +33,8 @@ namespace DOL.GS
             public readonly Dictionary<IControlledBrain, eAggressionState> Pets = new();
             public long Until, RetryAfter, NextMove;
             public bool Shot, Active;
+            public long ShotTick;
+            public eAttackResult ShotResult;
             public int Failures;
             public long MeleeFallbackUntil;
         }
@@ -247,6 +252,8 @@ namespace DOL.GS
                 state.Spell = spell;
                 state.PreviousWeapon = previous;
                 state.Shot = false;
+                state.ShotTick = 0;
+                state.ShotResult = eAttackResult.Any;
                 state.Until = GameLoop.GameLoopTime + TimeoutMilliseconds;
                 state.NextMove = 0;
                 state.Active = true;
@@ -298,9 +305,11 @@ namespace DOL.GS
                 if (bot.Group == null || !state.Target.IsAlive || state.Target.ObjectState != GameObject.eObjectState.Active ||
                     state.Members.Any(member => !member.IsAlive || member.Group != bot.Group ||
                         member.CurrentRegion != state.Shooter.CurrentRegion || member.IsOnStableMasterRoute) ||
-                    state.Target.CurrentRegion != bot.CurrentRegion || GameLoop.GameLoopTime >= state.Until)
+                    state.Target.CurrentRegion != bot.CurrentRegion || GameLoop.GameLoopTime >= state.Until ||
+                    state.Shot && state.ShotTick > 0 && GameLoop.GameLoopTime - state.ShotTick >= ShotWaitMilliseconds)
                 {
-                    if (GameLoop.GameLoopTime >= state.Until)
+                    if (GameLoop.GameLoopTime >= state.Until ||
+                        state.Shot && state.ShotTick > 0 && GameLoop.GameLoopTime - state.ShotTick >= ShotWaitMilliseconds)
                         RecordFailedAttempt(state);
                     Finish(state, false);
                     return false;
@@ -349,6 +358,8 @@ namespace DOL.GS
                 if (!state.Active || state.Shooter != actor || attack?.Attacker != actor ||
                     attack.Target != state.Target || !attack.CausesCombat) return;
                 state.Shot = true;
+                state.ShotTick = GameLoop.GameLoopTime;
+                state.ShotResult = attack.AttackResult;
                 state.Shooter.StopAttack();
             }
         }
@@ -372,7 +383,9 @@ namespace DOL.GS
         private static void RecordFailedAttempt(State state)
         {
             GameBot shooter = state.Shooter;
-            state.Failures++;
+            // A shot that struck and still did not bring the target says the ranged pull does not draw this one: no second try.
+            bool struck = state.Shot && state.ShotResult is eAttackResult.HitUnstyled or eAttackResult.HitStyle;
+            state.Failures += struck ? MaximumFailedAttempts : 1;
             bool fallBack = state.Failures >= MaximumFailedAttempts;
             try
             {
@@ -386,6 +399,9 @@ namespace DOL.GS
                     $"distanceToFiringPoint={(int)Vector3.Distance(new(shooter.X, shooter.Y, shooter.Z), state.FiringPoint)} lineOfSight={lineOfSight} " +
                     $"mana={shooter.Mana} cost={(state.Spell == null ? 0 : shooter.PowerCost(state.Spell))} " +
                     $"disabledMs={(state.Spell == null ? 0 : shooter.GetSkillDisabledDuration(state.Spell))} casting={shooter.IsCasting} " +
+                    $"shotResult={state.ShotResult} msSinceShot={(state.ShotTick > 0 ? GameLoop.GameLoopTime - state.ShotTick : -1)} " +
+                    $"targetInCombat={state.Target.InCombat} targetTargets={state.Target.TargetObject?.Name ?? "none"} " +
+                    $"targetFlying={(state.Target as GameNPC)?.Flags.HasFlag(GameNPC.eFlags.FLYING)} " +
                     $"crowdControlled={shooter.IsCrowdControlled} failures={state.Failures} meleeFallback={fallBack}");
             }
             catch (Exception)
