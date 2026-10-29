@@ -4731,7 +4731,36 @@ namespace DOL.GS
         {
             if (speed > 0 && IsRecoveryResting)
                 return;
+            ReportOrderToOwnPosition(position, speed);
             base.PathTo(position, speed);
+        }
+
+        private long _nextSelfOrderReportTick;
+
+        /// <summary>
+        /// 2026-10-29: 35 of 48 stalled battleground stormers had their mover's destination on their own spot while the assault
+        /// had ordered the gate. A route order to where the bot already stands in a battleground says who gave it (the calling
+        /// methods), at most once a minute per bot. Diagnostics only.
+        /// </summary>
+        private void ReportOrderToOwnPosition(Vector3 position, short speed)
+        {
+            if (!IsAutonomousWorldBot || speed <= 0 || GameLoop.GameLoopTime < _nextSelfOrderReportTick ||
+                !BattlegroundBrackets.IsBattlegroundRegion(CurrentRegionID) ||
+                Vector3.DistanceSquared(position, new Vector3(X, Y, Z)) > 100 * 100)
+                return;
+            _nextSelfOrderReportTick = GameLoop.GameLoopTime + 60_000;
+            try
+            {
+                var frames = new System.Diagnostics.StackTrace(1, false).GetFrames();
+                string callers = string.Join(" < ", frames.Take(6).Select(frame =>
+                    $"{frame.GetMethod()?.DeclaringType?.Name}.{frame.GetMethod()?.Name}"));
+                log.Info($"BG_ORDER_TO_SELF bot={Name} region={CurrentRegionID} at={X},{Y},{Z} order={position.X:0},{position.Y:0},{position.Z:0} " +
+                         $"distance={(int)Vector3.Distance(position, new Vector3(X, Y, Z))} moving={IsMoving} callers=\"{callers}\"");
+            }
+            catch (Exception)
+            {
+                // Diagnostics only.
+            }
         }
 
         public override void Follow(GameObject target, int minDistance, int maxDistance)
