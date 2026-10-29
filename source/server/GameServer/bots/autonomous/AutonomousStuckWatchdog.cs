@@ -487,6 +487,7 @@ public static class AutonomousStuckWatchdog
         string oldZone = bot.CurrentZone?.Description ?? string.Empty;
         string oldRoute = bot.movementComponent is NpcMovementComponent mover ? mover.DescribeRouteState() : "-";
         bool oldMoving = bot.IsMoving;
+        string oldPulses = string.Join(",", bot.ActivePulseSpells.Values.Select(spell => spell.Name));
         var expedition = AutonomousRealmRaid.GetView(bot.Group);
 
         if (moveLiveObject)
@@ -549,7 +550,7 @@ public static class AutonomousStuckWatchdog
                  $"goal=\"{ForLog(oldGoal)}\" target=\"{ForLog(oldTarget)}\" activity=\"{ForLog(oldActivity)}\" " +
                  $"destination=\"{ForLog(oldDestination)}\" recovery={record.RecoveryCount} " +
                  $"from={oldRegion}:{oldX},{oldY},{oldZ} to={capital.RegionId}:{capital.X},{capital.Y},{capital.Z} " +
-                 $"zone=\"{ForLog(oldZone)}\" moving={oldMoving} route=\"{ForLog(oldRoute)}\"");
+                 $"zone=\"{ForLog(oldZone)}\" moving={oldMoving} route=\"{ForLog(oldRoute)}\" pulses=\"{ForLog(oldPulses)}\"");
         MarkProgress(bot, eAutonomousProgressKind.Recovery, now);
         if (moveLiveObject)
         {

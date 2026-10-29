@@ -1,6 +1,8 @@
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using System.Collections.Specialized;
+using System.Linq;
 using System.Reflection;
 using System.Threading;
 using DOL.Database;
@@ -133,36 +135,92 @@ namespace DOL.GS
 		/// <summary>
 		/// Get the list of all items in the specified page
 		/// </summary>
+		// The world database holds merchant rows stored twice (the same item, the same slot) and slots shared by two different
+		// items (2026-10-29: 118 items of 11 lists were never shown). Duplicates are ignored; a second item takes a free slot.
+		private static readonly HashSet<string> s_loggedSlotConflicts = new();
+
+		private static bool PageShows(Hashtable layout, int page, DbItemTemplate item)
+		{
+			for (int slot = 0; slot < MAX_ITEM_IN_TRADEWINDOWS; slot++)
+				if (layout[page * MAX_ITEM_IN_TRADEWINDOWS + slot] is DbItemTemplate shown &&
+				    shown.Id_nb.Equals(item.Id_nb, StringComparison.OrdinalIgnoreCase))
+					return true;
+			return false;
+		}
+
+		private void LogSlotConflictOnce(int page, int slot, int movedTo)
+		{
+			lock (s_loggedSlotConflicts)
+			{
+				if (!s_loggedSlotConflicts.Add($"{m_itemsListID}:{page}:{slot}"))
+					return;
+			}
+			log.WarnFormat("merchant item without a free place of its own: listID={0} page={1} slot={2}; it {3}",
+				m_itemsListID, page, slot, movedTo >= 0
+					? $"is shown on page {movedTo / MAX_ITEM_IN_TRADEWINDOWS}, slot {movedTo % MAX_ITEM_IN_TRADEWINDOWS}"
+					: "does not fit on any page");
+		}
+
+		/// <summary>
+		/// The list's database rows as absolute slot (page * 30 + slot) to item. The world database holds rows stored twice and slots
+		/// shared by two different items (2026-10-29: 118 items of 11 lists were never shown). An item already on its page is shown once;
+		/// an item whose slot is taken, or outside the page, goes to the first free slot of its page or of a following page.
+		/// </summary>
+		private Hashtable LayoutDatabaseItems()
+		{
+			var layout = new Hashtable();
+			if (string.IsNullOrEmpty(m_itemsListID))
+				return layout;
+
+			var leftovers = new List<(DbMerchantItem Row, DbItemTemplate Item)>();
+			foreach (DbMerchantItem row in DOLDB<DbMerchantItem>.SelectObjects(DB.Column("ItemListID").IsEqualTo(m_itemsListID))
+					.OrderBy(r => r.PageNumber).ThenBy(r => r.SlotPosition))
+			{
+				DbItemTemplate item = GameServer.Database.FindObjectByKey<DbItemTemplate>(row.ItemTemplateID);
+				if (item == null)
+				{
+					log.ErrorFormat("Item template with ID = '{0}' not found for merchant item list '{1}'", row.ItemTemplateID, m_itemsListID);
+					continue;
+				}
+				if (row.PageNumber < 0 || row.PageNumber >= MAX_PAGES_IN_TRADEWINDOWS || PageShows(layout, row.PageNumber, item))
+					continue;
+				if (row.SlotPosition >= 0 && row.SlotPosition < MAX_ITEM_IN_TRADEWINDOWS &&
+				    layout[row.PageNumber * MAX_ITEM_IN_TRADEWINDOWS + row.SlotPosition] == null)
+					layout.Add(row.PageNumber * MAX_ITEM_IN_TRADEWINDOWS + row.SlotPosition, item);
+				else
+					leftovers.Add((row, item));
+			}
+
+			// Second pass, so that no leftover takes a slot a later row asks for.
+			foreach ((DbMerchantItem row, DbItemTemplate item) in leftovers)
+			{
+				if (PageShows(layout, row.PageNumber, item))
+					continue;
+				int placed = -1;
+				for (int page = row.PageNumber; page < MAX_PAGES_IN_TRADEWINDOWS && placed < 0; page++)
+				{
+					if (page != row.PageNumber && PageShows(layout, page, item))
+						continue;
+					for (int slot = 0; slot < MAX_ITEM_IN_TRADEWINDOWS && placed < 0; slot++)
+						if (layout[page * MAX_ITEM_IN_TRADEWINDOWS + slot] == null)
+							placed = page * MAX_ITEM_IN_TRADEWINDOWS + slot;
+				}
+				LogSlotConflictOnce(row.PageNumber, row.SlotPosition, placed);
+				if (placed >= 0)
+					layout.Add(placed, item);
+			}
+			return layout;
+		}
+
 		public virtual IDictionary GetItemsInPage(int page)
 		{
 			try
 			{
 				HybridDictionary itemsInPage = new HybridDictionary(MAX_ITEM_IN_TRADEWINDOWS);
-				if (m_itemsListID != null && m_itemsListID.Length > 0)
-				{
-					var itemList = DOLDB<DbMerchantItem>.SelectObjects(DB.Column("ItemListID").IsEqualTo(m_itemsListID).And(DB.Column("PageNumber").IsEqualTo(page)));
-					foreach (DbMerchantItem merchantitem in itemList)
-					{
-						DbItemTemplate item = GameServer.Database.FindObjectByKey<DbItemTemplate>(merchantitem.ItemTemplateID);
-                        if (item != null)
-                        {
-                            DbItemTemplate slotItem = (DbItemTemplate)itemsInPage[merchantitem.SlotPosition];
-                            if (slotItem == null)
-                            {
-                                itemsInPage.Add(merchantitem.SlotPosition, item);
-                            }
-                            else
-                            {
-                                log.ErrorFormat("two merchant items on same page/slot: listID={0} page={1} slot={2}", m_itemsListID, page, merchantitem.SlotPosition);
-                            }
-                        }
-                        else
-                        {
-                            log.ErrorFormat("Item template with ID = '{0}' not found for merchant item list '{1}'", 
-                                merchantitem.ItemTemplateID, ItemsListID);
-                        }
-					}
-				}
+				Hashtable layout = LayoutDatabaseItems();
+				for (int slot = 0; slot < MAX_ITEM_IN_TRADEWINDOWS; slot++)
+					if (layout[page * MAX_ITEM_IN_TRADEWINDOWS + slot] is DbItemTemplate shown)
+						itemsInPage.Add(slot, shown);
 				lock (_lock)
 				{
 					foreach (DictionaryEntry de in m_usedItemsTemplates)
@@ -201,14 +259,9 @@ namespace DOL.GS
 					if (item != null) return item;
 				}
 
-				if (m_itemsListID != null && m_itemsListID.Length > 0)
-				{
-					var itemToFind = DOLDB<DbMerchantItem>.SelectObject(DB.Column("ItemListID").IsEqualTo(m_itemsListID).And(DB.Column("PageNumber").IsEqualTo(page)).And(DB.Column("SlotPosition").IsEqualTo((int)slot)));
-					if (itemToFind != null)
-					{
-						item = GameServer.Database.FindObjectByKey<DbItemTemplate>(itemToFind.ItemTemplateID);
-					}
-				}
+				// The same layout as the window shows, so that an item moved to a free slot is also the one bought from it.
+				if (m_itemsListID != null && m_itemsListID.Length > 0 && slot >= eMerchantWindowSlot.FirstInPage)
+					item = LayoutDatabaseItems()[page * MAX_ITEM_IN_TRADEWINDOWS + (int)slot] as DbItemTemplate;
 				return item;
 			}
 			catch (Exception e)
@@ -233,22 +286,7 @@ namespace DOL.GS
 					long now = GameLoop.GameLoopTime;
 					if (_databaseItemsCache == null || now >= _databaseItemsCacheExpiresTick)
 					{
-						_databaseItemsCache = new Hashtable();
-						if (!string.IsNullOrEmpty(m_itemsListID))
-						{
-							var itemList = DOLDB<DbMerchantItem>.SelectObjects(DB.Column("ItemListID").IsEqualTo(m_itemsListID));
-							foreach (DbMerchantItem merchantitem in itemList)
-							{
-								DbItemTemplate item = GameServer.Database.FindObjectByKey<DbItemTemplate>(merchantitem.ItemTemplateID);
-								if (item == null)
-									continue;
-								int absoluteSlot = merchantitem.PageNumber * MAX_ITEM_IN_TRADEWINDOWS + merchantitem.SlotPosition;
-								if (_databaseItemsCache[absoluteSlot] == null)
-									_databaseItemsCache.Add(absoluteSlot, item);
-								else
-									log.ErrorFormat("two merchant items on same page/slot: listID={0} page={1} slot={2}", m_itemsListID, merchantitem.PageNumber, merchantitem.SlotPosition);
-							}
-						}
+						_databaseItemsCache = LayoutDatabaseItems();
 						_databaseItemsCacheExpiresTick = now + DatabaseItemsCacheLifetimeMilliseconds;
 					}
 

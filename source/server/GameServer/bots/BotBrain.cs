@@ -1145,6 +1145,20 @@ namespace DOL.AI.Brain
                 out _);
         }
 
+        // Owner 2026-10-29: no aura of any kind outside combat. A Reaver's pulsing damage aura kept hitting every monster in
+        // its 350 radius after the fight, so the bot stayed "in combat" for good and never walked on (30 of 47 fifteen-minute
+        // stalls in a 5.5 hour run). Harmful pulses are ended as soon as nothing is fighting the bot.
+        private void EndHarmfulPulsesOutOfCombat()
+        {
+            if (Body == null || Body.ActivePulseSpells.IsEmpty || HasAggro)
+                return;
+            foreach (ECSPulseEffect pulse in Body.effectListComponent.GetPulseEffects()
+                         .Where(effect => effect?.SpellHandler?.Spell is { IsPulsing: true, IsHarmful: true } &&
+                                          !effect.IsEnding && !effect.IsEnded)
+                         .ToList())
+                pulse.End();
+        }
+
         private void FollowFormation(bool ambientWander = false)
         {
             // Any FOLLOW entry or support path must honor a temporary caster's
@@ -1286,6 +1300,7 @@ namespace DOL.AI.Brain
             AutonomousSummonActivity.RecoverOwner(BotBody);
             BotAnimistPolicy.RestoreEncounterTarget(BotBody);
             ObserveLeaderActivity();
+            EndHarmfulPulsesOutOfCombat();
             CompanionStealth.Maintain(BotBody);
             WatchPetFocusShield();
             BotBody?.WakeRecoveryRestIfCombatBlocked();
