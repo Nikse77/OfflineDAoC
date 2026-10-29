@@ -36,6 +36,12 @@ public static class AutonomousStuckWatchdog
 {
     private static readonly Logger Log = LoggerManager.Create(MethodBase.GetCurrentMethod().DeclaringType);
     public static readonly TimeSpan StuckThreshold = TimeSpan.FromMinutes(15);
+    // Owner 2026-10-29: 21 Albion party members stood 15 minutes at the lord's room of Dun Abermenai (z 4938 and 4138, beside the
+    // lord at 32880,37637,4937) with the door closed behind them. Nothing in a battleground waits that long (a regroup is two
+    // minutes, a rest ends with the bot's recovery), so a squad member that neither moves nor fights there is recovered sooner.
+    // Only a squad follower ("With X's party"): a defender at its keep's post or a stormer waiting for the assault call stands
+    // still on purpose.
+    public static readonly TimeSpan BattlegroundStuckThreshold = TimeSpan.FromMinutes(6);
     public static readonly TimeSpan GoalProgressThreshold = TimeSpan.FromMinutes(45);
     private const int MeaningfulMovementDistance = 96;
     private static readonly TimeSpan PositionValidationInterval = TimeSpan.FromSeconds(30);
@@ -163,11 +169,21 @@ public static class AutonomousStuckWatchdog
         DateTime nowUtc,
         bool isAlive,
         bool inPlayerLedGroup,
-        bool protectedStableTravel)
+        bool protectedStableTravel,
+        TimeSpan? threshold = null)
     {
         return isAlive && !inPlayerLedGroup && !protectedStableTravel &&
-               nowUtc - lastMovementUtc >= StuckThreshold;
+               nowUtc - lastMovementUtc >= (threshold ?? StuckThreshold);
     }
+
+    /// <summary>The movement clock of a bot: shorter for one idle in a battleground (not resting, not fighting, not casting).</summary>
+    public static TimeSpan MovementThresholdFor(bool inBattleground, string activity, bool resting, bool inCombat, bool casting) =>
+        inBattleground && IsSquadFollowerActivity(activity) && !resting && !inCombat && !casting
+            ? BattlegroundStuckThreshold : StuckThreshold;
+
+    public static bool IsSquadFollowerActivity(string activity) =>
+        activity != null && activity.StartsWith("With ", StringComparison.Ordinal) &&
+        activity.EndsWith("'s party", StringComparison.Ordinal);
 
     public static bool ShouldRecoverGoal(
         DateTime lastGoalProgressUtc,
@@ -400,10 +416,13 @@ public static class AutonomousStuckWatchdog
                 "AUTONOMOUS_GOAL_STALL_45M_RECOVERY");
         }
 
-        if (!ShouldRecoverMovement(previous.LastMovementUtc, now, bot.IsAlive, withHuman, false))
+        TimeSpan movementThreshold = MovementThresholdFor(BattlegroundBrackets.IsBattlegroundRegion(bot.CurrentRegionID),
+            bot.PersistentRecord?.Activity, bot.IsRecoveryResting, bot.InCombat, bot.IsCasting);
+        if (!ShouldRecoverMovement(previous.LastMovementUtc, now, bot.IsAlive, withHuman, false, movementThreshold))
             return false;
 
-        return RelocateToSafeCapital(bot, now, "no movement for fifteen minutes", true,
+        return RelocateToSafeCapital(bot, now,
+            movementThreshold == StuckThreshold ? "no movement for fifteen minutes" : $"no movement for {(int)movementThreshold.TotalMinutes} minutes in a battleground", true,
             "AUTONOMOUS_STUCK_15M_RECOVERY");
     }
 

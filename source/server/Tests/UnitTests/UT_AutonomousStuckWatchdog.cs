@@ -105,4 +105,25 @@ public sealed class UT_AutonomousStuckWatchdog
         Assert.That(AutonomousStuckWatchdog.GoalClockForAssignment(last, "pve-123", "pve-124", now), Is.EqualTo(now));
         Assert.That(AutonomousStuckWatchdog.GoalClockForAssignment(last, null, "", now), Is.EqualTo(last));
     }
+
+    [Test]
+    public void ASquadFollowerIdleInABattlegroundIsRecoveredAfterSixMinutes()
+    {
+        DateTime now = new(2026, 10, 29, 12, 0, 0, DateTimeKind.Utc);
+        TimeSpan threshold = AutonomousStuckWatchdog.MovementThresholdFor(true, "With Ederorfrey's party", false, false, false);
+        Assert.That(threshold, Is.EqualTo(TimeSpan.FromMinutes(6)));
+        Assert.That(AutonomousStuckWatchdog.ShouldRecoverMovement(now.AddMinutes(-5.9), now, true, false, false, threshold), Is.False);
+        Assert.That(AutonomousStuckWatchdog.ShouldRecoverMovement(now.AddMinutes(-6), now, true, false, false, threshold), Is.True);
+    }
+
+    [TestCase(false, "With Ederorfrey's party", false, false, false)]
+    [TestCase(true, "Holding the keep post", false, false, false)]
+    [TestCase(true, "Gathering for the assault", false, false, false)]
+    [TestCase(true, "With Ederorfrey's party", true, false, false)]
+    [TestCase(true, "With Ederorfrey's party", false, true, false)]
+    [TestCase(true, "With Ederorfrey's party", false, false, true)]
+    [TestCase(true, null, false, false, false)]
+    public void EveryOtherBotKeepsTheFifteenMinuteClock(bool battleground, string activity, bool resting, bool combat, bool casting) =>
+        Assert.That(AutonomousStuckWatchdog.MovementThresholdFor(battleground, activity, resting, combat, casting),
+            Is.EqualTo(AutonomousStuckWatchdog.StuckThreshold));
 }

@@ -962,10 +962,37 @@ namespace DOL.GS
                 MarkAutonomousStateDirty();
             }
 
+            if (IsAutonomousWorldBot && CurrentRegionID == AutonomousDarknessFallsPolicy.RegionId)
+                ReportDarknessFallsDeath(killer);
             base.ProcessDeath(killer);
             if (IsAutonomousWorldBot)
                 AutonomousBotStatusPersistence.Queue(this);
             StartDeathRecoveryTimer();
+        }
+
+        /// <summary>
+        /// 2026-10-29: ten of seventeen Darkness Falls parties wiped at the same two spots of the certified route (levels 20-27 at
+        /// camps of the thirties) and nothing in the log said what killed them. Diagnostics only: who struck the last blow, how
+        /// strong it is against the party, and how many monsters stood around.
+        /// </summary>
+        private void ReportDarknessFallsDeath(GameObject killer)
+        {
+            try
+            {
+                GameLiving[] members = Group?.GetMembersInTheGroup().ToArray() ?? Array.Empty<GameLiving>();
+                var around = GetNPCsInRadius(1200).Where(npc => npc.IsAlive && npc is not GameBot && npc.Brain is not IControlledBrain).ToList();
+                log.Info($"AUTONOMOUS_DF_DEATH bot={Name} class={ClassName} level={Level} at={X},{Y},{Z} " +
+                         $"killer=\"{killer?.Name}\" killerLevel={(killer as GameLiving)?.EffectiveLevel} killerType={killer?.GetType().Name} " +
+                         $"group={members.Length} partyLevels=\"{string.Join(",", members.Select(member => member.Level))}\" " +
+                         $"alive={members.Count(member => member.IsAlive)} camp=\"{PersistentRecord?.CurrentCampId}\" " +
+                         $"mobsWithin1200={around.Count} strongest=\"{around.OrderByDescending(npc => npc.Level).FirstOrDefault()?.Name}\" " +
+                         $"strongestLevel={around.Select(npc => (int)npc.Level).DefaultIfEmpty(0).Max()} " +
+                         $"mobsAttackingUs={around.Count(npc => npc.TargetObject is GameLiving target && (target == this || members.Contains(target)))}");
+            }
+            catch (Exception)
+            {
+                // Diagnostics only.
+            }
         }
 
         private void StartDeathRecoveryTimer()
