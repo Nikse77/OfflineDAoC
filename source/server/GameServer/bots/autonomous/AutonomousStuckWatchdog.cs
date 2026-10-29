@@ -482,6 +482,11 @@ public static class AutonomousStuckWatchdog
         string oldTarget = bot.PersistentRecord?.TargetName ?? string.Empty;
         string oldActivity = bot.PersistentRecord?.Activity ?? string.Empty;
         string oldDestination = bot.PersistentRecord?.TravelDestination ?? string.Empty;
+        // 2026-10-29: six bots stood fifteen minutes while "traveling" and the record said nothing of the mover. Its route state (path
+        // status, nodes left, target, doors) and the zone are read before the stop below clears them.
+        string oldZone = bot.CurrentZone?.Description ?? string.Empty;
+        string oldRoute = bot.movementComponent is NpcMovementComponent mover ? mover.DescribeRouteState() : "-";
+        bool oldMoving = bot.IsMoving;
         var expedition = AutonomousRealmRaid.GetView(bot.Group);
 
         if (moveLiveObject)
@@ -543,7 +548,8 @@ public static class AutonomousStuckWatchdog
                  $"realm={GlobalConstants.RealmToName(bot.Realm)} class=\"{ForLog(bot.ClassName)}\" reason=\"{ForLog(reason)}\" " +
                  $"goal=\"{ForLog(oldGoal)}\" target=\"{ForLog(oldTarget)}\" activity=\"{ForLog(oldActivity)}\" " +
                  $"destination=\"{ForLog(oldDestination)}\" recovery={record.RecoveryCount} " +
-                 $"from={oldRegion}:{oldX},{oldY},{oldZ} to={capital.RegionId}:{capital.X},{capital.Y},{capital.Z}");
+                 $"from={oldRegion}:{oldX},{oldY},{oldZ} to={capital.RegionId}:{capital.X},{capital.Y},{capital.Z} " +
+                 $"zone=\"{ForLog(oldZone)}\" moving={oldMoving} route=\"{ForLog(oldRoute)}\"");
         MarkProgress(bot, eAutonomousProgressKind.Recovery, now);
         if (moveLiveObject)
         {
