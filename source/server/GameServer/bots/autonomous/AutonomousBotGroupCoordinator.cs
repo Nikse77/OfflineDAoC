@@ -741,6 +741,18 @@ public static partial class AutonomousBotGroupCoordinator
         IsAssemblyPhase(phase) || regrouping || recoveringBetweenPulls || combatActive ||
         phase is "Choosing group target" or "Waiting for resurrection";
 
+    /// <summary>
+    /// Owner 2026-10-29: three parties stood 15 to 58 minutes at their camps (muryan, cyclops scout, giant boar) with no experience, the
+    /// puller pulling or in its ordinary fallback, every gate open. The individual watchdog never ended them: while any member is in
+    /// combat (a shot that hit, a monster in an aggro list) all members are protected, and a pull that draws nothing keeps
+    /// somebody "in combat" for ever. A party in the Grinding phase without shared progress (experience, the leader moving) for this
+    /// long gives its camp up and chooses another target.
+    /// </summary>
+    public const int IdleCampGiveUpSeconds = 15 * 60;
+
+    public static bool ShouldGiveUpIdleCamp(string phase, long idleSeconds) =>
+        phase == "Grinding" && idleSeconds >= IdleCampGiveUpSeconds;
+
     public static bool HasRecentSharedWatchdogProgress(long now, long progressTick, bool sameRegion, int distance) =>
         sameRegion && distance <= CohesionRadius && progressTick > 0 && now >= progressTick &&
         now - progressTick < 15 * 60_000L;

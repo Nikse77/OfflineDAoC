@@ -1635,6 +1635,24 @@ namespace DOL.GS
             if (_pullHoldSinceTick == 0 || now - _pullHoldLastTick > 60_000)
                 _pullHoldSinceTick = now;
             _pullHoldLastTick = now;
+            // A party that has made no shared progress for fifteen minutes in its Grinding phase gives its camp up (see
+            // AutonomousBotGroupCoordinator.IdleCampGiveUpSeconds): the individual watchdog does not end it while a failing pull
+            // keeps a member in combat.
+            if (_camp != null && directive.Phase == "Grinding" && now >= _nextGroupIdleCheckTick)
+            {
+                _nextGroupIdleCheckTick = now + 10_000;
+                long idleNow = AutonomousBotGroupCoordinator.GroupIdleSeconds(bot);
+                if (AutonomousBotGroupCoordinator.ShouldGiveUpIdleCamp(directive.Phase, idleNow))
+                {
+                    string givenUpCamp = _camp.Id;
+                    Log.Warn($"AUTONOMOUS_GROUP_IDLE_CAMP_GIVEN_UP group={directive.GroupId} leader={bot.Name} camp=\"{givenUpCamp}\" " +
+                             $"idleSeconds={idleNow} size={bot.Group?.MemberCount} {PullerStateText(directive)}");
+                    _pullHoldSinceTick = 0;
+                    AutonomousBotGroupCoordinator.RejectUnreachableCamp(bot, givenUpCamp,
+                        $"No shared progress for {idleNow / 60} minutes at the camp; the party chooses another target");
+                    return;
+                }
+            }
             if (now - _pullHoldSinceTick < 180_000 || now < _nextPullHoldTraceTick) return;
             // A leader that is not the puller always waits while the puller fights (43 such lines in 47 minutes, all with no
             // reason): only a party without shared progress (experience, leader moving) for three minutes is worth a line.
@@ -1644,14 +1662,21 @@ namespace DOL.GS
             string veto = AutonomousBotGroupCoordinator.DescribePullVeto(bot, out string puller);
             // 2026-10-29: the veto above is the leader's view and read "none" for a party of seven that stood 30 minutes at its
             // camp with no kill after one failed ranged pull; the puller's own view and its pull state say what it waits for.
-            GameBot pullerBot = directive.Puller;
-            string pullerLine = pullerBot == null ? "puller=none" :
-                $"pullerView=[{AutonomousBotGroupCoordinator.DescribePullerView(pullerBot, out _)}] " +
-                $"pullerActivity=\"{pullerBot.PersistentRecord?.Activity}\" pullerMoving={pullerBot.IsMoving} pullerInCombat={pullerBot.InCombat} " +
-                $"pullerAt={pullerBot.X},{pullerBot.Y},{pullerBot.Z} {AutonomousDefensivePull.Describe(bot.Group)}";
+            string pullerLine = PullerStateText(directive);
             Log.Warn($"AUTONOMOUS_GROUP_PULL_HOLD group={directive.GroupId} leader={bot.Name} puller={puller} phase={directive.Phase} " +
                      $"size={bot.Group?.MemberCount} heldSeconds={(now - _pullHoldSinceTick) / 1000} idleSeconds={idle} camp=\"{_camp?.Id}\" " +
                      $"position={bot.X},{bot.Y},{bot.Z} reasons=\"{veto}\" {pullerLine}");
+        }
+
+        private long _nextGroupIdleCheckTick;
+
+        private static string PullerStateText(AutonomousBotGroupCoordinator.Directive directive)
+        {
+            GameBot pullerBot = directive.Puller;
+            return pullerBot == null ? "puller=none" :
+                $"pullerView=[{AutonomousBotGroupCoordinator.DescribePullerView(pullerBot, out _)}] " +
+                $"pullerActivity=\"{pullerBot.PersistentRecord?.Activity}\" pullerMoving={pullerBot.IsMoving} pullerInCombat={pullerBot.InCombat} " +
+                $"pullerAt={pullerBot.X},{pullerBot.Y},{pullerBot.Z} {AutonomousDefensivePull.Describe(pullerBot.Group)}";
         }
 
         // The puller that follows the leader instead of pulling for three minutes says why, every five minutes
