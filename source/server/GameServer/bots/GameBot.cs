@@ -966,7 +966,10 @@ namespace DOL.GS
             }
 
             if (IsAutonomousWorldBot && CurrentRegionID == AutonomousDarknessFallsPolicy.RegionId)
-                ReportDarknessFallsDeath(killer);
+                ReportDeathAround("AUTONOMOUS_DF_DEATH", killer);
+            else if (IsAutonomousWorldBot && Group?.MemberCount >= 3 && !IsTemporaryGroupHelper && !IsPlayerLedGroup &&
+                     !BattlegroundBrackets.IsBattlegroundRegion(CurrentRegionID))
+                ReportPartyDeath(killer);
             base.ProcessDeath(killer);
             if (IsAutonomousWorldBot)
                 AutonomousBotStatusPersistence.Queue(this);
@@ -978,13 +981,33 @@ namespace DOL.GS
         /// camps of the thirties) and nothing in the log said what killed them. Diagnostics only: who struck the last blow, how
         /// strong it is against the party, and how many monsters stood around.
         /// </summary>
-        private void ReportDarknessFallsDeath(GameObject killer)
+        private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<Group, System.Runtime.CompilerServices.StrongBox<long>>
+            PartyDeathReports = new();
+
+        /// <summary>
+        /// 2026-10-29: four parties were wiped in Midgard's island region 151 and the log never said by what (the corpse position was the
+        /// bind point, 15,000 units from the fight). The first death of an autonomous party in the open world, and then one a minute at
+        /// most, reports who struck the blow and what stood around. Diagnostics only.
+        /// </summary>
+        private void ReportPartyDeath(GameObject killer)
+        {
+            var box = PartyDeathReports.GetOrCreateValue(Group);
+            long now = GameLoop.GameLoopTime;
+            lock (box)
+            {
+                if (box.Value != 0 && now - box.Value < 60_000) return;
+                box.Value = now;
+            }
+            ReportDeathAround("AUTONOMOUS_PARTY_DEATH", killer);
+        }
+
+        private void ReportDeathAround(string marker, GameObject killer)
         {
             try
             {
                 GameLiving[] members = Group?.GetMembersInTheGroup().ToArray() ?? Array.Empty<GameLiving>();
                 var around = GetNPCsInRadius(1200).Where(npc => npc.IsAlive && npc is not GameBot && npc.Brain is not IControlledBrain).ToList();
-                log.Info($"AUTONOMOUS_DF_DEATH bot={Name} class={ClassName} level={Level} at={X},{Y},{Z} " +
+                log.Info($"{marker} bot={Name} class={ClassName} level={Level} region={CurrentRegionID} at={X},{Y},{Z} " +
                          $"killer=\"{killer?.Name}\" killerLevel={(killer as GameLiving)?.EffectiveLevel} killerType={killer?.GetType().Name} " +
                          $"group={members.Length} partyLevels=\"{string.Join(",", members.Select(member => member.Level))}\" " +
                          $"alive={members.Count(member => member.IsAlive)} camp=\"{PersistentRecord?.CurrentCampId}\" " +

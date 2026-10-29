@@ -121,15 +121,19 @@ namespace DOL.GS
             int detours = _routeThreatDetours.GetValueOrDefault(blocker);
             bool mayRetarget = _camp != null &&
                                now - _lastRouteThreatRetargetTick >= AutonomousRouteThreatPolicy.RetargetCooldownMilliseconds;
+            // A party is measured by its average level (a leader of 38 may walk with members of 23), a lone bot by its own.
+            int levelsAbove = blocker.EffectiveLevel - (grouped ? _groupDirective.AverageLevel : bot.Level);
+            bool mayForceRetarget = _camp != null &&
+                                    now - _lastRouteThreatRetargetTick >= AutonomousRouteThreatPolicy.ForcedRetargetCooldownMilliseconds;
             RouteThreatAction action = AutonomousRouteThreatPolicy.Decide(con, grouped, pack, bossLike,
-                detour.HasValue, detours, mayRetarget);
+                detour.HasValue, detours, mayRetarget, levelsAbove, mayForceRetarget);
             if (action == RouteThreatAction.Ignore)
                 return false;
 
             Log.Info($"AUTONOMOUS_ROUTE_THREAT bot={bot.Name} id={bot.DatabaseID} class=\"{bot.ClassName}\" level={bot.Level} " +
                      $"group={(grouped ? _groupDirective.GroupId : "solo")} action={action} target=\"{blocker.Name}\" " +
                      $"targetLevel={blocker.Level} con={con} pack={pack} aggro={blockerBrain.AggroRange} along={first:0} " +
-                     $"detours={detours} zone=\"{zone.Description}\" at={blocker.X},{blocker.Y},{blocker.Z}");
+                     $"detours={detours} levelsAbove={levelsAbove} zone=\"{zone.Description}\" at={blocker.X},{blocker.Y},{blocker.Z}");
 
             switch (action)
             {
@@ -146,7 +150,9 @@ namespace DOL.GS
 
                 case RouteThreatAction.Retarget:
                     _lastRouteThreatRetargetTick = now;
-                    AbandonCamp(bot, $"Route blocked by {blocker.Name} (level {blocker.Level}, {pack} together) with no way around");
+                    AbandonCamp(bot, mayRetarget
+                        ? $"Route blocked by {blocker.Name} (level {blocker.Level}, {pack} together) with no way around"
+                        : $"Route blocked by {blocker.Name} (level {blocker.Level}, {pack} together), too strong for the party and no way around");
                     return true;
 
                 default: // Pull
