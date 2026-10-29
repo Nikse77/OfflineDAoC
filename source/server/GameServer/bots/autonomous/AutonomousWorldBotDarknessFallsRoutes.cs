@@ -64,6 +64,7 @@ public sealed partial class AutonomousWorldBotController
             !AutonomousDarknessFallsRoutePlan.TryGetWaypoints(
                 proof.Routes?.SingleOrDefault(route => route.Realm == bot.Realm)?.InWaypoints, out Vector3[] incoming))
             return false;
+        incoming = AutonomousDarknessFallsStandoff.ForBot(bot, mobId, proof, incoming);
         end = incoming[^1];
         return true;
     }
@@ -84,6 +85,8 @@ public sealed partial class AutonomousWorldBotController
             AbandonCamp(bot, "Darkness Falls camp has no matching complete spawn route certificate");
             return true;
         }
+        // Stop at the monster's aggro range plus a margin instead of on top of it (AutonomousDarknessFallsStandoff).
+        incoming = AutonomousDarknessFallsStandoff.ForBot(bot, mobId, proof, incoming);
 
         string key = $"in:{bot.Realm}:{mobId}";
         if (string.Equals(_darknessFallsRouteKey, key, StringComparison.Ordinal) &&

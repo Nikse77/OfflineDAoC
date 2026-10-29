@@ -1567,6 +1567,9 @@ namespace DOL.GS.ServerProperties
 		[ServerProperty("keeps", "bg_keep_levels_from_bracket", "In the battlegrounds the keep guards and lords take their level from the bracket's highest level (plus the two offsets below) instead of the keep's base level.", true)]
 		public static bool BG_KEEP_LEVELS_FROM_BRACKET;
 
+		[ServerProperty("pve", "df_standoff_from_aggro_range", "In Darkness Falls the gamebots stop on the certified route at the monster's aggro range plus 400 (with a line of sight) instead of at the monster itself.", true)]
+		public static bool DF_STANDOFF_FROM_AGGRO_RANGE;
+
 		[ServerProperty("keeps", "bg_keep_guard_level_offset", "Levels a battleground keep guard stands above the bracket's highest level.", 2)]
 		public static int BG_KEEP_GUARD_LEVEL_OFFSET;
 
