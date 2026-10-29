@@ -47,6 +47,9 @@ namespace DOL.GS
             public RealmRaidMuster.Hub Hub;
             public bool HubDeparted;
             public long HubDepartedTick;
+            /// <summary>The most staged at once, and when that count last grew (an arrival).</summary>
+            public int StagingBest;
+            public long StagingArrivalTick;
             public long NextDefenseBroadcast;
             public readonly Dictionary<int, Vector3> HubPosts = new();
             public Vector3[] OutboundSeams = [];
@@ -232,6 +235,11 @@ namespace DOL.GS
                                 RealmEventBanter.RaidReminder(raid.Definition.Name, raid.Forced));
                         }
                         int present = PresentAtStaging(raid);
+                        if (present > raid.StagingBest)
+                        {
+                            raid.StagingBest = present;
+                            raid.StagingArrivalTick = now;
+                        }
                         if (RealmRaidRecruitmentPolicy.Ready(raid.Forced, now - raid.Created, present, DragonLanded(raid)))
                         {
                             raid.Started = true;
@@ -240,7 +248,8 @@ namespace DOL.GS
                             RealmEventNotices.Queue(raid.Definition.Id, raid.Definition.Realm,
                                 $"The {raid.Definition.Name} expedition is advancing with {present} staged level-50 adventurers.");
                         }
-                        else if (RealmRaidRecruitmentPolicy.StagingExpired(raid.Forced, now, raid.Created, raid.HubDepartedTick, present, DragonLanded(raid)))
+                        else if (RealmRaidRecruitmentPolicy.StagingExpired(raid.Forced, now, raid.Created, raid.HubDepartedTick, present, DragonLanded(raid),
+                                     raid.StagingArrivalTick))
                         { End(raid, now, $"Staging failed: {present} adventurers arrived; no undersized or airborne assault was ordered."); continue; }
                     }
                     if (raid.Started && raid.DungeonRoute != null)

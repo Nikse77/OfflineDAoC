@@ -312,12 +312,20 @@ namespace DOL.AI.Brain
             long highestEffectiveAggro = -1;
             long highestEffectiveAggroInAttackRange = -1;
 
+            // A mesmerized or rooted monster waits while anything else is in the fight (BotBrain.CrowdControlRespect).
+            bool uncontrolledAvailable = false;
+            foreach (GameLiving candidate in AggroList.Keys)
+            {
+                if (candidate is { IsAlive: true } && !ShouldBeIgnoredFromAggroList(candidate) && !IsBreakablyControlled(candidate))
+                {
+                    uncontrolledAvailable = true;
+                    break;
+                }
+            }
+
             foreach (var pair in AggroList)
             {
                 GameLiving living = pair.Key;
-
-                if (Body.TargetObject == living)
-                    currentTarget = pair;
 
                 if (ShouldBeRemovedFromAggroList(living))
                 {
@@ -327,6 +335,12 @@ namespace DOL.AI.Brain
 
                 if (ShouldBeIgnoredFromAggroList(living))
                     continue;
+
+                if (PassOverControlled(IsBreakablyControlled(living), uncontrolledAvailable))
+                    continue;
+
+                if (Body.TargetObject == living)
+                    currentTarget = pair;
 
                 AggroAmount aggroAmount = pair.Value;
                 double distance = Body.GetDistanceTo(living);
@@ -1236,6 +1250,7 @@ namespace DOL.AI.Brain
             ObserveLeaderActivity();
             CompanionStealth.Maintain(BotBody);
             WatchPetFocusShield();
+            WatchHarmfulAura();
             BotBody?.WakeRecoveryRestIfCombatBlocked();
             BotBody?.EnsureAutonomousRecoveryTimers();
 
@@ -3042,12 +3057,16 @@ namespace DOL.AI.Brain
                 : null;
             if (activePetTarget != null)
                 AddToAggroList(activePetTarget, Math.Max(1, activePetTarget.EffectiveLevel));
+            // The pet's fight is not followed onto a mesmerized or rooted monster (BotBrain.CrowdControlRespect).
+            if (activePetTarget != null && IsBreakablyControlled(activePetTarget))
+                activePetTarget = null;
             // Once our own pet has made contact, keep the owner and pet on that
             // same live opponent unless the owner is personally attacked or is
             // protecting a group member. Generic aggro may still contain the
             // previous pull and used to make archers/casters repeatedly switch
             // away from the fight their pet had already started.
             Body.TargetObject = protectionTarget ?? directAttacker ?? activePetTarget ?? CalculateNextAttackTarget();
+            RedirectPetFromControlledTarget(Body.TargetObject as GameLiving);
             // A tethered boss outside its tether is immune: stop hitting it and lead it home (AutonomousTetherReset).
             if (Body.TargetObject is GameNPC tetheredBoss && AutonomousTetherReset.TryHandle(BotBody, tetheredBoss))
                 return;

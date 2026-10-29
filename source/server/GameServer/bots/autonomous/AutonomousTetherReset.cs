@@ -65,10 +65,17 @@ namespace DOL.GS
                      $"tether={boss.TetherRange} reason=\"out of its tether {StrandedLeashMilliseconds / 1000} s with nobody fighting it in reach\"");
         }
 
-        // Epic encounters only: ordinary monsters also carry a 4,500 tether but simply walk home when they leave it
-        // (run 18 led a small hill cat home).
+        // Epic encounters and scripted named monsters: ordinary monsters also carry a 4,500 tether but simply walk home
+        // when they leave it (run 18 led a small hill cat home). Run of 2026-10-29: Lieutenant Meade (Hall of the Corrupt,
+        // on Albion's way to Summoner's Hall) is a scripted GameNPC, not an epic NPC, immune out of his tether; the Albion
+        // raid fought him there until its four hours ran out.
         public static bool IsOutOfTether(GameNPC npc) =>
-            npc is IGameEpicNpc && npc is { IsAlive: true, TetherRange: > 0 } && npc.Brain is not IControlledBrain && npc.IsOutOfTetherRange;
+            IsTetheredEncounter(npc) && npc is { IsAlive: true, TetherRange: > 0 } && npc.Brain is not IControlledBrain && npc.IsOutOfTetherRange;
+
+        /// <summary>An epic NPC, or a scripted named monster (its own class, a capitalised name).</summary>
+        public static bool IsTetheredEncounter(GameNPC npc) =>
+            npc is IGameEpicNpc || npc != null && npc.GetType() != typeof(GameNPC) && npc is not GameBot &&
+            !string.IsNullOrEmpty(npc.Name) && char.IsUpper(npc.Name[0]);
 
         /// <summary>
         /// For an autonomous gamebot whose target is a boss outside its tether: stop attacking it, and if the
