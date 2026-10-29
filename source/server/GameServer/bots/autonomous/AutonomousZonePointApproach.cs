@@ -80,6 +80,15 @@ public static class AutonomousZonePointApproach
     }
 
     /// <summary>
+    /// Owner 2026-10-29: two mentalists stood 15 minutes each at one ledge of the Grove of Domnann, 220 units from the merchant Rinon
+    /// Samhaoir across but 238 below him. The resolver measures the radius in two dimensions (and allows 256 of height), while the
+    /// bot trades only within the interaction radius in three: the ledge was a valid approach point that could never be close enough.
+    /// A service's approach point must lie within the interaction radius in three dimensions, with a little margin.
+    /// </summary>
+    public static bool WithinInteractionReach(Vector3 point, Vector3 service, int interactionRadius) =>
+        Vector3.Distance(point, service) <= Math.Max(16, interactionRadius - 16);
+
+    /// <summary>
     /// Candidate filter for service NPCs: the trading point must see the NPC
     /// across walkable floor. A point connected by a short walk can still sit
     /// behind a pillar or hallway wall, and bots then traded through it.

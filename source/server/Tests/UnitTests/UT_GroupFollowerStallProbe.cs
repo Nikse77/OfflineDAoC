@@ -19,6 +19,8 @@ public class UT_GroupFollowerStallProbe
     // 238 below him (Grove of Domnann), and a cleric 260 from Dyemaster Emma in Camelot.
     [TestCase((ushort)181, 425352f, 445590f, 6220f, 425242f, 445781f, 6458f)]
     [TestCase((ushort)10, 35339f, 31257f, 8334f, 35400f, 31029f, 8208f)]
+    // The stable arrival of Grove of Domnann, from where both mentalists walked to Rinon Samhaoir.
+    [TestCase((ushort)181, 423480f, 442370f, 5952f, 425242f, 445781f, 6458f)]
     public void TheStandingSpotToTheRendezvous(ushort regionId, float x, float y, float z, float rx, float ry, float rz)
     {
         string root = Environment.GetEnvironmentVariable("OFFLINE_DAOC_NAV_ROOT");
@@ -62,6 +64,17 @@ public class UT_GroupFollowerStallProbe
                 watch.Stop();
                 Vector3 last = path.NodeCount > 0 ? nodes[Math.Min(path.NodeCount, nodes.Length) - 1].Position : from;
                 TestContext.WriteLine($"  -> {label}: status={path.Status} nodes={path.NodeCount} lastToGoal={Vector3.Distance(last, target):0} took={watch.Elapsed.TotalMilliseconds:0.0}ms");
+                if (label == "rendezvous" && path.NodeCount > 0)
+                {
+                    float length = 0;
+                    Vector3 previousNode = from;
+                    for (int i = 0; i < Math.Min(path.NodeCount, nodes.Length); i++)
+                    {
+                        length += Vector3.Distance(previousNode, nodes[i].Position);
+                        previousNode = nodes[i].Position;
+                        TestContext.WriteLine($"     node {i,2}: {nodes[i].Position.X:0},{nodes[i].Position.Y:0},{nodes[i].Position.Z:0}  walked={length:0}");
+                    }
+                }
             }
         }
         finally { foreach (var zoneLoaded in loaded) LocalPathfindingMgr.UnloadNavMesh(zoneLoaded); Environment.CurrentDirectory = previous; }

@@ -1127,7 +1127,8 @@ namespace DOL.GS
                     if (!TryResolveConnectedApproach(bot, rawPoint, Math.Max(16, interactionRadius - 16), out point,
                             needed == eWorldServiceKind.RealmExchange
                                 ? AutonomousZonePointApproach.ClearSightOf(PathfindingProvider.Instance, _serviceNpc.CurrentZone, rawPoint)
-                                : null) &&
+                                : null,
+                            candidate => AutonomousZonePointApproach.WithinInteractionReach(candidate, rawPoint, interactionRadius)) &&
                         _serviceApproachFailures.Observe(AutonomousServiceReachability.Key(_serviceNpc),
                             Vector3.Distance(new(bot.X, bot.Y, bot.Z), rawPoint), GameLoop.GameLoopTime))
                     {
@@ -4038,7 +4039,8 @@ namespace DOL.GS
             Vector3 rawTarget,
             int arrivalRadius,
             out Vector3 approach,
-            Func<Vector3, bool> preferredCandidate = null)
+            Func<Vector3, bool> preferredCandidate = null,
+            Func<Vector3, bool> requiredCandidate = null)
         {
             approach = rawTarget;
             Region region = bot.CurrentRegion;
@@ -4084,10 +4086,16 @@ namespace DOL.GS
             int searchRadius = arrivalRadius == ZonePointArrivalRadius ? arrivalRadius - 16 : arrivalRadius;
             // A preferred-candidate rule is tried first; without a match the
             // unfiltered search runs exactly as before.
-            bool Resolve(Func<Vector3, bool> filter, out Vector3 point) =>
-                AutonomousZonePointApproach.TryResolve(nav, currentZone, from, rawTarget, searchRadius, out point, filter) ||
-                searchRadius != arrivalRadius && AutonomousZonePointApproach.TryResolve(nav, currentZone,
-                    from, rawTarget, arrivalRadius, out point, filter);
+            // A required filter is never given up (the preferred one is): the service approach must be within reach in 3D.
+            Func<Vector3, bool> Combine(Func<Vector3, bool> filter) => requiredCandidate == null ? filter :
+                filter == null ? requiredCandidate : point => requiredCandidate(point) && filter(point);
+            bool Resolve(Func<Vector3, bool> filter, out Vector3 point)
+            {
+                Func<Vector3, bool> combined = Combine(filter);
+                return AutonomousZonePointApproach.TryResolve(nav, currentZone, from, rawTarget, searchRadius, out point, combined) ||
+                       searchRadius != arrivalRadius && AutonomousZonePointApproach.TryResolve(nav, currentZone,
+                           from, rawTarget, arrivalRadius, out point, combined);
+            }
             if (!(preferredCandidate != null && Resolve(preferredCandidate, out approach)) &&
                 !Resolve(null, out approach))
             {
