@@ -212,6 +212,7 @@ namespace DOL.GS.Commands
                 {
                     session.ReadySince = 0;
                     if (actualCombat) StandModeSeats(session);
+                    if (actualCombat) PetJoinsFight(player, members);
                     string targetName = session.Target == null ? "nearby attackers" : $"{session.Target.Name} ({session.Target.Level})";
                     session.Detail = actualCombat ? $"Party fighting {targetName} — no new pulls" : $"Pulling {targetName}; waiting for contact";
                     return;
@@ -292,6 +293,19 @@ namespace DOL.GS.Commands
                 return npc;
             }
             return null;
+        }
+
+        // A ranged pull orders only the companions, so the player's own pet stood idle while they fought (owner 2026-10-30).
+        // It joins the enemy a companion is fighting, unless it already has a live target of its own.
+        private static void PetJoinsFight(GamePlayer player, GameLiving[] members)
+        {
+            if (player.ControlledBrain is not ControlledMobBrain pet || pet.Body?.IsAlive != true || pet.OrderedAttackTarget?.IsAlive == true)
+                return;
+            GameLiving enemy = members.OfType<GameBot>().Select(bot => bot.TargetObject as GameLiving)
+                .FirstOrDefault(target => target != null && target.IsAlive && target.InCombat && !members.Contains(target) &&
+                    player.IsWithinRadius(target, BotBrain.GROUP_DEFENSE_ASSIST_RADIUS) &&
+                    GameServer.ServerRules.IsAllowedToAttack(player, target, true));
+            if (enemy != null) pet.Attack(enemy);
         }
 
         private static void StandModeSeats(Session session)
