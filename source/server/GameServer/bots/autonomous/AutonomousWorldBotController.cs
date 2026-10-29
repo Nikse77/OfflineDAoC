@@ -4040,7 +4040,21 @@ namespace DOL.GS
             int arrivalRadius,
             out Vector3 approach,
             Func<Vector3, bool> preferredCandidate = null,
-            Func<Vector3, bool> requiredCandidate = null)
+            Func<Vector3, bool> requiredCandidate = null,
+            [System.Runtime.CompilerServices.CallerMemberName] string caller = null)
+        {
+            string previousScope = NavQueryProfile.Enter("ConnectedApproach<-" + caller);
+            try { return TryResolveConnectedApproachCore(bot, rawTarget, arrivalRadius, out approach, preferredCandidate, requiredCandidate); }
+            finally { NavQueryProfile.Leave(previousScope); }
+        }
+
+        private bool TryResolveConnectedApproachCore(
+            GameBot bot,
+            Vector3 rawTarget,
+            int arrivalRadius,
+            out Vector3 approach,
+            Func<Vector3, bool> preferredCandidate,
+            Func<Vector3, bool> requiredCandidate)
         {
             approach = rawTarget;
             Region region = bot.CurrentRegion;

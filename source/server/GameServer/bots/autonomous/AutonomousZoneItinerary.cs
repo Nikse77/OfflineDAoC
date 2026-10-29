@@ -641,8 +641,13 @@ namespace DOL.GS
             return false;
         }
 
-        public static bool HasCompleteCorridor(IPathfindingMgr nav, Zone zone, Vector3 start, Vector3 end) =>
-            HasCompleteCorridor(nav, zone, start, end, false);
+        public static bool HasCompleteCorridor(IPathfindingMgr nav, Zone zone, Vector3 start, Vector3 end,
+            [CallerMemberName] string caller = null)
+        {
+            string previous = NavQueryProfile.Enter(caller);
+            try { return HasCompleteCorridor(nav, zone, start, end, false); }
+            finally { NavQueryProfile.Leave(previous); }
+        }
 
         /// <param name="roads">True: when Detour alone fails, also try the zone road graph. Only the zone itinerary's
         /// listed seam crossings ask for it. Everywhere else (service NPCs, camps, unlisted border samples) a failed

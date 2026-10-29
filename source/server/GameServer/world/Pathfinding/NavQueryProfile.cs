@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 using System.Text;
 
 namespace DOL.GS
@@ -17,10 +18,14 @@ namespace DOL.GS
         [ThreadStatic] private static int[] _calls;
         [ThreadStatic] private static long[] _ticks;
         [ThreadStatic] private static List<(string Site, long Ticks)> _sites;
+        [ThreadStatic] private static string _scope;
+        [ThreadStatic] private static Dictionary<string, (int Calls, long Ticks)> _scopes;
 
         public static void Reset()
         {
             _sites?.Clear();
+            _scopes?.Clear();
+            _scope = null;
             if (_calls == null) { _calls = new int[(int)Kind.Count]; _ticks = new long[(int)Kind.Count]; return; }
             Array.Clear(_calls);
             Array.Clear(_ticks);
@@ -44,11 +49,33 @@ namespace DOL.GS
 
         public static long Start() => Stopwatch.GetTimestamp();
 
+        /// <summary>
+        /// Names the code that is asking for corridor checks, so a slow turn says who spent its pathfinding time
+        /// ("corridorBy=" in the summary; 2026-10-29: one bot made 1,409 checks, 4.4 s, in a turn named only "Searching the camp").
+        /// The outermost scope wins: the resolver that loops over candidates, not the leaf that asks about one of them.
+        /// Returns the scope to give back to <see cref="Leave"/>.
+        /// </summary>
+        public static string Enter(string site)
+        {
+            string previous = _scope;
+            _scope ??= site;
+            return previous;
+        }
+
+        public static void Leave(string previous) => _scope = previous;
+
         public static void Stop(Kind kind, long started)
         {
             if (_calls == null) return;
+            long elapsed = Stopwatch.GetTimestamp() - started;
             _calls[(int)kind]++;
-            _ticks[(int)kind] += Stopwatch.GetTimestamp() - started;
+            _ticks[(int)kind] += elapsed;
+            if (kind == Kind.Corridor)
+            {
+                _scopes ??= new Dictionary<string, (int, long)>();
+                string site = _scope ?? "(unnamed)";
+                _scopes[site] = _scopes.TryGetValue(site, out var total) ? (total.Calls + 1, total.Ticks + elapsed) : (1, elapsed);
+            }
         }
 
         public static string Summary()
@@ -60,6 +87,14 @@ namespace DOL.GS
                 if (_calls[i] == 0) continue;
                 text.Append(' ').Append((Kind)i).Append('=').Append(_calls[i]).Append('/')
                     .Append((_ticks[i] * 1000 / Stopwatch.Frequency).ToString()).Append("ms");
+            }
+            if (_scopes is { Count: > 0 })
+            {
+                text.Append(" corridorBy=");
+                int shown = 0;
+                foreach (var pair in _scopes.OrderByDescending(pair => pair.Value.Ticks).Take(3))
+                    text.Append(shown++ > 0 ? "," : "").Append(pair.Key).Append(':').Append(pair.Value.Calls).Append('/')
+                        .Append((pair.Value.Ticks * 1000 / Stopwatch.Frequency).ToString()).Append("ms");
             }
             if (_sites is { Count: > 0 })
             {
