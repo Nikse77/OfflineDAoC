@@ -293,6 +293,7 @@ namespace DOL.AI.Brain
         protected virtual bool ShouldBeRemovedFromAggroList(GameLiving living)
         {
             return !living.IsAlive ||
+                   IsUntargetable(living) ||
                    living.ObjectState != GameObject.eObjectState.Active ||
                    living.CurrentRegion != Body.CurrentRegion ||
                    !Body.IsWithinRadius(living, MAX_AGGRO_LIST_DISTANCE) ||
