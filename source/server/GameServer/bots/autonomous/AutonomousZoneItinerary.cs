@@ -159,6 +159,7 @@ namespace DOL.GS
             [System.Runtime.CompilerServices.CallerFilePath] string callerFile = "")
         {
             long profiled = NavQueryProfile.Start();
+            string previousScope = NavQueryProfile.Enter("ZoneStep<-" + caller);
             _stepDepth++;
             try
             {
@@ -191,6 +192,7 @@ namespace DOL.GS
             finally
             {
                 NavQueryProfile.Stop(NavQueryProfile.Kind.ZoneStep, profiled);
+                NavQueryProfile.Leave(previousScope);
                 if (--_stepDepth == 0) NavQueryProfile.NoteSite(callerFile, caller, profiled);
             }
         }
