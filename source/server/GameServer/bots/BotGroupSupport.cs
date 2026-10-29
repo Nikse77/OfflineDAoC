@@ -87,8 +87,11 @@ namespace DOL.GS
                 if (corpse.TempProperties.GetProperty<GameLiving>("RESURRECT_CASTER") != null) continue;
                 int cost = ResurrectionReserve(bot, spell, corpse);
                 if (bot.Mana < cost) continue;
+                // Owner 2026-10-30: raise fallen members as soon as possible, in combat too. Healers are held back only
+                // while someone is in real danger; a lone healer otherwise never raised anyone until the fight ended.
+                bool guarding = combat && critical > 0;
                 if (state.Resurrection.TryReserve(bot, corpse, GameLoop.GameLoopTime, spell.CastTime,
-                    true, combat, combat ? budget + 1 : healers, false, bot.CanCastHealSpells)) return corpse;
+                    true, guarding, guarding ? budget + 1 : healers, false, bot.CanCastHealSpells)) return corpse;
             }
             return null;
         }
