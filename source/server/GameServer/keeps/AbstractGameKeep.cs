@@ -879,7 +879,10 @@ namespace DOL.GS.Keeps
 						multiplier = ServerProperties.Properties.TOWER_GUARD_LEVEL_MULTIPLIER;
 				}
 
-				guard.Level = (byte)(GetBaseLevel(guard) + (bonusLevel * multiplier));
+				// Battleground keeps: the bracket sets the level (BattlegroundKeepLevels), not the keep row.
+				guard.Level = BattlegroundKeepLevels.TryFor(this, guard, out byte bracketLevel)
+					? bracketLevel
+					: (byte)(GetBaseLevel(guard) + (bonusLevel * multiplier));
 				guard.Health = guard.MaxHealth;
 			}
 

@@ -1562,6 +1562,18 @@ namespace DOL.GS.ServerProperties
 		public static double KEEP_GUARD_LEVEL_MULTIPLIER;
 
 		/// <summary>
+		/// Battleground keeps (not their portal keeps): guards and lords take their level from the bracket instead of the keep row.
+		/// </summary>
+		[ServerProperty("keeps", "bg_keep_levels_from_bracket", "In the battlegrounds the keep guards and lords take their level from the bracket's highest level (plus the two offsets below) instead of the keep's base level.", true)]
+		public static bool BG_KEEP_LEVELS_FROM_BRACKET;
+
+		[ServerProperty("keeps", "bg_keep_guard_level_offset", "Levels a battleground keep guard stands above the bracket's highest level.", 2)]
+		public static int BG_KEEP_GUARD_LEVEL_OFFSET;
+
+		[ServerProperty("keeps", "bg_keep_lord_level_offset", "Levels a battleground keep lord stands above the bracket's highest level.", 5)]
+		public static int BG_KEEP_LORD_LEVEL_OFFSET;
+
+		/// <summary>
 		/// Modifier used to adjust damage for pets on keep components
 		/// </summary>
 		[ServerProperty("keeps", "pet_damage_multiplier", "Modifier used to adjust damage for pets classes.", 1.0)]
