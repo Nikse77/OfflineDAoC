@@ -3646,11 +3646,28 @@ namespace DOL.AI.Brain
             GameLiving preferred = Usable(owner) ? owner
                 : AggroList.Where(pair => pair.Key is GamePlayer or GameBot && !AutonomousPetTargeting.IsPlayerPet(pair.Key) && Usable(pair.Key))
                     .OrderByDescending(pair => pair.Value.Base).Select(pair => pair.Key).FirstOrDefault();
+            // Nobody on the aggro list: any enemy player or bot standing close and in view is still a better target than a pet.
+            preferred ??= NearbyEnemyPlayerInView(bot, Usable);
             if (preferred == null)
                 return chosen;
             if (!AggroList.ContainsKey(preferred))
                 AddToAggroList(preferred, Math.Max(100, preferred.EffectiveLevel * 12));
             return preferred;
+        }
+
+        private const int PET_SWAP_SEARCH_RADIUS = 900;
+
+        private GameLiving NearbyEnemyPlayerInView(GameBot bot, Func<GameLiving, bool> usable)
+        {
+            var nav = PathfindingProvider.Instance;
+            if (!nav.IsAvailable || !nav.HasNavmesh(Body.CurrentZone))
+                return null;
+            return Body.GetPlayersInRadius(PET_SWAP_SEARCH_RADIUS).Cast<GameLiving>()
+                .Concat(Body.GetNPCsInRadius(PET_SWAP_SEARCH_RADIUS).OfType<GameBot>())
+                .Where(candidate => candidate.Realm != bot.Realm && candidate.Realm != eRealm.None && usable(candidate))
+                .OrderBy(candidate => Body.GetDistanceTo(candidate)).Take(6)
+                .FirstOrDefault(candidate => nav.HasLineOfSight(Body.CurrentZone, new(Body.X, Body.Y, Body.Z),
+                    new(candidate.X, candidate.Y, candidate.Z), nav.DefaultFilters));
         }
 
         private GameLiving RecentDirectAttacker()
