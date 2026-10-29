@@ -75,7 +75,7 @@ namespace DOL.GS
 		private readonly Lock _lock = new();
 		private Hashtable _databaseItemsCache;
 		private long _databaseItemsCacheExpiresTick;
-		private const int DatabaseItemsCacheLifetimeMilliseconds = 5 * 60_000;
+		private const int DatabaseItemsCacheLifetimeMilliseconds = 20_000;
 
 		#endregion
 
@@ -138,6 +138,7 @@ namespace DOL.GS
 		// The world database holds merchant rows stored twice (the same item, the same slot) and slots shared by two different
 		// items (2026-10-29: 118 items of 11 lists were never shown). Duplicates are ignored; a second item takes a free slot.
 		private static readonly HashSet<string> s_loggedSlotConflicts = new();
+		private static readonly HashSet<string> s_loggedMissingTemplates = new();
 
 		private static bool PageShows(Hashtable layout, int page, DbItemTemplate item)
 		{
@@ -166,6 +167,20 @@ namespace DOL.GS
 		/// shared by two different items (2026-10-29: 118 items of 11 lists were never shown). An item already on its page is shown once;
 		/// an item whose slot is taken, or outside the page, goes to the first free slot of its page or of a following page.
 		/// </summary>
+		private Hashtable DatabaseLayout()
+		{
+			lock (_lock)
+			{
+				long now = GameLoop.GameLoopTime;
+				if (_databaseItemsCache == null || now >= _databaseItemsCacheExpiresTick)
+				{
+					_databaseItemsCache = LayoutDatabaseItems();
+					_databaseItemsCacheExpiresTick = now + DatabaseItemsCacheLifetimeMilliseconds;
+				}
+				return _databaseItemsCache;
+			}
+		}
+
 		private Hashtable LayoutDatabaseItems()
 		{
 			var layout = new Hashtable();
@@ -179,7 +194,11 @@ namespace DOL.GS
 				DbItemTemplate item = GameServer.Database.FindObjectByKey<DbItemTemplate>(row.ItemTemplateID);
 				if (item == null)
 				{
-					log.ErrorFormat("Item template with ID = '{0}' not found for merchant item list '{1}'", row.ItemTemplateID, m_itemsListID);
+					bool first;
+					lock (s_loggedMissingTemplates)
+						first = s_loggedMissingTemplates.Add($"{m_itemsListID}:{row.ItemTemplateID}");
+					if (first)
+						log.WarnFormat("Item template with ID = '{0}' not found for merchant item list '{1}'; it is not offered", row.ItemTemplateID, m_itemsListID);
 					continue;
 				}
 				if (row.PageNumber < 0 || row.PageNumber >= MAX_PAGES_IN_TRADEWINDOWS || PageShows(layout, row.PageNumber, item))
@@ -217,7 +236,7 @@ namespace DOL.GS
 			try
 			{
 				HybridDictionary itemsInPage = new HybridDictionary(MAX_ITEM_IN_TRADEWINDOWS);
-				Hashtable layout = LayoutDatabaseItems();
+				Hashtable layout = DatabaseLayout();
 				for (int slot = 0; slot < MAX_ITEM_IN_TRADEWINDOWS; slot++)
 					if (layout[page * MAX_ITEM_IN_TRADEWINDOWS + slot] is DbItemTemplate shown)
 						itemsInPage.Add(slot, shown);
@@ -261,7 +280,7 @@ namespace DOL.GS
 
 				// The same layout as the window shows, so that an item moved to a free slot is also the one bought from it.
 				if (m_itemsListID != null && m_itemsListID.Length > 0 && slot >= eMerchantWindowSlot.FirstInPage)
-					item = LayoutDatabaseItems()[page * MAX_ITEM_IN_TRADEWINDOWS + (int)slot] as DbItemTemplate;
+					item = DatabaseLayout()[page * MAX_ITEM_IN_TRADEWINDOWS + (int)slot] as DbItemTemplate;
 				return item;
 			}
 			catch (Exception e)
@@ -283,14 +302,7 @@ namespace DOL.GS
 				Hashtable allItems = new Hashtable();
 				lock (_lock)
 				{
-					long now = GameLoop.GameLoopTime;
-					if (_databaseItemsCache == null || now >= _databaseItemsCacheExpiresTick)
-					{
-						_databaseItemsCache = LayoutDatabaseItems();
-						_databaseItemsCacheExpiresTick = now + DatabaseItemsCacheLifetimeMilliseconds;
-					}
-
-					foreach (DictionaryEntry de in _databaseItemsCache)
+					foreach (DictionaryEntry de in DatabaseLayout())
 						allItems[de.Key] = de.Value;
 					foreach (DictionaryEntry de in m_usedItemsTemplates)
 					{
