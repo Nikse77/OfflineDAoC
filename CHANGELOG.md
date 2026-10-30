@@ -266,6 +266,41 @@ The newest version is first. For the full detail of every earlier update, see
   loading in), it could lock up for good and show "Not Responding": the background zone loaders were touching the
   graphics card while it was drawing. They now leave those steps to the game's main thread, a little at a time, so
   nothing stutters, and region changes load a bit faster than before.
+- The new client no longer gets stuck on the loading screen at login, or locks up when you spawn companions in a
+  busy place. Part of the teleport fix above failed for every NPC, armour, weapon and helm model, which brought the
+  same lock-up back whenever many of them loaded at once.
+- The frame rate no longer drops for good after a long ride or a busy session. The models of characters, armour,
+  weapons and spell effects you had passed stayed on the graphics card; the client now lets go of what nothing on
+  screen uses, keeps one copy of a texture that many models share (one weapon texture was loaded once per weapon),
+  and clears out sooner when the card is nearly full. Nothing is drawn at lower quality.
+- No more lines along zone borders: the ground's colour map no longer bleeds the far side of a zone into its edge,
+  and the corners where zones meet at the edge of a region are no longer torn open.
+- Castle and keep walls block you again (Caer Ulfwych, the keeps, relic keeps, round towers, Caer Diogel and others):
+  only part of their walls had collision.
+- The Darkness Falls entrance in Avalon Marsh has its pillars, platform and purple flames instead of a plain white
+  shape.
+- Inconnu women have their hair under a circlet (and their own hair styles and hooded cloak), and Half Ogre men
+  their own cloaks and hair: they had been given Briton and Highlander hair.
+- Grindylows, grasping ghouls, waterlogged corpses and the other crawling legless zombies are visible again.
+- Casting hands flicker as in the original client instead of holding a solid glowing orb (weapon glows were
+  affected the same way).
+- The fog on Avalon Isle and its neighbours is the light haze of the original client (it closed in at a few dozen
+  metres); every zone now takes its region's fog, as the original does.
+- Banners on far-off towers no longer seem to float in the sky.
+- No more empty gaps in the combat window when songs pulse.
+- Server lag no longer snaps you back (rubberbanding): when the server pulls you back to a spot you just left, you
+  carry on where you are, as the original client lets you.
+- You can't run while stunned, mesmerized or rooted (the server pulled you back each time), and a GM who starts the
+  game hidden shows the stealth look.
+- Every window an NPC opens (stable routes, Realm Exchange, emblems, quest guide, innkeeper) closes when you walk
+  away, like the merchant and trainer windows.
+- The X on the trainer's skill preview closes the trainer window.
+- After the game is closed by force, logging in again keeps trying until the server lets the old session go (about
+  a minute), instead of stopping at "already logged in".
+- A double-click on PLAY enters the world once. (From the chris4aker/OfflineDAoC-LivingServer fork.)
+- The merchant window has SELL and APPRAISE buttons next to BUY, as in the original client: right-click an item in
+  your backpack, then SELL, or APPRAISE to hear what the merchant would pay. Dragging an item onto the window still
+  sells it.
 
 **Credits**
 - Thanks to chris4aker's Living Server fork
@@ -278,8 +313,8 @@ The newest version is first. For the full detail of every earlier update, see
 - Thanks to lometur's [HearthDAoC](https://github.com/lometur/HearthDAoC) fork (Thomas Farral) for the /tc fix and
   the quest names that match whatever their case; Nikse77 and chris4aker found the same /tc clash.
 - Thanks to chris4aker's Living Server fork (release v1.1-beta) for the memory and handle leak fixes, the issue #25
-  merchant lag fix, the resurrection offer fixes, the world-entry guard, and the Torst, wait seconds and siege weapon
-  fixes.
+  merchant lag fix, the resurrection offer fixes, the world-entry guard and the new client's one-click PLAY, and the
+  Torst, wait seconds and siege weapon fixes.
 - Thanks to [stefanrows/OfflineDAoC](https://github.com/stefanrows/OfflineDAoC) for finding the siege timer overflow.
 - Thanks to [rambodolphin13/OfflineDAoC](https://github.com/rambodolphin13/OfflineDAoC) for the effect leak fix.
 
