@@ -71,6 +71,17 @@ namespace DOL.GS
         /// <summary>An ended effect has no business in the service; only a restart (Starting / Enabling) may bring one back.</summary>
         public static bool IsStaleEndedEffect(bool ended, bool starting, bool enabling) => ended && !starting && !enabling;
 
+        /// <summary>
+        /// An effect on a monster, pet or bot that was deleted, or a pulse whose caster was, ends. The fork's census found 2,755 effects
+        /// stayed in the service on deleted NPCs, growing by about 400 an hour (a pet's pulse went on pulsing after the pet was gone, and
+        /// a pulse's child effects only end when their pulse does), keeping every one of those NPCs in memory. A monster awaiting respawn
+        /// is deleted too, but its effects were cancelled when it died. From chris4aker/OfflineDAoC-LivingServer fa8a00d.
+        /// </summary>
+        public static bool OutlivedItsLiving(GameObject.eObjectState ownerState, bool ownerIsNpc, bool isPulse, GameObject.eObjectState? casterState,
+            bool casterIsNpc) =>
+            ownerIsNpc && ownerState == GameObject.eObjectState.Deleted ||
+            isPulse && casterIsNpc && casterState == GameObject.eObjectState.Deleted;
+
         private static void TickEffect(ECSGameEffect effect)
         {
             // Last line of defence against any other path that re-adds an ended effect: it can't be ended again, so it would
@@ -78,6 +89,15 @@ namespace DOL.GS
             if (IsStaleEndedEffect(effect.IsEnded, effect.IsStarting, effect.IsEnabling))
             {
                 ServiceObjectStore.Remove(effect);
+                return;
+            }
+
+            GameLiving pulseCaster = (effect as ECSPulseEffect)?.SpellHandler?.Caster;
+            if (effect.Owner != null && OutlivedItsLiving(effect.Owner.ObjectState, effect.Owner is GameNPC, effect is ECSPulseEffect,
+                    pulseCaster?.ObjectState, pulseCaster is GameNPC))
+            {
+                if (!effect.IsEnding)
+                    effect.End();
                 return;
             }
 
