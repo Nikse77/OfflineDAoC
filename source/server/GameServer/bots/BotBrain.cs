@@ -410,6 +410,11 @@ namespace DOL.AI.Brain
             if (realTarget is IGamePlayer && realTarget.Realm != Body.Realm)
                 return true;
 
+            // An enemy keep's doors and walls are fought whatever their con (owner 2026-10-29: companions would not help
+            // the player break a battleground keep's door).
+            if (realTarget is DOL.GS.Keeps.GameKeepDoor or DOL.GS.Keeps.GameKeepComponent && realTarget.Realm != Body.Realm)
+                return true;
+
             // Evaluate the monster from the character's perspective, not the
             // reverse. The native NPC check rejected purple pulls because the
             // character was grey to the monster. Camp selection owns difficulty;
