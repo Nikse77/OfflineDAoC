@@ -301,6 +301,7 @@ The newest version is first. For the full detail of every earlier update, see
 - The merchant window has SELL and APPRAISE buttons next to BUY, as in the original client: right-click an item in
   your backpack, then SELL, or APPRAISE to hear what the merchant would pay. Dragging an item onto the window still
   sells it.
+- Closing the new client while characters around you are still loading no longer crashes it on the way out.
 
 **Credits**
 - Thanks to chris4aker's Living Server fork
