@@ -14,14 +14,18 @@ namespace DOL.UnitTests
 
         [TestCase(eSpellType.DexterityBuff, eSpellTarget.SELF, true)]
         [TestCase(eSpellType.DexterityQuicknessBuff, eSpellTarget.SELF, true)]
-        [TestCase(eSpellType.DexterityBuff, eSpellTarget.GROUP, false)]
-        [TestCase(eSpellType.DexterityBuff, eSpellTarget.REALM, false)]
+        [TestCase(eSpellType.DexterityBuff, eSpellTarget.REALM, true)]
+        [TestCase(eSpellType.DexterityQuicknessBuff, eSpellTarget.REALM, true)]
+        [TestCase(eSpellType.DexterityBuff, eSpellTarget.GROUP, true)]
+        [TestCase(eSpellType.DexterityBuff, eSpellTarget.PET, false)]
+        [TestCase(eSpellType.DexterityQuicknessBuff, eSpellTarget.PET, false)]
         [TestCase(eSpellType.StrengthBuff, eSpellTarget.SELF, false)]
-        public void OnlyTheSelfDexterityBuffsGoFirst(eSpellType type, eSpellTarget target, bool expected) =>
-            Assert.That(BotBuffRules.IsSelfDexterityBuff(NewSpell(type, target)), Is.EqualTo(expected));
+        [TestCase(eSpellType.StrengthBuff, eSpellTarget.REALM, false)]
+        public void TheOwnDexterityBuffsGoFirst(eSpellType type, eSpellTarget target, bool expected) =>
+            Assert.That(BotBuffRules.IsOwnDexterityBuff(NewSpell(type, target)), Is.EqualTo(expected));
 
         [Test]
-        public void NoSpellIsNotADexterityBuff() => Assert.That(BotBuffRules.IsSelfDexterityBuff(null), Is.False);
+        public void NoSpellIsNotADexterityBuff() => Assert.That(BotBuffRules.IsOwnDexterityBuff(null), Is.False);
 
         [Test]
         public void OnlyThePureCastersUseAcuity()

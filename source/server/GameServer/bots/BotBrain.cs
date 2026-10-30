@@ -2110,7 +2110,7 @@ namespace DOL.AI.Brain
                 .Where(spell => BotMaintenancePulsePolicy.CanMaintain(spell, maintenancePulse))
                 .Where(spell => spell.SpellType != eSpellType.SpeedEnhancement || traveling)
                 .OrderByDescending(spell => spell.SpellType == eSpellType.SpeedEnhancement && traveling)
-                .ThenByDescending(BotBuffRules.IsSelfDexterityBuff)
+                .ThenByDescending(BotBuffRules.IsOwnDexterityBuff)
                 .ThenByDescending(spell => spell.Value)
                 .ThenByDescending(spell => spell.Level);
 
@@ -2582,6 +2582,10 @@ namespace DOL.AI.Brain
 
         private GameLiving FindMissingMaintenanceTarget(Spell spell)
         {
+            // Its own dexterity first (BotBuffRules): a realm or group dexterity buff goes on the caster before anyone else.
+            if (BotBuffRules.IsOwnDexterityBuff(spell) && !LivingHasEffect(Body, spell))
+                return Body;
+
             if (spell.Target is eSpellTarget.PET or eSpellTarget.CONTROLLED)
             {
                 GameLiving pet = Body.ControlledBrain?.Body;
