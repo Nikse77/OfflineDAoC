@@ -835,7 +835,11 @@ namespace DOL.GS
 
             foreach (GameNPC npc in player.GetObjectsInRadius<GameNPC>(eGameObjectType.NPC, WorldMgr.VISIBILITY_DISTANCE))
             {
-                if (npc.ObjectState is GameObject.eObjectState.Active && npc.IsVisibleTo(player) && player.CanDetect(npc))
+                // A dead gamebot is left out: its death animation was sent on removal (GameBot.ProcessDeath), and the update sent every
+                // few seconds to an NPC in range makes the client show it again, standing and targetable. The resurrection and the
+                // release move the bot, and a living bot not in the cache is created here.
+                if (npc.ObjectState is GameObject.eObjectState.Active && npc.IsVisibleTo(player) && player.CanDetect(npc) &&
+                    npc is not GameBot { IsAlive: false })
                     inRangeSet.Add(npc);
             }
 
