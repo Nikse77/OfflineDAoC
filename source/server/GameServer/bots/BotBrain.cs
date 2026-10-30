@@ -611,7 +611,8 @@ namespace DOL.AI.Brain
         public bool AlreadyCheckedHeals;
         // Owner 2026-10-30: a small random reaction time (BotReactionDelay), rolled once per fight and once per injury.
         private bool _reactionFightStarted, _reactionHurtSeen;
-        private long _engageReadyAt, _healReadyAt;
+        private long _engageReadyAt, _healReadyAt, _retargetReadyAt;
+        private GameLiving _retargetCandidate;
         private long _nextPriorityTauntTick;
         private long _nextDeployablePetTick;
         private long _nextCombatProgressTick;
@@ -3230,7 +3231,9 @@ namespace DOL.AI.Brain
             // protecting a group member. Generic aggro may still contain the
             // previous pull and used to make archers/casters repeatedly switch
             // away from the fight their pet had already started.
-            Body.TargetObject = PreferPlayerOverPet(protectionTarget ?? directAttacker ?? activePetTarget ?? CalculateNextAttackTarget());
+            Body.TargetObject = HoldTargetBriefly(previousAttackTarget,
+                PreferPlayerOverPet(protectionTarget ?? directAttacker ?? activePetTarget ?? CalculateNextAttackTarget()),
+                protectionTarget != null);
             RedirectPetFromControlledTarget(Body.TargetObject as GameLiving);
             MaintainTankPeel();
             // A tethered boss outside its tether is immune: stop hitting it and lead it home (AutonomousTetherReset).
@@ -3733,6 +3736,35 @@ namespace DOL.AI.Brain
                 .OrderBy(candidate => Body.GetDistanceTo(candidate)).Take(6)
                 .FirstOrDefault(candidate => nav.HasLineOfSight(Body.CurrentZone, new(Body.X, Body.Y, Body.Z),
                     new(candidate.X, candidate.Y, candidate.Z), nav.DefaultFilters));
+        }
+
+        /// <summary>
+        /// A bot already fighting a live enemy keeps hitting it for a moment (BotReactionDelay.Retarget) before it turns on
+        /// a new attacker, so an arrow landing does not swing it round the same instant. Not while it protects a group member.
+        /// </summary>
+        private GameLiving HoldTargetBriefly(GameObject previous, GameLiving chosen, bool protecting)
+        {
+            if (chosen == null || protecting || previous is not GameLiving old || old == chosen || !old.IsAlive ||
+                old.ObjectState != GameObject.eObjectState.Active || old.CurrentRegion != Body.CurrentRegion ||
+                !AggroList.ContainsKey(old))
+            {
+                _retargetCandidate = null;
+                _retargetReadyAt = 0;
+                return chosen;
+            }
+
+            long now = GameLoop.GameLoopTime;
+            if (_retargetCandidate != chosen)
+            {
+                _retargetCandidate = chosen;
+                _retargetReadyAt = now + BotReactionDelay.Next(BotReactionDelay.Retarget);
+            }
+            if (BotReactionDelay.StillReacting(now, _retargetReadyAt))
+                return old;
+
+            _retargetCandidate = null;
+            _retargetReadyAt = 0;
+            return chosen;
         }
 
         private GameLiving RecentDirectAttacker()

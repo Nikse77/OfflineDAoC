@@ -20,6 +20,10 @@ namespace DOL.UnitTests
             Assert.That(engage.Max(), Is.LessThanOrEqualTo(BotReactionDelay.EngageMaximumMilliseconds));
             Assert.That(heal.Min(), Is.GreaterThanOrEqualTo(BotReactionDelay.HealMinimumMilliseconds));
             Assert.That(heal.Max(), Is.LessThanOrEqualTo(BotReactionDelay.HealMaximumMilliseconds));
+
+            var retarget = Enumerable.Range(0, 2000).Select(_ => BotReactionDelay.Roll(BotReactionDelay.Retarget, random)).ToArray();
+            Assert.That(retarget.Min(), Is.GreaterThanOrEqualTo(BotReactionDelay.RetargetMinimumMilliseconds));
+            Assert.That(retarget.Max(), Is.LessThanOrEqualTo(BotReactionDelay.RetargetMaximumMilliseconds));
         }
 
         [Test]
