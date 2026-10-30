@@ -421,9 +421,50 @@ public static class AutonomousStuckWatchdog
         if (!ShouldRecoverMovement(previous.LastMovementUtc, now, bot.IsAlive, withHuman, false, movementThreshold))
             return false;
 
+        if (movementThreshold != StuckThreshold)
+            LogBattlegroundFollowerStall(bot);
+
         return RelocateToSafeCapital(bot, now,
             movementThreshold == StuckThreshold ? "no movement for fifteen minutes" : $"no movement for {(int)movementThreshold.TotalMinutes} minutes in a battleground", true,
             "AUTONOMOUS_STUCK_15M_RECOVERY");
+    }
+
+    /// <summary>
+    /// 2026-10-30: squad followers keep standing near a keep's lord room (Thidranki around 32300,38450 and 33480,38145; Caer Caledon
+    /// around 33050,37540), 13 in an hour, and nothing in the log said why none of them got an order. Diagnostics only: the squad
+    /// leader's state and position, and what the members around it are doing.
+    /// </summary>
+    private static void LogBattlegroundFollowerStall(GameBot bot)
+    {
+        try
+        {
+            GameBot leader = AutonomousBattlegroundSquads.LeaderOf(bot);
+            string leaderInfo = leader == null
+                ? $"leader=none grouped={bot.Group != null}"
+                : $"leader=\"{leader.Name}\" isSelf={leader == bot} alive={leader.IsAlive} state={leader.ObjectState} region={leader.CurrentRegionID} " +
+                  $"position={leader.X},{leader.Y},{leader.Z} distance={(int) Math.Sqrt(Math.Pow(leader.X - bot.X, 2) + Math.Pow(leader.Y - bot.Y, 2))} " +
+                  $"dz={leader.Z - bot.Z} moving={leader.IsMoving} combat={leader.InCombat} casting={leader.IsCasting} " +
+                  $"activity=\"{leader.PersistentRecord?.Activity}\" goal=\"{leader.PersistentRecord?.CurrentGoal}\"";
+
+            int members = 0, alive = 0, moving = 0, fighting = 0;
+            if (bot.Group != null)
+            {
+                foreach (GameLiving member in bot.Group.GetMembersInTheGroup())
+                {
+                    members++;
+                    if (member.IsAlive) alive++;
+                    if (member is GameNPC { IsMoving: true }) moving++;
+                    if (member.InCombat) fighting++;
+                }
+            }
+
+            Log.Info($"AUTONOMOUS_BG_FOLLOWER_STALL bot=\"{bot.Name}\" class=\"{bot.CharacterClass?.Name}\" region={bot.CurrentRegionID} " +
+                     $"position={bot.X},{bot.Y},{bot.Z} {leaderInfo} members={members} alive={alive} moving={moving} fighting={fighting}");
+        }
+        catch (Exception exception)
+        {
+            Log.Warn("AUTONOMOUS_BG_FOLLOWER_STALL could not be written", exception);
+        }
     }
 
     // The group check takes the coordinator's global lock, which every grouped
