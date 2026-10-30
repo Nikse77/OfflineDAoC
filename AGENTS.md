@@ -86,6 +86,11 @@ In a playable folder:
 
 ## Useful facts
 
+- **Sluaghbinder discontinued (owner 2026-10-30):** no generator, `/spawn` menu, launcher batch or character
+  creation offers it any more, whatever `ENABLE_SLUAGHBINDER` says, and its quest line does not start
+  (`SluaghbinderEpicQuestRuntime.Discontinued`). Its trainer and wisp leave the world with
+  `tools/claude-version/remove_sluaghbinder_npcs.py` (server stopped; `restore` puts them back). The notes
+  below describe the old edition switch.
 - **Edition switch:**
   - The switch is `ServerProperties.Properties.ENABLE_SLUAGHBINDER`. It defaults to on, is read
     from the database and is honored by the bot generator, character creation and launcher bot

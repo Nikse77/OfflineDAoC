@@ -1,15 +1,13 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using DOL.GS.Quests.Hibernia;
 using DOL.GS.ServerProperties;
 using NUnit.Framework;
 
 namespace DOL.GS.Tests
 {
-    /// <summary>
-    /// Offline DAoC 0.33 editions share one server. classes/enable_sluaghbinder is on for 0.33b
-    /// (and by default) and off for the 0.33 "no custom class" edition.
-    /// </summary>
+    /// <summary>The Sluaghbinder is discontinued (owner 2026-10-30): no setting brings it back to the generators.</summary>
     [TestFixture]
     [NonParallelizable]
     public class UT_SluaghbinderEditionSwitch
@@ -22,27 +20,11 @@ namespace DOL.GS.Tests
         [TearDown]
         public void Restore() => Properties.ENABLE_SLUAGHBINDER = _original;
 
-        [Test]
-        public void EnabledByDefault()
+        [TestCase(true)]
+        [TestCase(false)]
+        public void NeverRollsListsOrHelpsWithTheClass(bool setting)
         {
-            Assert.That(_original, Is.True);
-            Assert.That(AutonomousBotIdentityGenerator.GetEraClasses(eRealm.Hibernia), Does.Contain(eCharacterClass.Sluaghbinder));
-        }
-
-        [Test]
-        public void EnabledRollsAreUnchanged()
-        {
-            Properties.ENABLE_SLUAGHBINDER = true;
-            var first = Roll(new Random(4242));
-            var second = Roll(new Random(4242));
-            Assert.That(first, Is.EqualTo(second));
-            Assert.That(first, Does.Contain(eCharacterClass.Sluaghbinder), "an enabled Hibernian pool still rolls the class");
-        }
-
-        [Test]
-        public void DisabledNeverRollsListsOrHelpsWithTheClass()
-        {
-            Properties.ENABLE_SLUAGHBINDER = false;
+            Properties.ENABLE_SLUAGHBINDER = setting;
             Assert.That(Roll(new Random(4242)), Does.Not.Contain(eCharacterClass.Sluaghbinder));
             Assert.That(AutonomousBotIdentityGenerator.GetEraClasses(eRealm.Hibernia), Does.Not.Contain(eCharacterClass.Sluaghbinder));
             Assert.That(AutonomousBotIdentityGenerator.GetEraClasses(eRealm.Hibernia), Has.Count.EqualTo(13));
@@ -53,15 +35,8 @@ namespace DOL.GS.Tests
         }
 
         [Test]
-        public void OtherRealmsAreUnaffected()
-        {
-            Properties.ENABLE_SLUAGHBINDER = true;
-            var albion = AutonomousBotIdentityGenerator.GetEraClasses(eRealm.Albion).ToArray();
-            var midgard = AutonomousBotIdentityGenerator.GetEraClasses(eRealm.Midgard).ToArray();
-            Properties.ENABLE_SLUAGHBINDER = false;
-            Assert.That(AutonomousBotIdentityGenerator.GetEraClasses(eRealm.Albion), Is.EqualTo(albion));
-            Assert.That(AutonomousBotIdentityGenerator.GetEraClasses(eRealm.Midgard), Is.EqualTo(midgard));
-        }
+        public void TheQuestLineDoesNotStart() =>
+            Assert.That(SluaghbinderEpicQuestRuntime.Discontinued, Is.True);
 
         private static List<eCharacterClass> Roll(Random random)
         {

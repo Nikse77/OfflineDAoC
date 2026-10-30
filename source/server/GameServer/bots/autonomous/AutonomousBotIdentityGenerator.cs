@@ -65,9 +65,7 @@ namespace DOL.GS
                     new(eCharacterClass.Ranger, eRace.Celt, eRace.Elf, eRace.Lurikeen),
                     new(eCharacterClass.Animist, eRace.Celt, eRace.Firbolg, eRace.Sylvan),
                     new(eCharacterClass.Valewalker, eRace.Celt, eRace.Firbolg, eRace.Sylvan),
-                    // Experimental Sluaghbinder: the isolated class has the
-                    // same two legal races as its player character creator.
-                    new(eCharacterClass.Sluaghbinder, eRace.Celt, eRace.Firbolg),
+                    // (The Sluaghbinder is discontinued, owner 2026-10-30.)
                 ],
             };
 
@@ -152,16 +150,11 @@ namespace DOL.GS
                 ? ActiveChoices(choices).Select(choice => choice.CharacterClass).ToArray()
                 : Array.Empty<eCharacterClass>();
 
-        /// <summary>False only for the Sluaghbinder in the 0.33 "no custom class" edition.</summary>
+        /// <summary>False only for the Sluaghbinder, which is discontinued (owner 2026-10-30).</summary>
         public static bool IsClassAvailable(eCharacterClass characterClass) =>
-            characterClass != eCharacterClass.Sluaghbinder || ServerProperties.Properties.ENABLE_SLUAGHBINDER;
+            characterClass != eCharacterClass.Sluaghbinder;
 
-        // With the custom class enabled (0.33b, the default) the original array is used unchanged,
-        // so bot rolls are identical to the Claude version build.
-        private static ClassChoice[] ActiveChoices(ClassChoice[] choices) =>
-            ServerProperties.Properties.ENABLE_SLUAGHBINDER
-                ? choices
-                : choices.Where(choice => IsClassAvailable(choice.CharacterClass)).ToArray();
+        private static ClassChoice[] ActiveChoices(ClassChoice[] choices) => choices;
 
         public static IReadOnlyCollection<eRace> GetEligibleRaces(eCharacterClass characterClass) =>
             Choices.Values.SelectMany(value => value)
