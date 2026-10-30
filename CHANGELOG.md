@@ -90,13 +90,45 @@ The newest version is first. For the full detail of every earlier update, see
   until its four hours ran out; bots now stop and lead such a boss home, as they already did for the epic bosses.
 - A raid rally no longer gives up while its bots are still arriving: someone arriving with less than ten minutes left
   gives the rally ten more minutes, up to thirty minutes past its deadline. The 200 needed to start are unchanged.
+- Bots spread over a zone's camps instead of crowding a few (84 level 19 to 23 bots shared four brown bear and moor
+  wolf camps in Cornwall while other camps stood empty). A camp now counts as crowded when its bots outnumber half its
+  live monsters (two bots always fit); bots choose among the uncrowded camps while any is left, and only then the
+  least crowded ones. No monster was added or moved.
+- Tank bots look after their group the way players do. Protect sits on the group's healer (or on the squishy member
+  being hit), Guard covers the squishiest member a monster is hitting in melee while the tank has a shield up, and
+  Intercept takes the blows for one below half health next to the tank, on its one-minute reuse. Taunting is as before.
+- Siege weapons can be summoned in the battlegrounds as well as the Frontiers, and bots attack an enemy realm's keep
+  doors, so battleground keeps can be taken.
+- Siege results say how a siege ended. Sieges that ended any other way than captured, defended or a failed rally were
+  all logged as "Ended (unconfirmed)"; they now show "Timed out", "Ended: keep no longer a target" or the reason given.
+- A Necromancer bot's servant no longer stands still forever on a command that never finished. Out of combat, a
+  servant command still waiting after ten seconds is dropped and the servant carries on.
+- Bots can list up to three items on the Realm Exchange at a time (was one).
+- Siege musters, marches, repels and the four-hour cap now run on the live clock. The first time check overflowed and
+  stopped every later one from running. (Found by the stefanrows/OfflineDAoC fork; from the
+  chris4aker/OfflineDAoC-LivingServer fork.)
+- Long runs no longer slow down from effects that never end: an effect that ended before it started, an ending effect
+  its owner had already dropped, and effects on deleted monsters or pets (a deleted Sluaghbinder pet's Cairn Boneplate
+  kept pulsing) are now removed. (From the rambodolphin13/OfflineDAoC and chris4aker/OfflineDAoC-LivingServer forks.)
+- The server no longer leaks memory on pathfinding (about 250 MB an hour on the fork's runs): route queries are now
+  shared per zone instead of kept forever for every thread, and freed when a zone unloads. Bot logins no longer leak
+  a system handle each (about 1,500 an hour). (From the chris4aker/OfflineDAoC-LivingServer fork.)
+- No more lag spikes near medallion merchants ([issue #25](https://github.com/shadowofze/OfflineDAoC/issues/25)). A
+  bot far from its merchant ran up to 18 failing route searches every 15 seconds; it now searches only within 2,000
+  units of the merchant, walks toward it from farther away, and waits 30 seconds after a failed search. (From the
+  chris4aker/OfflineDAoC-LivingServer fork.)
+- Torst no longer disappears when he summons his eddies (the summon threw an error and the server removed him), and
+  a bot letting go of a siege weapon no longer throws an error in the siege timer. (From the
+  chris4aker/OfflineDAoC-LivingServer fork.)
 
 **World**
 - Bring A Friend reaches as far as on Dawn of Light, and only monsters in sight come. Friends came from up to 1,500
   units for a full group (450 plus 150 for each other member), through walls and from the next room; in Cardova's
   first room they came from other rooms and hallways. Now friends come from within 2/5 of the pulled monster's aggro
-  range (200 units for most monsters), in a dungeon from up to 1,000 units with the nearest first, and only if they can
-  see the pulled monster. How many come still depends on the size of the group.
+  range (200 units for most monsters), in a dungeon from 250 units for one attacker plus 150 for each other (up to
+  1,000) with the nearest first, and only if they can see the pulled monster. How many come still depends on the size
+  of the group. A monster that came as a friend, or one already in that fight, brings no friends of its own for two
+  minutes, so a pull brings one round of adds instead of a chain across the room.
 - Monsters with no faction bring friends again: their own kind. Bring A Friend only counted monsters of the same or an
   allied faction, and two thirds of the aggressive monsters in the game have no faction, so they never brought anyone,
   whatever the size of the group (Midgard's frore liches, windswept wraiths and chillsome wights, for example). A
@@ -114,6 +146,24 @@ The newest version is first. For the full detail of every earlier update, see
   server makes on the spot, but the stand-in started out already open, so opening it changed nothing and the
   door stayed shut. The server log now also names any door it doesn't know (DOOR_NOT_IN_DATABASE), so missing
   ones can be found and added.
+- NPCs no longer flicker twice after every teleport. The server resent everything in sight twice after a teleport or
+  region change; it now resends once, and only what it sent while your client was still loading.
+- More Albion helmets that showed no face now show one: the chain coif family (11 looks, for example the alloy mail
+  coif) and the leather helm family (16 looks, for example the cured siluric leather helm, with the cloth helm and
+  chain helm stand-ins). Only how they are drawn changes.
+- Ten Minstrel songs show their own icons. The speed songs (Motivational Chant to Motivational Anthem) carried the
+  Skald's Song of Travel icons and the power songs (Song of Power to Song of Empowering) the Bard's Rhyme icons.
+- Ordinary bounties no longer send you after named monsters.
+- A second resurrection offer no longer cancels the first. Accepting it said "No one is currently trying to resurrect
+  you" (a Druid gamebot cast ten rezzes with no result), and an offer that ran out was later taken as a decline. Now
+  one offer is open at a time, and only the one you are looking at can be accepted or declined. (From the
+  chris4aker/OfflineDAoC-LivingServer fork.)
+- Clicking PLAY twice no longer drops you at "Entering the world": a second world entry while the first is still
+  loading is ignored. (From the chris4aker/OfflineDAoC-LivingServer fork.)
+- "You must wait 0 seconds" now shows the real wait, rounded up to whole seconds. (From the
+  chris4aker/OfflineDAoC-LivingServer fork.)
+- Quest names match whatever their case, so a quest whose name is written differently in two places still starts and
+  finishes. (From the lometur/HearthDAoC fork.)
 
 **Companions and commands**
 - /spawn specs opens a menu like /spawn that lists every class of your realm with its builds, such as
@@ -130,6 +180,20 @@ The newest version is first. For the full detail of every earlier update, see
 - /spawn Clerics, Druids and Healers stand and heal during a fight instead of walking back to their place in the
   formation between heals, follow you again three seconds after it, or at once if you get more than 1,500 units away,
   and no longer walk away from you to heal or buff someone. (From the Nikse77/OfflineDAoC fork, branch mod-0.37.)
+- Companions' pets follow their own owner's target. When you sent your pet in, every companion's pet switched to your
+  pet's target; now your pet attacking starts the fight for companions not yet in one, as a damage spell does, and a
+  companion already fighting keeps its own target, and so does its pet.
+- Companions and their pets leave your crowd control alone. Your mesmerize, stun or root no longer sends the group at
+  that monster: they join the fight on another monster that is fighting the group, and the one you are holding is
+  left alone even before the spell lands.
+- Spell casters' builds are named after the class's own spell line, for example Sorcerer Telekinesis, Disorientation
+  and Domination, Theurgist Abrasion, Refrigeration and Vapormancy, Cleric Rebirth, Guardian Angel and Terrible Hammer.
+  The trainer's name (Matter Magic and so on) still works when typed.
+- /spawn specs now offers builds for the classes that had only one. Their existing variants are listed by the line
+  they train highest (Infiltrator Critical Strike, Dual Wield, Slash, Thrust; Nightshade Critical Strike, Celtic Dual,
+  Blades, Piercing; Ranger Pathfinding, Recurve Bow, Celtic Dual; Berserker Left Axe or a weapon; and the same for
+  Minstrel, Scout and Valewalker), and four builds were added: Death Servant Necromancer, Soulrending Reaver (flail
+  and shield), Regrowth Bard and Spear Hunter. Existing builds and the bots already playing them are unchanged.
 
 **The new client (0.38c)**
 - A monster or NPC that dies stops attacking at once. It sometimes went on swinging for a second or two over its
@@ -211,8 +275,13 @@ The newest version is first. For the full detail of every earlier update, see
   (/target, /assist) and abilities on the quickbar.
 - Thanks to the [Nikse77/OfflineDAoC](https://github.com/Nikse77/OfflineDAoC) fork (branch mod-0.37) for the /spawn
   healer fixes.
-- Thanks to lometur's [HearthDAoC](https://github.com/lometur/HearthDAoC) fork (Thomas Farral) for the /tc fix;
-  Nikse77 and chris4aker found the same clash.
+- Thanks to lometur's [HearthDAoC](https://github.com/lometur/HearthDAoC) fork (Thomas Farral) for the /tc fix and
+  the quest names that match whatever their case; Nikse77 and chris4aker found the same /tc clash.
+- Thanks to chris4aker's Living Server fork (release v1.1-beta) for the memory and handle leak fixes, the issue #25
+  merchant lag fix, the resurrection offer fixes, the world-entry guard, and the Torst, wait seconds and siege weapon
+  fixes.
+- Thanks to [stefanrows/OfflineDAoC](https://github.com/stefanrows/OfflineDAoC) for finding the siege timer overflow.
+- Thanks to [rambodolphin13/OfflineDAoC](https://github.com/rambodolphin13/OfflineDAoC) for the effect leak fix.
 
 ## 0.37 / 0.37b / 0.37c — 2026-10-18
 
