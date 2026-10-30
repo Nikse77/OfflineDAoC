@@ -10,7 +10,7 @@ namespace DOL.GS
     {
         private sealed class Claim { public long Until; public eRealm Realm; public WeakReference<GameBot> Caster; }
         private static readonly ConditionalWeakTable<GameLiving, Claim> Claims = new();
-        private sealed class FreeEnemyScan { public long Until; public bool Found; }
+        private sealed class FreeEnemyScan { public long Until; public int Free, Allies; }
         private static readonly ConditionalWeakTable<GameBot, FreeEnemyScan> FreeEnemyScans = new();
         public const ushort FreeEnemyRadius = 1500;
         public static bool PlayerLike(GameLiving living) => living is GamePlayer or GameBot ||
@@ -24,27 +24,41 @@ namespace DOL.GS
             if (CompanionPvpEngagement.Focused(attacker, target) || CompanionPvpEngagement.Defending(attacker, target)) return false;
             // A real player's explicit attack remains authoritative.
             if (bot.Owner is GamePlayer player && player.IsAttacking && player.TargetObject == target) return false;
-            if (target.IsMezzed) return OtherEnemyFree(bot);
+            if (target.IsMezzed) return OtherEnemyFree(bot, out int free, out int allies) && !FinishMezzed(target.HealthPercent, allies, free);
             if (!Claims.TryGetValue(target, out Claim claim)) return false;
             lock (claim) return claim.Realm == bot.Realm && claim.Until > GameLoop.GameLoopTime &&
                 claim.Caster != null && claim.Caster.TryGetTarget(out GameBot caster) && caster.IsAlive && caster != bot;
         }
+        // Owner 2026-10-30: a mesmerized enemy that is hurt (under half health) or outnumbered by manifest odds (twice as
+        // many of ours near as free enemies, at least two) is finished by whoever fights it, mez or not.
+        public const int FinishMezzedHealthPercent = 50;
+
+        public static bool FinishMezzed(int targetHealthPercent, int allies, int freeEnemies) =>
+            targetHealthPercent < FinishMezzedHealthPercent || allies >= 2 && allies >= 2 * freeEnemies;
+
         // Owner 2026-10-27: a mesmerized enemy is left alone only while another enemy is still free to fight nearby.
         // Once the mez is all that is left, the bots finish it instead of walking away from it.
         // Plain realm checks, not LegalEnemy: that asks the server rules, which ask this class again.
-        // One scan a second per bot.
-        private static bool OtherEnemyFree(GameBot bot)
+        // One scan a second per bot; it also counts the bot's allies (itself included) for FinishMezzed.
+        private static bool OtherEnemyFree(GameBot bot, out int free, out int allies)
         {
             FreeEnemyScan scan = FreeEnemyScans.GetOrCreateValue(bot);
             lock (scan)
             {
                 long now = GameLoop.GameLoopTime;
-                if (now < scan.Until) return scan.Found;
-                scan.Until = now + 1000;
-                return scan.Found = bot.GetPlayersInRadius(FreeEnemyRadius).Cast<GameLiving>()
-                    .Concat(bot.GetNPCsInRadius(FreeEnemyRadius).Where(PlayerLike))
-                    .Any(t => t.IsAlive && t.ObjectState == GameObject.eObjectState.Active &&
-                        !t.IsMezzed && !t.IsStealthed && t.Realm != eRealm.None && t.Realm != bot.Realm);
+                if (now >= scan.Until)
+                {
+                    scan.Until = now + 1000;
+                    GameLiving[] near = bot.GetPlayersInRadius(FreeEnemyRadius).Cast<GameLiving>()
+                        .Concat(bot.GetNPCsInRadius(FreeEnemyRadius).Where(PlayerLike))
+                        .Where(t => t != bot && t.IsAlive && t.ObjectState == GameObject.eObjectState.Active &&
+                            !t.IsMezzed && !t.IsStealthed && t.Realm != eRealm.None).ToArray();
+                    scan.Free = near.Count(t => t.Realm != bot.Realm);
+                    scan.Allies = 1 + near.Count(t => t.Realm == bot.Realm);
+                }
+                free = scan.Free;
+                allies = scan.Allies;
+                return scan.Free > 0;
             }
         }
 
