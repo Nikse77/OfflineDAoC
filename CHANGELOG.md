@@ -356,6 +356,8 @@ The newest version is first. For the full detail of every earlier update, see
 - A house vault's window is titled HOUSE VAULT; only an Account Vault Keeper's page says ACCOUNT VAULT.
 - Dead companion bots and gamebots can be targeted again (click the body, or the group window), so you can
   resurrect them. Monster bodies still can't be targeted.
+- Right-clicking a relic picks it up in the new client (it did nothing; only targeting it and pressing Get Item
+  worked). Right-clicking loot on the ground picks it up too; a gravestone is just targeted, for /pray.
 
 **Credits**
 - Thanks to chris4aker's Living Server fork
