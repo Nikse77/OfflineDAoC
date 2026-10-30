@@ -42,6 +42,8 @@ namespace DOL.UnitTests
         [TestCase(62, 2, 0)]    // Albion leather cap, Albion Helm 1 mesh (Friar companions)
         [TestCase(62, 0, 0)]
         [TestCase(62, 1, 1)]
+        [TestCase(823, 2, 0)]
+        [TestCase(1236, 3, 3)]
         [TestCase(62, 3, 3)]
         [TestCase(824, 2, 0)]
         [TestCase(1236, 2, 0)]
