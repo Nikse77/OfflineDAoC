@@ -182,6 +182,13 @@ The newest version is first. For the full detail of every earlier update, see
   setting in the game database: new release databases carry the fix, and an existing install can run
   tools/claude-version/enable_necromancer_creation.py once with the server stopped (it backs up the database first).
   Applies to every server (normal mode).
+- The classes and races the server settings switch off are refused on the original client too. Ranges in the
+  disabled lists (Catacombs classes "58-62", races "16-21": Half Ogre, Frostalf, Shar and the Minotaurs) were never
+  read as ranges at character creation or by trainers, so the original client could still make them while the new
+  client already hid them. Characters that already exist are unchanged. Applies to every server (normal mode).
+- Salvaging a jewellery-type (magical) item no longer turns it into a cloth item. Its type was changed for the
+  salvage calculation and never changed back, so an item whose salvage was cancelled stayed cloth. Applies to every
+  server (normal mode).
 
 **Companions and commands**
 - /spawn specs opens a menu like /spawn that lists every class of your realm with its builds, such as
