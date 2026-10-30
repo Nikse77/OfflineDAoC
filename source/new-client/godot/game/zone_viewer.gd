@@ -780,6 +780,8 @@ func _input(event: InputEvent) -> void:
 					npcs.select(rn)
 					_note_interact(rn)
 					npcs.interact(rn)
+				elif npcs is ServerWorld and (npcs as ServerWorld).use_object(player.camera, _rclick_from):
+					pass                                         # a relic taken up, loot picked up (a grave: targeted)
 				elif companions:
 					var rb: Node3D = WorldLink.pick_bot(player.camera, _rclick_from)
 					if rb and bool(rb.get("companion")):       # your companion: its window (gear, training, tactics, stance)

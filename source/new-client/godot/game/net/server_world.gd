@@ -1556,9 +1556,10 @@ func _add_object(d: Dictionary) -> void:
 	body.collision_mask = 0
 	var shape := CollisionShape3D.new()
 	var sphere := SphereShape3D.new()
-	sphere.radius = 0.45
+	var relic := model in RELIC_MODELS                             # (a relic stands about a metre high: a bigger target)
+	sphere.radius = 0.8 if relic else 0.45
 	shape.shape = sphere
-	shape.position.y = 0.2
+	shape.position.y = 0.6 if relic else 0.2
 	body.add_child(shape)
 	holder.add_child(body)
 	body.set_meta("server_object", oid)
@@ -1581,6 +1582,24 @@ func click_object(cam: Camera3D, screen_pos: Vector2) -> bool:
 	if hit.is_empty() or not hit.collider.has_meta("server_object"):
 		return false
 	_target_ground(int(hit.collider.get_meta("server_object")))
+	return true
+
+
+## A right click on a ground object (2026-10-30, owner / server chat: "right-clicking a relic never triggers a pickup
+## request"): targeted and used at once - a relic taken up (GameRelic.Interact -> TryPickup: the interact request, as
+## the Get Item key sends for one), loot picked up; a gravestone only targeted (for /pray). True when the click hit one.
+func use_object(cam: Camera3D, screen_pos: Vector2) -> bool:
+	var from := cam.project_ray_origin(screen_pos)
+	var q := PhysicsRayQueryParameters3D.create(from, from + cam.project_ray_normal(screen_pos) * 60.0, OBJECT_PICK)
+	var hit := get_world_3d().direct_space_state.intersect_ray(q)
+	if hit.is_empty() or not hit.collider.has_meta("server_object"):
+		return false
+	var oid := int(hit.collider.get_meta("server_object"))
+	_target_ground(oid)
+	var holder: Node3D = objects.get(oid)
+	if holder and String(holder.get_meta("name", "")).contains("'s Grave"):
+		return true
+	get_object()
 	return true
 
 
