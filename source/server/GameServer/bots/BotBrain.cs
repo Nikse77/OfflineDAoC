@@ -2110,6 +2110,7 @@ namespace DOL.AI.Brain
                 .Where(spell => BotMaintenancePulsePolicy.CanMaintain(spell, maintenancePulse))
                 .Where(spell => spell.SpellType != eSpellType.SpeedEnhancement || traveling)
                 .OrderByDescending(spell => spell.SpellType == eSpellType.SpeedEnhancement && traveling)
+                .ThenByDescending(BotBuffRules.IsSelfDexterityBuff)
                 .ThenByDescending(spell => spell.Value)
                 .ThenByDescending(spell => spell.Level);
 
@@ -4999,6 +5000,11 @@ namespace DOL.AI.Brain
 
             if (spellEffect is eEffect.DirectDamage or eEffect.Pet or eEffect.Unknown)
                 return false;
+
+            // "Already has it" also for a buff that would be wasted on the target (acuity for a non-caster): every
+            // buff path then leaves that target alone (BotBuffRules).
+            if (BotBuffRules.IsWastedOn(target, spell))
+                return true;
 
             ISpellHandler spellHandler = Body.castingComponent.SpellHandler;
 
