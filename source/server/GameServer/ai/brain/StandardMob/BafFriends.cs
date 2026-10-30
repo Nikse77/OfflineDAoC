@@ -23,6 +23,31 @@ namespace DOL.AI.Brain
 
         public static bool CanBringFriends(GameNPC pulled) => pulled.Faction != null || SameNameWithoutFaction;
 
+        /// <summary>
+        /// Dawn of Light's Bring A Friend ranges (owner 2026-10-29: OpenDAoC's 450 units plus 150 per extra group member,
+        /// up to 1,500, pulled whole rooms; in Cardova's first room adds came from other rooms and hallways). Close friends
+        /// are within 2/5 of the pulled monster's aggro range (200 units for the usual 500); in a dungeon more come from up
+        /// to 1,000 units, nearest first. How many come is unchanged (by group size). A friend must be in sight of the
+        /// pulled monster: no adds through walls or from the next room.
+        /// </summary>
+        public const int DungeonReinforcementRadius = 1_000;
+
+        public static int CloseRadius(int aggroRange) => Math.Max(0, aggroRange) * 2 / 5;
+
+        public static int Radius(int aggroRange, bool dungeon) =>
+            dungeon ? Math.Max(CloseRadius(aggroRange), DungeonReinforcementRadius) : CloseRadius(aggroRange);
+
+        /// <summary>In sight along the walkable ground (the navmesh); where there is no navmesh, assumed so.</summary>
+        public static bool InSight(GameNPC pulled, GameNPC other)
+        {
+            var nav = PathfindingProvider.Instance;
+            Zone zone = pulled?.CurrentZone;
+            if (nav == null || !nav.IsAvailable || zone == null || !nav.HasNavmesh(zone))
+                return true;
+            return nav.HasLineOfSight(zone, new System.Numerics.Vector3(pulled.X, pulled.Y, pulled.Z),
+                new System.Numerics.Vector3(other.X, other.Y, other.Z), nav.DefaultFilters);
+        }
+
         public static bool IsFriend(GameNPC pulled, GameNPC other) =>
             other != null && pulled != null && other is not GameBot &&
             IsFriend(pulled.Faction != null, pulled.Faction != null && other.IsFriend(pulled), other.Faction != null,

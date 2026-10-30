@@ -78,8 +78,25 @@ The newest version is first. For the full detail of every earlier update, see
   could fill the server's memory against a large raid until it stopped. A monster can no longer ask for the same
   instant spell on the same target within a second, queue it twice, or hold more than 16 casts. (From the
   chris4aker/OfflineDAoC-LivingServer fork.)
+- Reaver bots no longer stand in place. Starting a pulsing spell ends the others, so a Reaver's three auras (damage,
+  armor and melee curse) cancelled each other every turn; a Reaver now runs one aura at a time, and ends it when it
+  would hit a mesmerized monster or one not in the fight, or three seconds after nothing in the fight is in reach.
+- Bots leave mesmerized and rooted monsters alone while something else is fighting them: a mesmerized monster, or one
+  held by a root that damage breaks, is not chosen as a target and a bot's pet is moved off it; area spells will not
+  reach one either. When every monster left is held, the bots break one and carry on. Single-target fights are as
+  before.
+- Bot raids no longer stall on a scripted boss that is immune outside its tether. On Albion's way to Summoner's Hall,
+  Lieutenant Meade in the Hall of the Corrupt takes no damage once pulled away from his spot, and the raid fought him
+  until its four hours ran out; bots now stop and lead such a boss home, as they already did for the epic bosses.
+- A raid rally no longer gives up while its bots are still arriving: someone arriving with less than ten minutes left
+  gives the rally ten more minutes, up to thirty minutes past its deadline. The 200 needed to start are unchanged.
 
 **World**
+- Bring A Friend reaches as far as on Dawn of Light, and only monsters in sight come. Friends came from up to 1,500
+  units for a full group (450 plus 150 for each other member), through walls and from the next room; in Cardova's
+  first room they came from other rooms and hallways. Now friends come from within 2/5 of the pulled monster's aggro
+  range (200 units for most monsters), in a dungeon from up to 1,000 units with the nearest first, and only if they can
+  see the pulled monster. How many come still depends on the size of the group.
 - Monsters with no faction bring friends again: their own kind. Bring A Friend only counted monsters of the same or an
   allied faction, and two thirds of the aggressive monsters in the game have no faction, so they never brought anyone,
   whatever the size of the group (Midgard's frore liches, windswept wraiths and chillsome wights, for example). A

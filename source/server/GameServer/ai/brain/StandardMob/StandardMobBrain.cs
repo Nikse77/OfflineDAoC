@@ -828,10 +828,9 @@ namespace DOL.AI.Brain
             _ = new ResetBafPropertyAction(playerPuller);
             CanBaf = false; // Mobs only BAF once per fight.
             int maxAdds = GetMaxAddsCountFromBaf(playerPuller, countFrom, out List<GameLiving> otherTargets, out int attackersCount);
-            int bafRadius = BAF_MIN_RADIUS + (Math.Min(8, attackersCount) - 1) * BAF_EXTRA_RADIUS_PER_OTHER_PLAYER;
-
-            if (Body.CurrentZone.IsDungeon)
-                bafRadius = (int) (bafRadius * BAF_RADIUS_DUNGEON_MODIFIER);
+            // Dawn of Light's ranges (owner 2026-10-29, BafFriends): friends within 2/5 of the pulled monster's aggro
+            // range, and in a dungeon up to 1,000 units (nearest first); each must be in sight of the pulled monster.
+            int bafRadius = BafFriends.Radius(AggroRange, Body.CurrentZone.IsDungeon);
 
             List<GameNPC> brainsInRadius = GetFriendlyAndAvailableNpcsInRadiusOrderedByDistance(bafRadius, maxAdds);
             int addCount = brainsInRadius.Count;
@@ -946,6 +945,9 @@ namespace DOL.AI.Brain
                 foreach (GameNPC npc in Body.GetNPCsInRadius((ushort) radius))
                 {
                     if (npc == Body || !BafFriends.IsFriend(Body, npc) || !npc.IsAggressive || !npc.IsAvailableToJoinFight || npc.Brain is not StandardMobBrain)
+                        continue;
+
+                    if (!BafFriends.InSight(Body, npc))
                         continue;
 
                     long xDiff = Body.X - npc.X;
