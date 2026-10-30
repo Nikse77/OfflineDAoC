@@ -397,6 +397,7 @@ public static class AutonomousStuckWatchdog
         // A raid rally has its own deadline (staging limit, at least 45 minutes after leaving the hub). 2026-10-16: the
         // 45-minute clock sent 322 Cuuldurach raiders from their rally to Tir na Nog, so 13 reached the dragon.
         if (GroupProtectsFromWatchdog(bot, now) ||
+            IsHoldingWithDefendingLeader(bot) ||
             AutonomousRealmRaid.IsInRally(bot) ||
             IsGroupFormationHold(bot.PersistentRecord.Activity) ||
             AutonomousObjectiveAssignments.IsIntentionalTownIdle(bot.PersistentRecord, now) &&
@@ -427,6 +428,33 @@ public static class AutonomousStuckWatchdog
         return RelocateToSafeCapital(bot, now,
             movementThreshold == StuckThreshold ? "no movement for fifteen minutes" : $"no movement for {(int)movementThreshold.TotalMinutes} minutes in a battleground", true,
             "AUTONOMOUS_STUCK_15M_RECOVERY");
+    }
+
+    /// <summary>The activity a defender shows while it stands at its keep's verified post (AutonomousWorldBotController.DefensivePost).</summary>
+    public const string DefendingKeepActivity = "Defending keep";
+    /// <summary>How near a squad follower stands to a leader that holds its post: they defend together.</summary>
+    public const int DefendingLeaderRadius = 400;
+
+    /// <summary>
+    /// 2026-10-30: all 16 AUTONOMOUS_BG_FOLLOWER_STALL lines of the first hour had a live, motionless squad leader showing
+    /// "Defending keep" with the follower 10 to 82 units from it: the squad was defending its keep and the watchdog broke it up
+    /// every six minutes. A follower beside its leader at its post is holding on purpose, like the leader.
+    /// </summary>
+    public static bool FollowsDefendingLeader(string leaderActivity, int distanceToLeader, bool sameRegion) =>
+        sameRegion && leaderActivity == DefendingKeepActivity && distanceToLeader <= DefendingLeaderRadius;
+
+    private static bool IsHoldingWithDefendingLeader(GameBot bot)
+    {
+        if (bot == null || !BattlegroundBrackets.IsBattlegroundRegion(bot.CurrentRegionID) ||
+            !IsSquadFollowerActivity(bot.PersistentRecord?.Activity))
+            return false;
+
+        GameBot leader = AutonomousBattlegroundSquads.LeaderOf(bot);
+        if (leader == null || leader == bot || !leader.IsAlive)
+            return false;
+
+        int distance = (int) Math.Sqrt(Math.Pow(leader.X - bot.X, 2) + Math.Pow(leader.Y - bot.Y, 2));
+        return FollowsDefendingLeader(leader.PersistentRecord?.Activity, distance, leader.CurrentRegionID == bot.CurrentRegionID);
     }
 
     /// <summary>
