@@ -155,6 +155,7 @@ namespace DOL.GS
                 $"SERVER_MEMORY heapMB={info.HeapSizeBytes / 1048576} liveMB={LiveAfterFullCollectionMegabytes()} gen0MB={Gen(0)} gen1MB={Gen(1)} gen2MB={Gen(2)} lohMB={Gen(3)} pohMB={Gen(4)} ") +
                 FormattableString.Invariant($"fragmentedMB={info.FragmentedBytes / 1048576} committedMB={info.TotalCommittedBytes / 1048576} workingSetMB={process.WorkingSet64 / 1048576} privateMB={process.PrivateMemorySize64 / 1048576} threads={process.Threads.Count} poolThreads={ThreadPool.ThreadCount} handles={process.HandleCount} ") +
                 FormattableString.Invariant($"navQueriesMade={LocalPathfindingMgr.QueriesCreated} navQueriesLive={LocalPathfindingMgr.LiveQueries} ") +
+                $"handleKinds=\"{HandleCensus.Describe()}\" " +
                 FormattableString.Invariant($"memoryLoadMB={info.MemoryLoadBytes / 1048576} availableMB={info.TotalAvailableMemoryBytes / 1048576} pauseTimePct={info.PauseTimePercentage:F1} ") +
                 FormattableString.Invariant($"allocMBperMin={allocMbPerMin:F0} gcs={gen0 - _lastGen0}/{gen1 - _lastGen1}/{gen2 - _lastGen2} {pauses} reasons=\"{reasons}\" ") +
                 FormattableString.Invariant($"pinned={info.PinnedObjectsCount} finalizable={info.FinalizationPendingCount} caches=\"{caches}\" ") +
