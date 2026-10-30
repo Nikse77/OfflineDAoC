@@ -72,10 +72,10 @@ namespace DOL.AI
             // chris4aker/OfflineDAoC-LivingServer, 73348b1). The release moves it later.
             if (ShouldReturnToSpawn(Body is GameBot { IsIntentionalWorldMove: true }, Body is GameBot { IsAlive: false }, Body.IsNearSpawn, IsActive))
                 Body.MoveTo(Body.CurrentRegionID, Body.SpawnPoint.X, Body.SpawnPoint.Y, Body.SpawnPoint.Z, Body.SpawnHeading);
-            // The move used to re-send the body to the clients, which drew it lying dead; staying put needs the same re-send,
-            // or the client keeps the body standing as when it was alive.
+            // The move used to send the clients a position update, and the update carries the health byte (zero for a body): that is
+            // what makes the client draw the body lying dead. Staying put needs the same update, or the body stays standing.
             else if (Body is GameBot { IsAlive: false, IsIntentionalWorldMove: false } && !IsActive)
-                ClientService.CreateObjectForPlayers(Body);
+                ClientService.UpdateNpcForPlayers(Body, udp: false);
 
             Body.ClearObjectsInRadiusCache();
             FSM?.SetCurrentState(eFSMStateType.WAKING_UP);
