@@ -609,6 +609,9 @@ namespace DOL.AI.Brain
 
         public bool IsHealer;
         public bool AlreadyCheckedHeals;
+        // Owner 2026-10-30: a small random reaction time (BotReactionDelay), rolled once per fight and once per injury.
+        private bool _reactionFightStarted, _reactionHurtSeen;
+        private long _engageReadyAt, _healReadyAt;
         private long _nextPriorityTauntTick;
         private long _nextDeployablePetTick;
         private long _nextCombatProgressTick;
@@ -1299,6 +1302,8 @@ namespace DOL.AI.Brain
         public override void Think()
         {
             BotEmotes.Tick(BotBody);
+            if (!HasAggro && Body != null && !Body.InCombat)
+                _reactionFightStarted = false;
             bool nativeSpeedTravelStarted;
             if (CompanionFollowPolicy.ObserveAndCancelBuffs(BotBody, out nativeSpeedTravelStarted))
             {
@@ -3143,6 +3148,16 @@ namespace DOL.AI.Brain
         public virtual void AttackMostWanted()
         {
             if (!IsActive)
+                return;
+
+            // A bot's first move of a new fight waits a moment, unless it has already acted (cast or swing).
+            if (!_reactionFightStarted)
+            {
+                _reactionFightStarted = true;
+                if (Body != null && !Body.IsCasting && Body.attackComponent?.AttackState != true)
+                    _engageReadyAt = GameLoop.GameLoopTime + BotReactionDelay.Next(BotReactionDelay.Engage);
+            }
+            if (BotReactionDelay.StillReacting(GameLoop.GameLoopTime, _engageReadyAt))
                 return;
 
             if (AutonomousDefensivePull.Hold(BotBody))
@@ -5068,12 +5083,26 @@ namespace DOL.AI.Brain
 
             AlreadyCheckedHeals = true;
 
+            // The first heal after someone gets hurt waits a moment (BotReactionDelay.Heal); a resurrection does not.
+            bool hurt = Body.HealthPercent < 90 || Body.Group != null && Body.Group.GetMembersInTheGroup()
+                .Any(member => member.IsAlive && member.HealthPercent < 90 && InSupportReach(member));
+            if (!hurt)
+                _reactionHurtSeen = false;
+            else if (!_reactionHurtSeen)
+            {
+                _reactionHurtSeen = true;
+                _healReadyAt = GameLoop.GameLoopTime + BotReactionDelay.Next(BotReactionDelay.Heal);
+            }
+
             if (TryResurrectGroupMember())
                 return true;
             if (TryResurrectSiegeComrade())
                 return true;
 
             if (!Body.CanCastHealSpells) return false;
+
+            if (hurt && BotReactionDelay.StillReacting(GameLoop.GameLoopTime, _healReadyAt))
+                return false;
 
             // Check if we can cast any instant heals
             bool canCastInstantHeal = CheckHealSpell(BotBody.HealInstant);
