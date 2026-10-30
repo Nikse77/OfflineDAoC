@@ -1838,6 +1838,19 @@ namespace DOL.AI.Brain
                 merchant.Realm != eRealm.None && merchant.Realm != bot.Realm)
                 return false;
 
+            // Darkness Falls seals buy seal gear here, paid in the bot's own seals (owner 2026-10-30).
+            if (merchant is GameDarknessFallsSealsMerchant sealMerchant &&
+                AutonomousBotEconomy.TryBuySealItem(bot, sealMerchant, out DbInventoryItem sealGear, out int sealsPaid, out bool sealUpgrade))
+            {
+                SetMerchantStatus(bot, $"Bought {sealGear.Name} from {merchant.Name}", sealUpgrade
+                    ? $"Paid {sealsPaid} looted seals for a seal gear upgrade"
+                    : $"Paid {sealsPaid} looted seals for an item to sell; no seal upgrade left to save for");
+                AutonomousStuckWatchdog.MarkProgress(bot, eAutonomousProgressKind.Inventory);
+                AutonomousObjectiveAssignments.TryCompleteBetweenTaskServicesIfSatisfied(bot);
+                _nextMerchantServiceTick = now + 3_000;
+                return true;
+            }
+
             if (bot.Inventory?.AllItems.Any(i=>BotSiegeRuntime.IsSupply(i.Id_nb))==true)
             {
                 int repairKits=BotSiegeRuntime.TryRestockRepairKits(bot,merchant);
