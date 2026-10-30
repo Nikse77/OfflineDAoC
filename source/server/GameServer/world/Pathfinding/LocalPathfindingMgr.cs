@@ -312,6 +312,11 @@ namespace DOL.GS
             return _navmeshPtrs.TryGetValue(zone.ID, out ptr);
         }
 
+        private static long _navQueriesMade;
+
+        /// <summary>Native Detour queries created so far (one per thread and zone; none is freed when a thread ends). Listed in SERVER_MEMORY.</summary>
+        public static long NavQueriesMade => Interlocked.Read(ref _navQueriesMade);
+
         private static bool TryGetQuery(Zone zone, out NavMeshQuery query)
         {
             if (!TryGetMeshPtr(zone, out nint ptr))
@@ -324,6 +329,7 @@ namespace DOL.GS
             {
                 query = new(ptr);
                 _navmeshQueries.Value.Add(zone.ID, query);
+                Interlocked.Increment(ref _navQueriesMade);
             }
 
             return true;
