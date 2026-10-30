@@ -727,7 +727,7 @@ namespace DOL.GS
 
                 lock (player.PlayerObjectCache.NpcUpdateCacheLock)
                 {
-                    if (player.PlayerObjectCache.NpcUpdateCache.ContainsKey(body) && player.PlayerObjectCache.DeadBodiesShown.Add(body))
+                    if (player.PlayerObjectCache.NpcUpdateCache.ContainsKey(body) && player.PlayerObjectCache.DeadBodiesShown.TryAdd(body, GameLoop.GameLoopTime))
                         player.Out.SendObjectRemove(body);
                 }
             }
@@ -918,12 +918,12 @@ namespace DOL.GS
             // A dead gamebot is shown to this client once: a client that does not know it gets it created first, then it is removed as a
             // dead body, which makes the client play the death animation and leave the body lying (the removal type comes from the
             // health). The body is not targetable, as a dead monster's is not.
-            HashSet<GameNPC> shown = player.PlayerObjectCache.DeadBodiesShown;
+            Dictionary<GameNPC, long> shown = player.PlayerObjectCache.DeadBodiesShown;
             if (corpses != null)
             {
                 foreach (GameNPC corpse in corpses)
                 {
-                    if (!shown.Add(corpse))
+                    if (!shown.TryAdd(corpse, GameLoop.GameLoopTime))
                         continue;
 
                     if (!npcUpdateCache.ContainsKey(corpse))
@@ -934,7 +934,13 @@ namespace DOL.GS
             }
 
             if (shown.Count > 0)
-                shown.RemoveWhere(npc => corpses == null || !corpses.Contains(npc));
+            {
+                foreach (GameNPC npc in new List<GameNPC>(shown.Keys))
+                {
+                    if (corpses == null || !corpses.Contains(npc))
+                        shown.Remove(npc);
+                }
+            }
 
             inRangeSet.Clear();
         }
@@ -1060,11 +1066,14 @@ namespace DOL.GS
 
         public class CachedNpcValues
         {
+            /// <summary>When the NPC was first sent to this player (its create packet).</summary>
+            public long CreatedTime { get; }
             public long LastUpdateTime { get; set; }
             public byte HealthPercent { get; set; }
 
             public CachedNpcValues(long time, byte healthPercent)
             {
+                CreatedTime = time;
                 LastUpdateTime = time;
                 HealthPercent = healthPercent;
             }
