@@ -3772,6 +3772,12 @@ namespace DOL.GS
                 return;
             }
 
+            // The usable-skill lists are cached: rebuild them from the current specs and level first. Read from the cache,
+            // a bot trained or levelled in the field kept its old spells until it was created again (owner 2026-10-30:
+            // a level 5 Hunter trained to Beastcraft 5 used none of the new buffs until dismissed and summoned at the inn).
+            GetAllUsableSkills(true);
+            GetAllUsableListSpells(true);
+
             // Casters use list spells (highest level per type), hybrids use all usable skills
             if (CharacterClass.ClassType == eClassType.ListCaster)
                 SetCasterSpells();
