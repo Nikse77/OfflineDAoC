@@ -3202,6 +3202,7 @@ namespace DOL.AI.Brain
             // away from the fight their pet had already started.
             Body.TargetObject = PreferPlayerOverPet(protectionTarget ?? directAttacker ?? activePetTarget ?? CalculateNextAttackTarget());
             RedirectPetFromControlledTarget(Body.TargetObject as GameLiving);
+            MaintainTankPeel();
             // A tethered boss outside its tether is immune: stop hitting it and lead it home (AutonomousTetherReset).
             if (Body.TargetObject is GameNPC tetheredBoss && AutonomousTetherReset.TryHandle(BotBody, tetheredBoss))
                 return;
