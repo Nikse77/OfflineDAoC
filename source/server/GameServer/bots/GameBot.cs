@@ -945,6 +945,8 @@ namespace DOL.GS
         protected override bool RetainCorpseForResurrection => true;
         protected override bool RetainGroupWhenDead => true;
 
+        private const int DeadBodyRedrawMilliseconds = 2_500;
+
         public override void ProcessDeath(GameObject killer)
         {
             AutonomousPetSupport.CancelPendingCharm(this);
@@ -971,10 +973,17 @@ namespace DOL.GS
                      !BattlegroundBrackets.IsBattlegroundRegion(CurrentRegionID))
                 ReportPartyDeath(killer);
             base.ProcessDeath(killer);
-            // The client draws a gamebot's body lying dead only after a combat animation that leaves its health at zero (the way
-            // a bleed kills a monster). The position update the body gets later carries the same zero and leaves it standing.
+            // The client plays a body's death animation when the object is removed with health 0 (SendObjectRemove writes the type from
+            // the health); a gamebot stays in the world to be raised, so it never got that packet and stood up. Remove it for the viewers
+            // as a dead body, and create it again once the animation is over.
             foreach (GamePlayer viewer in GetPlayersInRadius(WorldMgr.VISIBILITY_DISTANCE))
-                viewer.Out.SendCombatAnimation(null, this, 0, 0, 0, 0, 0x0A, 0);
+                viewer.Out.SendObjectRemove(this);
+            new ECSGameTimer(this, static timer =>
+            {
+                if (timer.Owner is GameBot { IsAlive: false, ObjectState: eObjectState.Active } body)
+                    ClientService.CreateObjectForPlayers(body);
+                return 0;
+            }).Start(DeadBodyRedrawMilliseconds);
             if (IsAutonomousWorldBot)
                 AutonomousBotStatusPersistence.Queue(this);
             StartDeathRecoveryTimer();
