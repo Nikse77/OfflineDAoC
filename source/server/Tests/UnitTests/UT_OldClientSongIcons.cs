@@ -1,3 +1,4 @@
+using DOL.Database;
 using DOL.GS;
 using NUnit.Framework;
 
@@ -21,5 +22,21 @@ namespace DOL.UnitTests
         [TestCase(2000, "HealthRegenBuff")]
         public void OtherSpellsKeepTheirIcon(int icon, string type) =>
             Assert.That(OldClientSongIcons.For((ushort)icon, type), Is.EqualTo((ushort)icon));
+
+        [Test]
+        public void TheEffectsBarKeepsTheDatabaseIconWhileTheSongBarGetsTheIconsRow()
+        {
+            var spell = new Spell(new DbSpell { Type = "SpeedEnhancement", Target = "Self", Icon = 3608 }, 20);
+            Assert.That(spell.Icon, Is.EqualTo((ushort)320));
+            Assert.That(spell.EffectIcon, Is.EqualTo((ushort)3608));
+        }
+
+        [Test]
+        public void ACopyOfASpellKeepsItsEffectIcon()
+        {
+            var spell = new Spell(new DbSpell { Type = "SpeedEnhancement", Target = "Self", Icon = 3608 }, 20);
+            var copy = new Spell(spell, eSpellType.SpeedEnhancement);
+            Assert.That(copy.EffectIcon, Is.EqualTo((ushort)3608));
+        }
     }
 }

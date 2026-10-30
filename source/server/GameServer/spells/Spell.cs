@@ -369,6 +369,7 @@ namespace DOL.GS
             m_spelltype = Enum.Parse<eSpellType>(dbspell.Type, true);
 			m_range = dbspell.Range;
 			m_radius = dbspell.Radius;
+			EffectIcon = (ushort) dbspell.Icon;
 			m_value = dbspell.Value;
 			m_damage = dbspell.Damage;
 			m_damageType = (eDamageType) dbspell.DamageType;
@@ -444,6 +445,7 @@ namespace DOL.GS
 			m_message4 = spell.Message4;
 			m_effectID = spell.ClientEffect;
 			m_icon = spell.Icon;
+			EffectIcon = spell.EffectIcon;
 			m_instrumentRequirement = spell.InstrumentRequirement;
 			m_spellGroup = spell.Group;
 			m_effectGroup = spell.EffectGroup;
@@ -677,6 +679,12 @@ namespace DOL.GS
 
 		#endregion
 		#region utils
+
+		/// <summary>
+		/// The icon number as stored in the database. The original client resolves the effects bar through it, while the spell
+		/// list and the song bar use <see cref="Skill.Icon"/> (see <see cref="OldClientSongIcons"/>).
+		/// </summary>
+		public ushort EffectIcon { get; }
 
 		public ushort InternalIconID
 		{

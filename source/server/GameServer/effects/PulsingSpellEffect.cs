@@ -101,7 +101,7 @@ namespace DOL.GS.Effects
 		/// </summary>
 		public ushort Icon
 		{
-			get { return m_spellHandler.Spell.Icon; }
+			get { return m_spellHandler.Spell.EffectIcon; }
 		}
 
 		/// <summary>

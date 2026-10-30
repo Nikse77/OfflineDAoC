@@ -194,7 +194,7 @@ namespace DOL.GS.Effects
 			get
 			{
 				if (Spell != null)
-					return Spell.Icon;
+					return Spell.EffectIcon;
 
 				return 0;
 			}
