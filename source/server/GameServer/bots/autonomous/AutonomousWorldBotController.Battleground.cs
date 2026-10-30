@@ -402,6 +402,22 @@ namespace DOL.GS
         // Owner 2026-10-27: hunting the nearest enemies anywhere drew all three realms into one crowd by the central
         // keep's moat. A bot only hunts what it can see, and otherwise patrols a point of its own in the field.
         public const int BattlegroundHuntSightRange = 4_000;
+        // Owner 2026-10-30: a bot sees 4,000 units ahead in a 120 degree arc (the way it faces, which is its way of
+        // march while it walks) and only 800 units in the rest of the circle.
+        public const double BattlegroundHuntSightArc = 120;
+        public const int BattlegroundHuntSideSightRange = 800;
+
+        /// <summary>
+        /// Whether a bot sees something <paramref name="distance"/> units away at <paramref name="angleDegrees"/> from the
+        /// way it faces (0 = straight ahead, growing clockwise to 360): far inside the arc ahead, near everywhere else.
+        /// </summary>
+        public static bool BattlegroundSees(float distance, float angleDegrees)
+        {
+            if (distance <= BattlegroundHuntSideSightRange)
+                return true;
+            float half = (float)BattlegroundHuntSightArc / 2;
+            return distance <= BattlegroundHuntSightRange && (angleDegrees < half || angleDegrees >= 360 - half);
+        }
         public const int BattlegroundPatrolMaximumDistance = 14_000;
         private bool _battlegroundHunting;
 
@@ -441,7 +457,8 @@ namespace DOL.GS
 
         /// <summary>
         /// Where to hunt: one of the nearest enemy-realm bots or players within sight
-        /// (<see cref="BattlegroundHuntSightRange"/>), alive, not inside a keep that is not ours and not by an enemy
+        /// (<see cref="BattlegroundHuntSightRange"/> in the 120 degree arc ahead, <see cref="BattlegroundHuntSideSightRange"/>
+        /// elsewhere), alive, not inside a keep that is not ours and not by an enemy
         /// portal keep (its guards). Parties meet parties because the leader picks the prey and the others follow.
         /// </summary>
         private static Vector3? HuntPoint(GameBot bot, BattlegroundBrackets.Bracket bracket, AbstractGameKeep central)
@@ -450,7 +467,7 @@ namespace DOL.GS
             bool foreignKeep = central != null && central.Realm != bot.Realm;
             bool Huntable(GameLiving enemy) =>
                 enemy != null && enemy.IsAlive && enemy.CurrentRegionID == bracket.RegionId && enemy.Realm != bot.Realm &&
-                !enemy.IsStealthed && bot.IsWithinRadius(enemy, BattlegroundHuntSightRange) &&
+                !enemy.IsStealthed && BattlegroundSees(bot.GetDistanceTo(enemy), bot.GetAngle(enemy)) &&
                 enemy.Realm is eRealm.Albion or eRealm.Midgard or eRealm.Hibernia &&
                 !(foreignKeep && CompanionKeepChase.IsInside(central, enemy)) &&
                 enemyPortals.All(portal => Vector2.DistanceSquared(new(enemy.X, enemy.Y), portal) >
