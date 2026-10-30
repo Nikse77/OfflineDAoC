@@ -20,7 +20,9 @@ namespace DOL.GS;
         private static readonly Logger Log = LoggerManager.Create(MethodBase.GetCurrentMethod().DeclaringType);
         private const string OwnerPrefix = "offlinebot:";
         private const int MinimumEquipmentUpgrade = 8;
-        private const int MaxBotRealmExchangeListings = 1;
+        // Owner 2026-10-29: 3 posts per bot (was 1; Codex's 10 made a launcher refresh take minutes before the launcher split
+        // bot snapshots from the exchange). Players stay unlimited.
+        public const int MaxBotRealmExchangeListings = 3;
         private const int ServiceDecisionSafetyRefreshMilliseconds = 5 * 60_000;
         private sealed class ServiceDecisionState
         {
