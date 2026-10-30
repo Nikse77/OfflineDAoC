@@ -1,9 +1,7 @@
 using System;
-using System.Reflection;
 using System.Text;
 using DOL.Events;
 using DOL.GS;
-using DOL.Logging;
 
 namespace DOL.AI
 {
@@ -12,8 +10,6 @@ namespace DOL.AI
     /// </summary>
     public abstract class ABrain : IServiceObject
     {
-        private static readonly Logger log = LoggerManager.Create(MethodBase.GetCurrentMethod().DeclaringType);
-
         public FSM FSM { get; set; }
         public ServiceObjectId ServiceObjectId { get; } = new(ServiceObjectType.Brain);
         public virtual GameNPC Body { get; set; }
@@ -76,16 +72,6 @@ namespace DOL.AI
             // chris4aker/OfflineDAoC-LivingServer, 73348b1). The release moves it later.
             if (ShouldReturnToSpawn(Body is GameBot { IsIntentionalWorldMove: true }, Body is GameBot { IsAlive: false }, Body.IsNearSpawn, IsActive))
                 Body.MoveTo(Body.CurrentRegionID, Body.SpawnPoint.X, Body.SpawnPoint.Y, Body.SpawnPoint.Z, Body.SpawnHeading);
-            // The move used to send the clients a position update, and the update carries the health byte (zero for a body): that is
-            // what makes the client draw the body lying dead. Staying put needs the same update, or the body stays standing.
-            else if (Body is GameBot { IsAlive: false, IsIntentionalWorldMove: false } deadBot && !IsActive)
-            {
-                // Companions only (autonomous gamebots die thousands of times an hour): checks in game that this runs for them.
-                if (!deadBot.IsAutonomousWorldBot)
-                    log.Info($"BOT_DEAD_BODY_UPDATE bot={deadBot.Name} health={deadBot.Health} region={deadBot.CurrentRegionID} position={deadBot.X},{deadBot.Y},{deadBot.Z} nearSpawn={deadBot.IsNearSpawn}");
-
-                ClientService.UpdateNpcForPlayers(deadBot, udp: false);
-            }
 
             Body.ClearObjectsInRadiusCache();
             FSM?.SetCurrentState(eFSMStateType.WAKING_UP);
