@@ -321,6 +321,8 @@ namespace DOL.AI.Brain
 
             // A mesmerized or rooted monster waits while anything else is in the fight (BotBrain.CrowdControlRespect).
             bool uncontrolledAvailable = false;
+            // The monster the player is mesmerizing, stunning or rooting is left alone even before the spell lands.
+            GameLiving leaderHeld = PlayerLedPullCoordinator.LeaderControlTarget(AssistedPlayer);
             foreach (GameLiving candidate in AggroList.Keys)
             {
                 if (candidate is { IsAlive: true } && !ShouldBeIgnoredFromAggroList(candidate) && !IsBreakablyControlled(candidate))
@@ -343,7 +345,8 @@ namespace DOL.AI.Brain
                 if (ShouldBeIgnoredFromAggroList(living))
                     continue;
 
-                if (PassOverControlled(IsBreakablyControlled(living), uncontrolledAvailable))
+                if (PassOverControlled(IsBreakablyControlled(living), uncontrolledAvailable) ||
+                    living == leaderHeld)
                     continue;
 
                 if (Body.TargetObject == living)
@@ -1404,7 +1407,9 @@ namespace DOL.AI.Brain
                 return;
             }
 
-            GameLiving leaderTarget = PlayerLedPullCoordinator.FindLeaderTarget(AssistedPlayer);
+            // The player's mesmerize, stun or root joins the fight on another monster of the pack (owner 2026-10-29).
+            GameLiving leaderTarget = PlayerLedPullCoordinator.FindLeaderTarget(AssistedPlayer) ??
+                PlayerLedPullCoordinator.FindLeaderControlFight(AssistedPlayer, BotBody);
             if (leaderTarget != null && PlayerLedPullCoordinator.Available(BotBody, AssistedPlayer) &&
                 Body.IsWithinRadius(leaderTarget, GROUP_DEFENSE_ASSIST_RADIUS))
                 AssistPlayerAttack(leaderTarget);
