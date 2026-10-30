@@ -971,6 +971,10 @@ namespace DOL.GS
                      !BattlegroundBrackets.IsBattlegroundRegion(CurrentRegionID))
                 ReportPartyDeath(killer);
             base.ProcessDeath(killer);
+            // The client draws a gamebot's body lying dead only after a combat animation that leaves its health at zero (the way
+            // a bleed kills a monster). The position update the body gets later carries the same zero and leaves it standing.
+            foreach (GamePlayer viewer in GetPlayersInRadius(WorldMgr.VISIBILITY_DISTANCE))
+                viewer.Out.SendCombatAnimation(null, this, 0, 0, 0, 0, 0x0A, 0);
             if (IsAutonomousWorldBot)
                 AutonomousBotStatusPersistence.Queue(this);
             StartDeathRecoveryTimer();
