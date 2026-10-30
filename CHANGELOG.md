@@ -189,6 +189,20 @@ The newest version is first. For the full detail of every earlier update, see
 - Salvaging a jewellery-type (magical) item no longer turns it into a cloth item. Its type was changed for the
   salvage calculation and never changed back, so an item whose salvage was cancelled stayed cloth. Applies to every
   server (normal mode).
+- 68 classic quest rewards now carry real 1.65 stats. When the classic quest rewards were added, 53 got made-up stats
+  because no period page was found, and others lost bonuses the item builder couldn't read. Fixed:
+  - 20 made-up rewards have a real Allakhazam page under another spelling and now use it: level, armour or damage and
+    speed, and bonuses (for example Gurz, Avalon's Defender Boots, Devastation, the Viraniel's belts).
+  - 23 more made-up rewards take the bonuses of a real sibling (another piece of the same set, or the same reward
+    made for another class), with the item's own weapon skill (for example Kiss of Death, now Thrust +5, Parry +4;
+    the Stoneheart weapons from the Troll's weapons).
+  - 2 made-up belts that were stronger than any real reward of their level were brought down to the period range.
+  - 23 rewards get back real 1.65 bonuses that were lost: Smiting, Soulrending, Arboreal Path, Light and Mana skills,
+    and the staves' elemental, Body, Mind and Spirit focus levels.
+  - Later bonus forms were turned back into the 1.65 ones (Power Pool % into Power, All Archery into the realm's bow
+    skill); Catacombs class bonuses were not added.
+  - Existing installs: run tools/claude-version/fix_quest_reward_stats.py once with the server stopped (it backs up
+    the database and only changes rows that still hold the old values). Applies to every server (normal mode).
 
 **Companions and commands**
 - /spawn specs opens a menu like /spawn that lists every class of your realm with its builds, such as
