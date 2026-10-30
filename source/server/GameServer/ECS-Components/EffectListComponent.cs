@@ -488,7 +488,7 @@ namespace DOL.GS
 
                             // An effect ended before this callback ran was already taken out of the store, and its stop callback is
                             // queued behind this one. Adding it here left it ticking forever (30 million effects and 326 ms per tick
-                            // on a 3,000-bot run; fix from rambodolphin13/OfflineDAoC 7a8ae69, via chris4aker/OfflineDAoC-LivingServer).
+                            // on a 3,000-bot run; fix from rambodolphin13/OfflineDAoC 7a8ae69).
                             if (!effect.IsEnded && !effect.IsEnding)
                                 ServiceObjectStore.Add(effect);
                             effect.Owner.effectListComponent.RequestPlayerUpdate(EffectHelper.GetPlayerUpdateFromEffect(effect.EffectType));
@@ -866,7 +866,7 @@ namespace DOL.GS
             if (result is not RemoveEffectResult.Failed)
                 OnEffectRemovedOrDisabled(this, result, effect);
             // An ending effect this list no longer holds (it was cleared when its owner died or left) failed to remove and
-            // stayed in the effect service for good, ticking and holding its owner.
+            // stayed in the effect service for good, ticking and holding its owner (orphan census, 2026-10-21).
             else if (effect.IsEnding)
                 ServiceObjectStore.Remove(effect);
 
