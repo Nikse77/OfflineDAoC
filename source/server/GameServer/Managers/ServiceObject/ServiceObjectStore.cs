@@ -27,11 +27,6 @@ namespace DOL.GS
                 { ServiceObjectType.Timer, new ServiceObjectArray<ECSGameTimer>(500) }
             }.ToFrozenDictionary();
 
-        // Objects added minus objects removed, per type, for SERVER_MEMORY (a growing count of effects is a leak).
-        private static readonly long[] _counts = new long[Enum.GetValues<ServiceObjectType>().Length];
-
-        public static long Count(ServiceObjectType type) => Interlocked.Read(ref _counts[(int) type]);
-
         public static bool Add<T>(T serviceObject) where T : class, IServiceObject
         {
             ServiceObjectId id = serviceObject.ServiceObjectId;
@@ -41,7 +36,6 @@ namespace DOL.GS
                 return false;
 
             (_serviceObjectArrays[serviceObject.ServiceObjectId.Type] as ServiceObjectArray<T>).Add(serviceObject);
-            Interlocked.Increment(ref _counts[(int) serviceObject.ServiceObjectId.Type]);
             return true;
         }
 
@@ -54,7 +48,6 @@ namespace DOL.GS
                 return false;
 
             (_serviceObjectArrays[serviceObject.ServiceObjectId.Type] as ServiceObjectArray<T>).Remove(serviceObject);
-            Interlocked.Decrement(ref _counts[(int) serviceObject.ServiceObjectId.Type]);
             return true;
         }
 
