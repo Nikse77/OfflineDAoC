@@ -3659,7 +3659,9 @@ namespace DOL.AI.Brain
                 !AutonomousPetTargeting.IsPlayerPet(chosen))
                 return chosen;
 
+            // A mesmerized or rooted player is left alone while something else is fighting (BotBrain.CrowdControlRespect).
             bool Usable(GameLiving candidate) => candidate != null && candidate != bot && !candidate.IsStealthed &&
+                                                 !IsBreakablyControlled(candidate) &&
                                                  Body.IsWithinRadius(candidate, 1500) && CanDefendAgainst(candidate);
             GameLiving owner = (chosen as GameNPC)?.Brain is IControlledBrain petBrain ? petBrain.GetLivingOwner() : null;
             GameLiving preferred = Usable(owner) ? owner

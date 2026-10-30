@@ -75,6 +75,7 @@ namespace DOL.GS
         /// <summary>An epic NPC, or a scripted named monster (its own class, a capitalised name).</summary>
         public static bool IsTetheredEncounter(GameNPC npc) =>
             npc is IGameEpicNpc || npc != null && npc.GetType() != typeof(GameNPC) && npc is not GameBot &&
+            npc is not DOL.GS.Keeps.GameKeepGuard && // a keep guard carries a 10,000 tether but is no scripted boss
             !string.IsNullOrEmpty(npc.Name) && char.IsUpper(npc.Name[0]);
 
         /// <summary>
