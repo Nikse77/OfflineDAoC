@@ -3403,6 +3403,9 @@ namespace DOL.GS
                 legalCells = legalCells.Where(camp => camp.RegionId != AutonomousDarknessFallsPolicy.RegionId)
                     .Concat(df).ToArray();
             }
+            // Less competition first: crowded camps only when every camp is crowded (AutonomousCampCompetition).
+            legalCells = AutonomousCampCompetition.PreferQuiet(legalCells, camp => camp.Id, camp => camp.LiveMobCount,
+                bot.PersistentRecord?.CurrentCampId, sharedGroup ? groupSize : 1);
             // This is the deployed selection point. Each distinct verified
             // location has one entry; outdoor draws are weighted by live spawns
             // (capped) with no distance or name preference.

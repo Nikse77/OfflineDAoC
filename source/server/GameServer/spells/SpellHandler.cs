@@ -574,7 +574,7 @@ namespace DOL.GS.Spells
 
 				if (interruptRemainingDuration > 0)
 				{
-					interruptRemainingDuration /= 1000 + 1;
+					interruptRemainingDuration = (interruptRemainingDuration + 999) / 1000; // whole seconds, rounded up ("/= 1000 + 1" divided by 1001: "wait 0 seconds")
 
 					if (playerCaster != null)
 					{
@@ -1032,11 +1032,14 @@ namespace DOL.GS.Spells
 		private void NotifyCompanionsOfHarmfulCast()
 		{
 			if (!Spell.IsHarmful) return;
+			// A mesmerize, stun or root does not send the companions at its target (owner 2026-10-29); they join the
+			// fight on another monster (PlayerLedPullCoordinator.FindLeaderControlFight).
+			if (PlayerLedPullCoordinator.IsCrowdControl(Spell)) return;
 			if (Caster is GamePlayer player)
 				PlayerLedPullCoordinator.LeaderEngaged(player, Target);
 			else if (Caster is GameNPC { Brain: ControlledMobBrain { Owner: GamePlayer owner } } &&
 				owner.ControlledBrain?.Body == Caster)
-				PlayerLedPullCoordinator.LeaderEngaged(owner, Target);
+				PlayerLedPullCoordinator.LeaderEngaged(owner, Target, fromPet: true);
 		}
 
 		public void Tick()

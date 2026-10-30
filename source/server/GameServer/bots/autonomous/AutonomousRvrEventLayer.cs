@@ -1186,13 +1186,22 @@ public static partial class AutonomousRvrEventLayer
     public const long ExpireIntervalMilliseconds = 500;
     private static long _lastExpireTick = long.MinValue;
 
+    /// <summary>
+    /// True while the last live-clock pass is under <see cref="ExpireIntervalMilliseconds"/> old. Before the first pass
+    /// (<c>long.MinValue</c>) <c>now - last</c> overflowed to a negative number, so every live call returned early and
+    /// muster deadlines, the march after them, repels and the four-hour cap never ran on the live clock (found by
+    /// stefanrows/OfflineDAoC 0.345.0).
+    /// </summary>
+    public static bool ExpireThrottled(long nowTick, long lastTick) =>
+        lastTick != long.MinValue && nowTick >= lastTick && nowTick - lastTick < ExpireIntervalMilliseconds;
+
     private static void Expire(long nowTick)
     {
         // Only the live clock is throttled; a caller asking about another moment (tests step time by a millisecond) runs.
         if (nowTick == GameLoop.GameLoopTime)
         {
             long last = System.Threading.Interlocked.Read(ref _lastExpireTick);
-            if (nowTick >= last && nowTick - last < ExpireIntervalMilliseconds)
+            if (ExpireThrottled(nowTick, last))
                 return;
             if (System.Threading.Interlocked.CompareExchange(ref _lastExpireTick, nowTick, last) != last)
                 return;
@@ -1291,13 +1300,22 @@ public static partial class AutonomousRvrEventLayer
         }
     }
 
+    /// <summary>
+    /// The realm record of a siege that was neither captured nor defended, named by why it ended (owner 2026-10-29: it
+    /// read "Ended (unconfirmed)", nearly always because the keep stopped being a target, e.g. another realm took it).
+    /// </summary>
+    public static string SiegeEndOutcome(string reason) =>
+        reason?.StartsWith("Siege objective is no longer available") == true ? "Ended: keep no longer a target" :
+        reason?.Contains("four-hour") == true || reason?.Contains("timer") == true ? "Timed out" :
+        string.IsNullOrWhiteSpace(reason) ? "Ended" : "Ended: " + reason.Split(':', '.')[0].Trim();
+
     private static void EndEvent(ActiveEvent active, long nowTick, string reason, eRealm winner = eRealm.None)
     {
         foreach (eRealm realm in new[] { active.AttackerRealm, active.DefenderRealm, OtherRealm(active) })
             RealmEventNotices.Queue(active.TargetId, realm, RealmEventBanter.SiegeOutcome(Place(active.Target.Name),
                 realm == active.DefenderRealm, reason.StartsWith("Siege defended"), reason.StartsWith("Rally failed"), winner, realm));
         RealmEventRecords.Finish(active.TargetId, reason.StartsWith("Rally failed") ? "Failed rally" : reason.StartsWith("Keep captured") ? "Captured" :
-            reason.StartsWith("Siege defended") ? reason.Contains("expired") ? "Defended (timeout)" : "Defended" : "Ended (unconfirmed)", reason,
+            reason.StartsWith("Siege defended") ? reason.Contains("expired") ? "Defended (timeout)" : "Defended" : SiegeEndOutcome(reason), reason,
             active.Attackers.Values.Sum() + active.Defenders.Values.Sum() + active.ThirdRealm.Values.Sum());
         foreach (string force in active.Attackers.Keys.Concat(active.Defenders.Keys).Concat(active.ThirdRealm.Keys))
             ReleasedForces[force] = reason;

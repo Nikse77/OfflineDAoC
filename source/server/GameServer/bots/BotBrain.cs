@@ -314,6 +314,8 @@ namespace DOL.AI.Brain
 
             // A mesmerized or rooted monster waits while anything else is in the fight (BotBrain.CrowdControlRespect).
             bool uncontrolledAvailable = false;
+            // The monster the player is mesmerizing, stunning or rooting is left alone even before the spell lands.
+            GameLiving leaderHeld = PlayerLedPullCoordinator.LeaderControlTarget(AssistedPlayer);
             foreach (GameLiving candidate in AggroList.Keys)
             {
                 if (candidate is { IsAlive: true } && !ShouldBeIgnoredFromAggroList(candidate) && !IsBreakablyControlled(candidate))
@@ -336,7 +338,8 @@ namespace DOL.AI.Brain
                 if (ShouldBeIgnoredFromAggroList(living))
                     continue;
 
-                if (PassOverControlled(IsBreakablyControlled(living), uncontrolledAvailable))
+                if (PassOverControlled(IsBreakablyControlled(living), uncontrolledAvailable) ||
+                    living == leaderHeld)
                     continue;
 
                 if (Body.TargetObject == living)
@@ -398,6 +401,11 @@ namespace DOL.AI.Brain
             }
 
             if (realTarget is IGamePlayer && realTarget.Realm != Body.Realm)
+                return true;
+
+            // An enemy keep's doors and walls are fought whatever their con (owner 2026-10-29: companions would not help
+            // the player break a battleground keep's door).
+            if (realTarget is DOL.GS.Keeps.GameKeepDoor or DOL.GS.Keeps.GameKeepComponent && realTarget.Realm != Body.Realm)
                 return true;
 
             // Evaluate the monster from the character's perspective, not the
@@ -1325,7 +1333,9 @@ namespace DOL.AI.Brain
                 return;
             }
 
-            GameLiving leaderTarget = PlayerLedPullCoordinator.FindLeaderTarget(AssistedPlayer);
+            // The player's mesmerize, stun or root joins the fight on another monster of the pack (owner 2026-10-29).
+            GameLiving leaderTarget = PlayerLedPullCoordinator.FindLeaderTarget(AssistedPlayer) ??
+                PlayerLedPullCoordinator.FindLeaderControlFight(AssistedPlayer, BotBody);
             if (leaderTarget != null && PlayerLedPullCoordinator.Available(BotBody, AssistedPlayer) &&
                 Body.IsWithinRadius(leaderTarget, GROUP_DEFENSE_ASSIST_RADIUS))
                 AssistPlayerAttack(leaderTarget);
@@ -3067,6 +3077,7 @@ namespace DOL.AI.Brain
             // away from the fight their pet had already started.
             Body.TargetObject = protectionTarget ?? directAttacker ?? activePetTarget ?? CalculateNextAttackTarget();
             RedirectPetFromControlledTarget(Body.TargetObject as GameLiving);
+            MaintainTankPeel();
             // A tethered boss outside its tether is immune: stop hitting it and lead it home (AutonomousTetherReset).
             if (Body.TargetObject is GameNPC tetheredBoss && AutonomousTetherReset.TryHandle(BotBody, tetheredBoss))
                 return;
