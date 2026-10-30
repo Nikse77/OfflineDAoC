@@ -120,6 +120,13 @@ The newest version is first. For the full detail of every earlier update, see
 - Torst no longer disappears when he summons his eddies (the summon threw an error and the server removed him), and
   a bot letting go of a siege weapon no longer throws an error in the siege timer. (From the
   chris4aker/OfflineDAoC-LivingServer fork.)
+- Bots no longer buy Darkness Falls seal gear with coin, and spend their seals instead. A bot shopping at the nearest
+  merchant could pick a seal merchant and pay the seal price in copper (15 to 51 copper for seal gear), while the
+  seals it looted sat unused in its bags. Bots now only buy with coin from merchants that sell for coin (never seal,
+  Atlantean glass, aurulite or bounty point merchants). In Darkness Falls a bot that isn't grouped walks to its own
+  realm's seal merchant and pays in seals for an upgrade it can afford, and wears it; while a dearer upgrade is still
+  ahead it saves for it, and with nothing left to save for it buys the most valuable seal item it can and sells it or
+  posts it on the Realm Exchange like any other loot. Applies to every server (normal mode).
 
 **World**
 - Bring A Friend reaches as far as on Dawn of Light, and only monsters in sight come. Friends came from up to 1,500
@@ -164,6 +171,17 @@ The newest version is first. For the full detail of every earlier update, see
   chris4aker/OfflineDAoC-LivingServer fork.)
 - Quest names match whatever their case, so a quest whose name is written differently in two places still starts and
   finishes. (From the lometur/HearthDAoC fork.)
+- Trials of Atlantis regions are switched off as the server settings always meant. disabled_expansions is written in
+  the client's expansion numbers (Trials of Atlantis 3, Catacombs 4...), but the region check compared it with the
+  Regions table's own numbers (Trials of Atlantis 2), so the Trials of Atlantis regions, and the Atlas event regions
+  filed under it, stayed loaded; only Catacombs and Darkness Rising were off. Nothing reachable is lost: no zone line
+  leads there and no player or bot was in them. Applies to every server (normal mode).
+- Necromancers can be created again. The disabled_classes setting held the Disciple, the class a new Necromancer
+  starts as, so the server refused new Necromancers (any race; Britons were the ones reported) for normal accounts,
+  while GM accounts, which skip that check, could still make one. Necromancer is a Shrouded Isles class. This is a
+  setting in the game database: new release databases carry the fix, and an existing install can run
+  tools/claude-version/enable_necromancer_creation.py once with the server stopped (it backs up the database first).
+  Applies to every server (normal mode).
 
 **Companions and commands**
 - /spawn specs opens a menu like /spawn that lists every class of your realm with its builds, such as
