@@ -821,6 +821,14 @@ namespace DOL.AI.Brain
             else
                 return;
 
+            // No new round of adds while the puller's group is still in the fight that brought friends (owner 2026-10-29:
+            // in Keltoi Fogou a respawned group joined a fight already under way).
+            if (BafFriends.InBafFight(playerPuller))
+            {
+                CanBaf = false;
+                return;
+            }
+
             // Prevent the same puller from triggering two BAFs at the same time.
             if (!playerPuller.TempProperties.TrySetProperty(ResetBafPropertyAction.Property, true))
                  return;
@@ -830,10 +838,12 @@ namespace DOL.AI.Brain
             int maxAdds = GetMaxAddsCountFromBaf(playerPuller, countFrom, out List<GameLiving> otherTargets, out int attackersCount);
             // Dawn of Light's ranges (owner 2026-10-29, BafFriends): friends within 2/5 of the pulled monster's aggro
             // range, and in a dungeon up to 1,000 units (nearest first); each must be in sight of the pulled monster.
-            int bafRadius = BafFriends.Radius(AggroRange, Body.CurrentZone.IsDungeon);
+            int bafRadius = BafFriends.Radius(AggroRange, Body.CurrentZone.IsDungeon, attackersCount);
 
             List<GameNPC> brainsInRadius = GetFriendlyAndAvailableNpcsInRadiusOrderedByDistance(bafRadius, maxAdds);
             int addCount = brainsInRadius.Count;
+            if (addCount > 0)
+                BafFriends.MarkBafFight(playerPuller);
             BafAddCount = addCount;
 
             foreach (GameNPC npc in brainsInRadius)

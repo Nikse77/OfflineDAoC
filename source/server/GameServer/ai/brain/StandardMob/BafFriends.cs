@@ -34,8 +34,35 @@ namespace DOL.AI.Brain
 
         public static int CloseRadius(int aggroRange) => Math.Max(0, aggroRange) * 2 / 5;
 
-        public static int Radius(int aggroRange, bool dungeon) =>
-            dungeon ? Math.Max(CloseRadius(aggroRange), DungeonReinforcementRadius) : CloseRadius(aggroRange);
+        /// <summary>
+        /// Outdoors: the close range. In a dungeon the reach grows with the group like Dawn of Light's reinforcement
+        /// search (from 250 units, 150 more per other member, at most 1,000): a small group no longer reaches 1,000.
+        /// </summary>
+        public static int Radius(int aggroRange, bool dungeon, int attackers = 1) =>
+            dungeon ? Math.Max(CloseRadius(aggroRange), DungeonRadius(attackers)) : CloseRadius(aggroRange);
+
+        public static int DungeonRadius(int attackers) =>
+            Math.Min(DungeonReinforcementRadius, 250 + 150 * (Math.Max(1, attackers) - 1));
+
+        private const string BafFightProperty = "OfflineDAoC.BafFightTick";
+        public const long BafFightMilliseconds = 120_000;
+
+        /// <summary>Pure rule: a puller still in combat within two minutes of the last adds is in the same fight.</summary>
+        public static bool SameFight(bool inCombat, long now, long lastBaf) =>
+            inCombat && lastBaf > 0 && now - lastBaf < BafFightMilliseconds;
+
+        public static bool InBafFight(GamePlayer puller)
+        {
+            long now = GameLoop.GameLoopTime;
+            long last = puller.TempProperties.GetProperty<long>(BafFightProperty);
+            if (!SameFight(puller.InCombat, now, last))
+                return false;
+            puller.TempProperties.SetProperty(BafFightProperty, now); // the fight goes on
+            return true;
+        }
+
+        public static void MarkBafFight(GamePlayer puller) =>
+            puller.TempProperties.SetProperty(BafFightProperty, GameLoop.GameLoopTime);
 
         /// <summary>In sight along the walkable ground (the navmesh); where there is no navmesh, assumed so.</summary>
         public static bool InSight(GameNPC pulled, GameNPC other)
