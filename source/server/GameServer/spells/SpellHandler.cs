@@ -1036,7 +1036,7 @@ namespace DOL.GS.Spells
 				PlayerLedPullCoordinator.LeaderEngaged(player, Target);
 			else if (Caster is GameNPC { Brain: ControlledMobBrain { Owner: GamePlayer owner } } &&
 				owner.ControlledBrain?.Body == Caster)
-				PlayerLedPullCoordinator.LeaderEngaged(owner, Target);
+				PlayerLedPullCoordinator.LeaderEngaged(owner, Target, fromPet: true);
 		}
 
 		public void Tick()

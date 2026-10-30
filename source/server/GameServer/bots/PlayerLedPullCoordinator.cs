@@ -117,7 +117,12 @@ namespace DOL.GS
             return bot != order.Tank;
         }
 
-        public static void LeaderEngaged(GamePlayer player, GameLiving target)
+        /// <param name="fromPet">
+        /// The player's pet started it (owner 2026-10-29): the fight starts for the companions not yet in one, while a
+        /// companion already fighting keeps its own target, and so does its pet; only the player's own attacks and
+        /// /pull retarget the whole group.
+        /// </param>
+        public static void LeaderEngaged(GamePlayer player, GameLiving target, bool fromPet = false)
         {
             CompanionEngagementMode.RememberPull(player, target);
             if (player?.Group == null || !player.Group.IsInTheGroup(player) || !ValidEnemy(player, target)) return;
@@ -129,7 +134,7 @@ namespace DOL.GS
                 if (order != null && Interlocked.CompareExchange(ref order.Finished, 1, 0) == 0 && order.Target != target)
                     (order.Tank.Brain as BotBrain)?.CancelOrderedPull(order.Target);
             }
-            Engage(player, target, false);
+            Engage(player, target, false, onlyIdle: fromPet);
         }
 
         public static void OnAttack(GameLiving actor, AttackData attack)
@@ -184,14 +189,16 @@ namespace DOL.GS
         }
 
         // fromPull: the fight started from /pull or /grind (the tank's contact, or
-        // an immediate engage), not from the player's own attack.
-        private static void Engage(GamePlayer player, GameLiving target, bool orderHumanPet, bool fromPull = false)
+        // an immediate engage), not from the player's own attack. onlyIdle: only the companions
+        // not yet in a fight of their own join (the player's pet started it).
+        private static void Engage(GamePlayer player, GameLiving target, bool orderHumanPet, bool fromPull = false, bool onlyIdle = false)
         {
             if (player?.Group == null || !ValidEnemy(player, target)) return;
             foreach (GameLiving member in player.Group.GetMembersInTheGroup())
             {
                 if (member is GameBot bot && bot.PlayerGroupLeader == player && Available(bot, player) &&
-                    bot.IsWithinRadius(target, BotBrain.GROUP_DEFENSE_ASSIST_RADIUS) && bot.Brain is BotBrain brain)
+                    bot.IsWithinRadius(target, BotBrain.GROUP_DEFENSE_ASSIST_RADIUS) && bot.Brain is BotBrain brain &&
+                    !(onlyIdle && InOwnFight(bot)))
                 {
                     if (fromPull && bot != target.TargetObject)
                         brain.HoldOffenseAfterPull();
@@ -200,6 +207,11 @@ namespace DOL.GS
             }
             if (orderHumanPet) player.ControlledBrain?.Attack(target);
         }
+
+        /// <summary>A companion already fighting a live, unheld monster of its own.</summary>
+        public static bool InOwnFight(GameBot bot) =>
+            bot.Brain is BotBrain { HasAggro: true } && bot.TargetObject is GameLiving { IsAlive: true } current &&
+            !BotBrain.IsBreakablyControlled(current);
 
         public static bool Available(GameBot bot, GamePlayer player) => bot != null && player?.IsAlive == true &&
             bot.IsAlive && bot.ObjectState == GameObject.eObjectState.Active && bot.Realm == player.Realm &&
