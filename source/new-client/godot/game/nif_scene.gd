@@ -144,7 +144,9 @@ static func copy_of(gltf_path: String) -> NifScene:
 	if not _packed.has(gltf_path):
 		_packed[gltf_path] = pack_copy(gltf_path)
 	var p: PackedScene = _packed[gltf_path]
-	return p.instantiate() as NifScene if p else null
+	var copy := p.instantiate() as NifScene if p else null
+	CacheTrim.track("fx", gltf_path, copy)
+	return copy
 
 
 ## Copies (one per spell cast / monster) find their own meshes and particles again.

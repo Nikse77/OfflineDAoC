@@ -119,6 +119,7 @@ static func make_animated(model: int) -> Node3D:
 	var holder := Node3D.new()
 	holder.name = "Siege_%d" % model
 	holder.add_child(p.instantiate())
+	CacheTrim.track("weapon", path, holder)
 	return holder
 
 
@@ -127,6 +128,7 @@ static func pack(path: String) -> PackedScene:
 	var state := GLTFState.new()
 	if doc.append_from_file(ProjectSettings.globalize_path(path), state) != OK:
 		return null
+	CacheTrim.share_textures(state, path)                 # (one copy of each texture file across all weapons)
 	GpuJobs.ready_materials(Array(state.get_materials()))   # (made on the main thread: NPC views prepare weapons on a worker)
 	var scene := doc.generate_scene(state)
 	var packed := PackedScene.new()
@@ -190,6 +192,7 @@ static func make(model: int, drawn := false, left := false, sheath := "") -> Nod
 	var holder := Node3D.new()
 	holder.name = "Weapon_%d" % model
 	var w := p.instantiate() as Node3D
+	CacheTrim.track("weapon", path, w)
 	for c in w.find_children("collision*", "", true, false):
 		c.queue_free()                                    # the NIF's collidee shapes: not part of the held model
 	w.transform = TO_NIF

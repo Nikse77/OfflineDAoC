@@ -81,13 +81,9 @@ static func run(c: Callable, label := "") -> Variant:
 static func ready_materials(mats: Array) -> void:
 	if mats.is_empty():
 		return
-	# a StandardMaterial3D's shader compiled here, on the calling thread (BaseMaterial3D.get_shader_rid(): the shader
-	# only - Godot's shader map is built for workers to do this): on the main thread each compile cost ~20 ms
-	for m in mats:
-		# (only on an engine build that has it: the stock Godot 4.7.2 has no get_shader_rid(), and the error here
-		# stopped the whole step)
-		if m is BaseMaterial3D and m.has_method(&"get_shader_rid"):
-			(m as BaseMaterial3D).call(&"get_shader_rid")
+	# (owner 2026-10-29: the client froze at login and in Keltoi Fogou - a call here to BaseMaterial3D.get_shader_rid(),
+	# which GDScript doesn't have, raised a script error that skipped the steps below for every NPC, armour, weapon and
+	# helm model: their materials were made on the workers again, the /tc freeze's race. Removed.)
 	# a few a step, so the pump's per-frame budget spreads a zone's hundreds over frames (64 terrain patches and a
 	# zone's model materials made in one step took 40 ms of a frame)
 	var steps: Array = []
