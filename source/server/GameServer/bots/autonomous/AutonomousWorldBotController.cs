@@ -1033,7 +1033,7 @@ namespace DOL.GS
         private bool TryRouteToNeededService(GameBot bot)
         {
             eWorldServiceKind? needed = AutonomousBotEconomy.GetNeededService(bot);
-            if (needed is not eWorldServiceKind.RealmExchange and not eWorldServiceKind.Vendor and not eWorldServiceKind.DyeMerchant)
+            if (needed is not eWorldServiceKind.RealmExchange and not eWorldServiceKind.Vendor and not eWorldServiceKind.DyeMerchant and not eWorldServiceKind.SealMerchant)
             {
                 _serviceNpc = null;
                 _serviceKind = null;
@@ -1069,6 +1069,12 @@ namespace DOL.GS
                 // Tinting is a nicety: no reachable dye merchant means no trip for two hours, never a bot held in place.
                 AutonomousBotDyeing.FinishTrip(bot, "no reachable merchant", AutonomousBotDyeing.RetryDelay);
                 AutonomousBotEconomy.MarkEconomyChanged(bot.DatabaseID);
+                _serviceKind = null;
+                return false;
+            }
+            if (_serviceNpc == null && needed == eWorldServiceKind.SealMerchant)
+            {
+                // Seal gear is optional: with no reachable seal merchant the bot simply carries on.
                 _serviceKind = null;
                 return false;
             }
@@ -1212,6 +1218,7 @@ namespace DOL.GS
         {
             eWorldServiceKind.RealmExchange => "Use the Realm Exchange",
             eWorldServiceKind.DyeMerchant => "Tint the worn armor at the capital dye merchants",
+            eWorldServiceKind.SealMerchant => "Trade Darkness Falls seals for seal gear",
             _ => "Sell ordinary backpack loot"
         };
 
@@ -1229,6 +1236,15 @@ namespace DOL.GS
             bool exchange = kind == eWorldServiceKind.RealmExchange;
             GameNPC best = null;
             double bestMinutes = double.MaxValue;
+            if (kind == eWorldServiceKind.SealMerchant)
+            {
+                // Only the bot's own realm's seal merchants in Darkness Falls that have something it can pay for.
+                foreach (GameMerchant merchant in bot.CurrentRegion?.Merchants ?? [])
+                    if (merchant is GameDarknessFallsSealsMerchant seals && IsServiceCandidate(bot, seals) &&
+                        AutonomousBotEconomy.FindSealPurchase(bot, seals) != null)
+                        ConsiderService(seals);
+                return best;
+            }
             // Same candidates and ordering as before (first candidate wins a tie,
             // like OrderBy + FirstOrDefault), but merchants come from each
             // region's live merchant index instead of scanning every monster,

@@ -30,6 +30,8 @@ public enum eWorldServiceKind
     CraftStation,
     /// <summary>A dye merchant of the realm's capital: the bot tints its worn armor and cloak (AutonomousBotDyeing).</summary>
     DyeMerchant,
+    // A Darkness Falls seals merchant: seal gear bought with the bot's own looted seals (owner 2026-10-30).
+    SealMerchant,
 }
 
 /// <summary>
