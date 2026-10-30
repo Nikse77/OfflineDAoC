@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
 using System.Threading;
 using DOL.AI.Brain;
@@ -42,10 +43,64 @@ namespace DOL.GS
                 return;
             }
 
+            LogCensus();
+
             GameLoop.ExecuteForEach(_list, _lastValidIndex + 1, TickInternal);
 
             if (Diagnostics.CheckServiceObjectCount)
                 Diagnostics.PrintServiceObjectCount(ServiceName, ref EntityCount, _list.Count);
+        }
+
+        private const long CensusIntervalMilliseconds = 300_000;
+        private long _nextCensusTick;
+
+        /// <summary>
+        /// Every five minutes, what the service holds, by effect class, effect type, kind of owner and state. The count in SERVER_MEMORY
+        /// climbed from 4,000 to 130,000 in half an hour after the first leak fixes; this says which effects they are.
+        /// </summary>
+        private void LogCensus()
+        {
+            long now = GameLoop.GameLoopTime;
+            if (now < _nextCensusTick)
+                return;
+
+            _nextCensusTick = now + CensusIntervalMilliseconds;
+
+            try
+            {
+                Dictionary<string, int> groups = new();
+                int valid = 0;
+
+                for (int i = 0; i <= _lastValidIndex; i++)
+                {
+                    ECSGameEffect effect = _list[i];
+
+                    if (effect == null || !effect.ServiceObjectId.IsSet)
+                        continue;
+
+                    valid++;
+                    GameLiving owner = effect.Owner;
+                    string kind = owner switch
+                    {
+                        GameBot { IsAutonomousWorldBot: true } => "autobot",
+                        GameBot => "companion",
+                        GamePlayer => "player",
+                        GameNPC => "npc",
+                        null => "noowner",
+                        _ => "other"
+                    };
+                    string state = effect.IsEnded ? "ended" : effect.IsEnding ? "ending" : effect.IsActive ? "active" : "inactive";
+                    string key = $"{effect.GetType().Name}/{effect.EffectType}/{kind}/{state}";
+                    groups[key] = groups.GetValueOrDefault(key) + 1;
+                }
+
+                string top = string.Join("; ", groups.OrderByDescending(pair => pair.Value).Take(12).Select(pair => $"{pair.Key}={pair.Value}"));
+                log.Info($"SERVER_EFFECT_CENSUS effects={valid} groups={groups.Count} top=\"{top}\"");
+            }
+            catch (Exception e)
+            {
+                log.Warn("SERVER_EFFECT_CENSUS failed", e);
+            }
         }
 
         private static void TickInternal(ECSGameEffect effect)
