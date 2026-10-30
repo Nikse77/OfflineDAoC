@@ -681,6 +681,9 @@ namespace DOL.GS
 
         public static void UpdateObjectForPlayer(GamePlayer player, GameObject gameObject)
         {
+            if (IsDeadGamebot(gameObject))
+                return;
+
             if (player.Client.ClientState is not GameClient.eClientState.Playing)
                 return;
 
@@ -695,11 +698,21 @@ namespace DOL.GS
 
         public static void UpdateNpcForPlayer(GamePlayer player, GameNPC npc)
         {
+            if (IsDeadGamebot(npc))
+                return;
+
             if (player.Client.ClientState is not GameClient.eClientState.Playing || !player.CanDetect(npc))
                 return;
 
             UpdateObjectForPlayerInternal(player, npc);
         }
+
+        /// <summary>
+        /// A dead gamebot is shown to a client once, as a dead body (ShowDeadBody, UpdateNpcs). Any other update or create for it
+        /// (a movement broadcast, a name or flag change, the client asking for the object it lost) makes the client draw a second
+        /// figure, standing and targetable, beside the body.
+        /// </summary>
+        private static bool IsDeadGamebot(GameObject gameObject) => gameObject is GameBot { IsAlive: false };
 
         /// <summary>
         /// A gamebot died: the clients that know it get it removed as a dead body now, which plays the death animation and leaves
@@ -722,6 +735,9 @@ namespace DOL.GS
 
         public static void UpdateNpcForPlayers(GameNPC npc, bool udp = true)
         {
+            if (IsDeadGamebot(npc))
+                return;
+
             foreach (GamePlayer player in npc.GetPlayersInRadius(WorldMgr.VISIBILITY_DISTANCE))
             {
                 if (player.Client.ClientState is not GameClient.eClientState.Playing || !player.CanDetect(npc))
@@ -756,6 +772,9 @@ namespace DOL.GS
 
         public static void CreateObjectForPlayer(GamePlayer player, GameObject gameObject)
         {
+            if (IsDeadGamebot(gameObject))
+                return;
+
             if (player.Client.ClientState is not GameClient.eClientState.Playing)
                 return;
 
