@@ -55,6 +55,11 @@ var realm := "hib"
 var screen := ""
 var chars: Array = []
 var sel := 0
+# When PLAY last sent the character into the world: a second click (a double-click) sent a second request, the server
+# refused it ("already in the region") and closed the connection (chris4aker/OfflineDAoC-LivingServer fork, Beta 1.1,
+# in-game check 2026-10-27). Cleared when the entry fails (an error, a disconnect, the character list again), so PLAY
+# isn't held for the 10 s then.
+var _entered_at := -100000
 var draft := {}                                   # the character being created or customized
 var editing := false                              # customize an existing character (select screen CUSTOMIZE)
 var locks := {}
@@ -89,6 +94,9 @@ func _ready() -> void:
 	PregameMusic.play()
 	if Server.active:                                      # the server's character lists, as they arrive
 		Server.characters_ready.connect(_on_server_characters)
+		Server.characters_ready.connect(func(_r): _entered_at = -100000)
+		Server.disconnected.connect(func(_why): _entered_at = -100000)
+		Server.login_failed.connect(func(_why): _entered_at = -100000)
 		Server.created.connect(_on_server_created)
 		Server.deleted.connect(func(): sel = 0; _show("select"))
 		Server.name_checked.connect(_on_name_checked)
@@ -221,6 +229,7 @@ func _build_select() -> void:
 		_medallion(row[k][0], row[k][1], _wext * (0.095 + k * 0.2025), 726, "L", row[k][2])
 	_status_line()
 	if Server.active and Server.last_error != "":
+		_entered_at = -100000                              # (the entry failed: PLAY works again at once)
 		_say(Server.last_error)
 		Server.last_error = ""
 	_show_figure(chars[sel] if sel < chars.size() else {})
@@ -489,6 +498,10 @@ func _play() -> void:
 	if sel >= chars.size():
 		return
 	if Server.active:                                     # the server puts the character in the world (Server.enter_world)
+		var now := Time.get_ticks_msec()
+		if now - _entered_at < 10000:                     # already on its way in
+			return
+		_entered_at = now
 		_say("Entering the world...")
 		Server.enter_world(chars[sel])
 		return

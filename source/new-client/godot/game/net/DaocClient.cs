@@ -398,6 +398,17 @@ public partial class DaocClient : Node
 		Send(0x79, w);
 	}
 
+	// PlayerAppraiseItemRequestHandler (0xE0): the merchant you target says what it would pay for the item in a slot
+	// (the merchant window's APPRAISE button; owner 2026-10-29). Same body as the sell request.
+	public void AppraiseItem(int x, int y, int slot)
+	{
+		var w = new Writer();
+		w.Int((uint)x); w.Int((uint)y);
+		w.Short((ushort)SessionId);
+		w.Short((ushort)slot);
+		Send(0xE0, w);
+	}
+
 	// PlayerBuyRequestHandler: buy from the merchant window (its page / slot), count.
 	public void BuyItem(int x, int y, int itemSlot, int count, int menu)
 	{

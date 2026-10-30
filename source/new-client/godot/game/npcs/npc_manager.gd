@@ -256,6 +256,7 @@ static func _pack_model(path: String) -> PackedScene:
 	state.base_path = ProjectSettings.globalize_path(path.get_base_dir())
 	if doc.append_from_file(path, state) != OK:
 		return null
+	CacheTrim.share_textures(state, path)                # (one copy of each texture file across all monsters)
 	# a glow map laid out on the model's second UV set (build_monsters: emissiveTexture texCoord 1 - the Glowing Demon
 	# Knight's eye slits; owner 2026-10-20: its eye glowed on the chest): Godot's glTF import drops texCoord there
 	var mats_json: Array = state.json.get("materials", []) if state.json is Dictionary else []
@@ -314,6 +315,24 @@ func _drop_unused_models() -> void:
 	for k in _scenes.keys():
 		if not used.has(k):
 			_scenes.erase(k)
+
+
+## Past the video memory budget (CacheTrim.over_budget; owner 2026-10-29, the 6 GB card filled and the frame rate
+## never came back): the monster models no view near you draws go as well - a spawn coming into view gets its model
+## again on the NPC-view worker (_prepared), as when its zone first loaded. Returns how many went.
+func drop_models_without_views() -> int:
+	var used := {}
+	for i in active:
+		if int(i) >= 0 and int(i) < states.size():
+			var info: Dictionary = (states[int(i)] as NpcState).info
+			if info.has("gltf"):
+				used[String(info.gltf)] = true
+	var n := 0
+	for k in _scenes.keys():
+		if not used.has(k) and _scenes[k] != null:
+			_scenes.erase(k)
+			n += 1
+	return n
 
 
 ## The world simulation: every spawn, every physics tick, near the player or not.

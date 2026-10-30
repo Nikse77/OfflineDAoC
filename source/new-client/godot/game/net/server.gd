@@ -490,6 +490,7 @@ func _save_looks() -> void:
 ## PLAY: the server loads the character and puts it in the world; the zone loads when its position arrives.
 func enter_world(c: Dictionary) -> void:
 	max_speed_pct = 100
+	model_types = {}
 	game_time_ms = -1                                     # (a fresh login waits for the server's own time)
 	_friends_listed = false
 	friends_online = []
@@ -563,6 +564,8 @@ func _on_world_inner(kind: String, d: Dictionary) -> void:
 				return
 		"max_speed":
 			max_speed_pct = int(d.percent)
+		"model_type":                                     # (kept: a GM is hidden at world init, before the world
+			model_types[int(d.oid)] = int(d.type)         # listens - owner 2026-10-29, the ghost was missing)
 		"time":                                           # (recorded even between worlds: a new one starts from it)
 			game_time_ms = int(d.time)
 			game_time_at = Time.get_ticks_msec()
@@ -1274,6 +1277,7 @@ var weight_max := -1
 var game_time_ms := -1                   # the server's last time of day (ms into the game day; Time packet), -1 none yet
 var game_time_at := 0                    # ...when it came (ticks ms)
 var day_increment := 24.0                # ...and its clock's speed (WORLD_DAY_INCREMENT)
+var model_types := {}                     # object id -> its last PlayerModelTypeChange (3 hidden, 2 seen)
 var max_speed_pct := 100                 # your last MaxSpeed (percent): kept across a region change - the server sends it
 										 # only when it changes (a skald's speed song pulses on at the same value)
 var group_members: Array = []            # the group window's members in group order (you included)

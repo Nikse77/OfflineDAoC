@@ -53,6 +53,7 @@ func setup_server(v: Node, zone_loader: ZoneLoader, p: Node3D) -> void:
 	# again while it stays the same (owner 2026-10-14: a skald companion's speed song stopped working after a zone
 	# change until the group was re-formed)
 	_apply_max_speed(Server.max_speed_pct)
+	_me_stealth = int(Server.model_types.get(Server.me_oid, 2)) == 3   # (hidden before this world listened: a GM)
 
 
 func _exit_tree() -> void:
@@ -127,6 +128,7 @@ func _on_world(kind: String, d: Dictionary) -> void:
 		"max_speed":                                       # your speed in percent of the base run speed (encumbrance,
 			if viewer and viewer.player:                     # buffs, snares - the server's, as the old client used it)
 				_apply_max_speed(int(d.percent))
+				viewer.player.no_turn = int(d.get("no_turn", 0)) != 0
 		"detail":
 			if Server.take_detail(d):                        # an item's hover text (kept for the hover box)
 				return
@@ -923,6 +925,11 @@ func _message(d: Dictionary) -> void:
 		return
 	var kind := String(CHAT_KINDS.get(t, "system"))
 	var text := String(d.text)
+	if text.strip_edges().is_empty():
+		# (owner 2026-10-29: empty gaps in the combat box) the server sends a spell's "others see" line even when the
+		# spell has none - every song (Motivational Chant, Song of Renewal ...) on every pulse on every group member,
+		# through MessageToCaster, which has no empty check. The original client printed nothing for them.
+		return
 	if bool(d.get("popup", false)) and viewer and viewer.ui and viewer.ui.npc_dialog:
 		# an NPC talking to you (SayTo -> the popup window): its words in the NPC window, [keywords] clickable
 		var who := String(PlayerData.target.get("name", ""))
@@ -1700,7 +1707,9 @@ var max_speed_pct := 100
 func _apply_max_speed(pct: int) -> void:
 	max_speed_pct = pct
 	if viewer and viewer.player:
-		viewer.player.encumbrance = clampf(float(pct) / 100.0, 0.0, 3.0) if pct > 0 else 1.0
+		# (owner 2026-10-29: a 0 - stunned, mesmerized, rooted, too heavy to move - was taken as full speed, so you ran
+		# and the server pulled you back; the server sends the real speed again when it ends)
+		viewer.player.encumbrance = clampf(float(pct) / 100.0, 0.0, 3.0)
 
 
 func _pet_window(d: Dictionary) -> void:

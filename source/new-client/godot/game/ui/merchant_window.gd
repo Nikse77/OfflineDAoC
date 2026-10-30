@@ -24,6 +24,8 @@ var _title: Label
 var _page_label: Label
 var _coins: Array = []
 var _buy: Button
+var _sell: Button
+var _appraise: Button
 
 
 func build() -> void:
@@ -56,23 +58,39 @@ func build() -> void:
 		l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		add_child(l)
 		_coins.append(l)
-	var prev := UiArt.button("<", Vector2(22, 16), 9)
-	prev.position = Vector2(10, 426)
-	prev.pressed.connect(func(): show_page(page - 1))
-	add_child(prev)
-	_page_label = UiArt.label("", 8, UiArt.CREAM)
-	_page_label.position = Vector2(34, 428)
-	_page_label.size = Vector2(60, 12)
-	_page_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	add_child(_page_label)
-	var nxt := UiArt.button(">", Vector2(22, 16), 9)
-	nxt.position = Vector2(96, 426)
-	nxt.pressed.connect(func(): show_page(page + 1))
-	add_child(nxt)
-	_buy = UiArt.button("BUY", Vector2(80, 18), 10)
-	_buy.position = Vector2(250, 424)
+	# the client's row (ui/isles/merchant_window.xml - the 1.65-era Shrouded Isles UI, the same in ui/atlantis): BUY at
+	# x 10, SELL at 82, APPRAISE at 155, the page arrows at 228 / 248 and "Page 1 of 1" at 275 (owner 2026-10-29: "was
+	# there a sell button in old client?" - yes; dragging an item onto the window still sells it)
+	_buy = UiArt.button("BUY", Vector2(68, 18), 10)
+	_buy.position = Vector2(10, 424)
 	_buy.pressed.connect(buy_selected)
 	add_child(_buy)
+	_sell = UiArt.button("SELL", Vector2(68, 18), 10)
+	_sell.position = Vector2(82, 424)
+	_sell.pressed.connect(sell_picked)
+	_sell.tooltip_text = "Sells the item you picked in your backpack (right-click it), or drop an item here"
+	add_child(_sell)
+	_appraise = UiArt.button("APPRAISE", Vector2(68, 18), 10)
+	_appraise.position = Vector2(155, 424)
+	_appraise.pressed.connect(appraise_picked)
+	_appraise.tooltip_text = "What the merchant would pay for the item you picked (right-click it), or drop an item here"
+	# an item dropped on APPRAISE is appraised, not sold (the window takes drops as sales)
+	_appraise.set_drag_forwarding(Callable(), func(_p, data): return _can_drop_data(_p, data),
+			func(_p, data): PlayerData.appraise(int(data.slot), npc_name))
+	add_child(_appraise)
+	var prev := UiArt.button("<", Vector2(18, 16), 9)
+	prev.position = Vector2(228, 425)
+	prev.pressed.connect(func(): show_page(page - 1))
+	add_child(prev)
+	var nxt := UiArt.button(">", Vector2(18, 16), 9)
+	nxt.position = Vector2(248, 425)
+	nxt.pressed.connect(func(): show_page(page + 1))
+	add_child(nxt)
+	_page_label = UiArt.label("", 8, UiArt.CREAM)
+	_page_label.position = Vector2(270, 428)
+	_page_label.size = Vector2(70, 12)
+	_page_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	add_child(_page_label)
 
 
 ## Where the shop opens: at the top, centred (owner 2026-10-14: not in the top right corner), the whole window on the
@@ -159,6 +177,27 @@ func buy_selected() -> void:
 			Server.client.call("BuyItem", int(r.x), int(r.y), int(parts[1]) * 30 + int(parts[2]), 1, maxi(server_window, 0))
 		return
 	PlayerData.buy(selected, npc_name)
+
+
+## SELL / APPRAISE: the backpack item picked with a right-click (PlayerData.selected_slot - the Sell key's too).
+func _picked_slot() -> int:
+	var s := PlayerData.selected_slot
+	if s < 0 or not PlayerData.is_backpack(s) or PlayerData.entry(s).is_empty():
+		PlayerData.message.emit("Select an item in your backpack first (right-click it), or drag it onto the window.", "merchant")
+		return -1
+	return s
+
+
+func sell_picked() -> void:
+	var s := _picked_slot()
+	if s >= 0:
+		PlayerData.sell(s, npc_name)
+
+
+func appraise_picked() -> void:
+	var s := _picked_slot()
+	if s >= 0:
+		PlayerData.appraise(s, npc_name)
 
 
 func _can_drop_data(_pos: Vector2, data: Variant) -> bool:
