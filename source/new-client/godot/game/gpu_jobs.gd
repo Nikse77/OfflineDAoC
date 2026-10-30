@@ -190,5 +190,9 @@ func _process(_delta: float) -> void:
 
 
 func _exit_tree() -> void:                         # quitting: what is queued runs now, later steps on their workers
+	# no more frames drawn first (2026-10-29, a live test quit while NPC views were still loading: "Parameter
+	# 'material' is null" x4, then a crash): from here the workers make their own materials, and with a frame being
+	# drawn that is the very race GpuJobs exists for. Nothing is shown after quitting anyway.
+	RenderingServer.render_loop_enabled = false
 	_closing = true
 	pump(1000000)
