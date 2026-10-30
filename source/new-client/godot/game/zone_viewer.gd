@@ -1534,6 +1534,7 @@ func _server_item_info(it: Dictionary) -> void:
 	var id := String(it.get("id", ""))
 	var parts := id.split(":")
 	if id.begins_with("srv:") and parts.size() == 2:
+		Server.info_item_slot = int(parts[1])              # (its answer gets SALVAGE / REPAIR: GameUI.show_item_buttons)
 		Server.detail_shown(1, int(parts[1]))
 	elif id.begins_with("srvm:") and parts.size() == 3:
 		Server.detail_shown(4, int(parts[1]) * 30 + int(parts[2]))

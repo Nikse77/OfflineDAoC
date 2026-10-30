@@ -529,6 +529,15 @@ public partial class DaocClient : Node
 		Send(0xC8, w);
 	}
 
+	// MakeProductHandler (0xED): make a recipe (CraftedItem.CraftedItemID); asked again while making one, it cancels
+	// that one (the server's only cancel). 2026-10-30, the crafting window.
+	public void Craft(int recipeId)
+	{
+		var w = new Writer();
+		w.Short((ushort)recipeId);
+		Send(0xED, w);
+	}
+
 	// DetailDisplayHandler: ask for an information text (1 inventory slot, 2 list spell line*100+level, 4 merchant
 	// page*30+index, 6 style / 8 ability 100+place among the non-spec skills).
 	public void Detail(int objectType, int objectId)
@@ -1599,6 +1608,20 @@ public partial class DaocClient : Node
 				if (r.Left > 0) { r.Byte(); d["craft_skill"] = r.Pascal(); }
 				if (r.Left > 0) { r.Byte(); d["craft_title"] = r.Pascal(); }
 				if (r.Left > 0) { r.Byte(); d["ml_title"] = r.Pascal(); }
+				return d;
+			}
+			case 8:
+			{                                             // SendUpdateCraftingSkills (PacketLib168 2372): every tradeskill -
+				d["kind"] = "craft_skills";               // points, the eCraftingSkill id (its icon), 1, the name
+				var list = new Godot.Collections.Array();
+				for (int i = 0; i < count && r.Left > 0; i++)
+				{
+					int points = r.Short();
+					int id = r.Byte();
+					r.Int();
+					list.Add(new Godot.Collections.Dictionary { ["id"] = id, ["points"] = points, ["name"] = r.Pascal() });
+				}
+				d["skills"] = list;
 				return d;
 			}
 			case 5:

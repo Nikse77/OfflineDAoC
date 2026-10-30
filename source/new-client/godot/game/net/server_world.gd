@@ -137,6 +137,9 @@ func _on_world(kind: String, d: Dictionary) -> void:
 					viewer.ui.show_server_guide(d.lines)
 				else:
 					viewer.ui.show_lines(String(d.caption), d.lines)
+					if Server.info_item_slot >= 0:               # the item you right-clicked: SALVAGE / REPAIR under it
+						viewer.ui.show_item_buttons(Server.info_item_slot)
+						Server.info_item_slot = -1
 		"trainer":
 			if viewer and viewer.ui and viewer.ui.trainer and not viewer.ui.trainer.visible:
 				viewer.ui.trainer.open()
@@ -879,7 +882,7 @@ func con_level(player_level: int, npc_level: int) -> int:
 ## Targeting on the server, as the old client did: "You target [X]." here, the examine line from the server (the
 ## examine bit), the in-view bits so it doesn't answer "Target is not in view."
 func select(n: Npc) -> void:
-	if n == null or not n.state.alive:
+	if n == null or not (n.state.alive or n.rez_target()):   # (a dead bot / companion stays targetable: to resurrect)
 		return
 	target = n
 	target_object = 0

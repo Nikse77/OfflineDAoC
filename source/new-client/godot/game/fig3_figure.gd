@@ -407,10 +407,8 @@ func set_helm(model: int, hidden := false, color := 0) -> void:
 					if dyed != Color.WHITE and mesh_i.mesh:
 						for si in mesh_i.mesh.get_surface_count():
 							var mat := mesh_i.get_active_material(si)
-							if mat is BaseMaterial3D:
-								var m2 := (mat as BaseMaterial3D).duplicate() as BaseMaterial3D
-								m2.albedo_color = m2.albedo_color * dyed
-								mesh_i.set_surface_override_material(si, m2)
+							if mat is BaseMaterial3D:                 # (one shared dyed copy: WeaponModels.dyed_material)
+								mesh_i.set_surface_override_material(si, WeaponModels.dyed_material(mat, dyed))
 				_helm = at
 				_helm_hair = int(e.get("hair", 0))
 	_refresh_hair()
