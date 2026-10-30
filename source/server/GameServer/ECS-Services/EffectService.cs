@@ -68,8 +68,19 @@ namespace DOL.GS
             }
         }
 
+        /// <summary>An ended effect has no business in the service; only a restart (Starting / Enabling) may bring one back.</summary>
+        public static bool IsStaleEndedEffect(bool ended, bool starting, bool enabling) => ended && !starting && !enabling;
+
         private static void TickEffect(ECSGameEffect effect)
         {
+            // Last line of defence against any other path that re-adds an ended effect: it can't be ended again, so it would
+            // tick forever (from rambodolphin13/OfflineDAoC 7a8ae69).
+            if (IsStaleEndedEffect(effect.IsEnded, effect.IsStarting, effect.IsEnabling))
+            {
+                ServiceObjectStore.Remove(effect);
+                return;
+            }
+
             if (effect is ECSGameAbilityEffect abilityEffect)
                 TickAbilityEffect(abilityEffect);
             else if (effect is ECSGameSpellEffect spellEffect)
