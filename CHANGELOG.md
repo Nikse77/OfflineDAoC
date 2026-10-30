@@ -234,6 +234,12 @@ The newest version is first. For the full detail of every earlier update, see
   Minstrel, Scout and Valewalker), and four builds were added: Death Servant Necromancer, Soulrending Reaver (flail
   and shield), Regrowth Bard and Spear Hunter. Existing builds and the bots already playing them are unchanged.
 
+**The original client**
+- The character creation screen no longer shows the Atlas freeshard's "Class / Race Combination:
+  https://planner.atlasfreeshard.com" line across its top; that strip is now the same plain stone as the other
+  pregame screens. Only the creation screen's picture in `pregame/pregame.mpk` changed; the original is kept in
+  `runtime/client-opendaoc/app/backups/no-atlas-planner-text-20261030/` (tool: `source/tools/remove_atlas_planner_line.py`).
+
 **The new client (0.38c)**
 - A monster or NPC that dies stops attacking at once. It sometimes went on swinging for a second or two over its
   death, when a blow of its own arrived just after the killing blow; the original client never animates a dead body.
