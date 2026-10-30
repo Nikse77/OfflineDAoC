@@ -16,9 +16,13 @@ namespace DOL.GS.Commands
             // Keep the command catalog resilient to an older generated identity
             // list.  Sluaghbinder is an isolated Hibernian class and must be
             // available to both the popup and the text form of /spawn even when
-            // a runtime is updated one assembly at a time.
+            // a runtime is updated one assembly at a time.  Only while the edition
+            // has the class on (classes / enable_sluaghbinder): with it off the
+            // menu offered it and choosing it threw 'Sluaghbinder is not a Classic
+            // + SI Hibernia class' from the identity generator (2026-10-30, 0.37).
             IEnumerable<eCharacterClass> classes = AutonomousBotIdentityGenerator.GetEraClasses(realm);
-            if (realm == eRealm.Hibernia && !classes.Contains(eCharacterClass.Sluaghbinder))
+            if (realm == eRealm.Hibernia && ServerProperties.Properties.ENABLE_SLUAGHBINDER &&
+                !classes.Contains(eCharacterClass.Sluaghbinder))
                 classes = classes.Append(eCharacterClass.Sluaghbinder);
 
             return classes.Select(characterClass => (characterClass, BotPartyRoles.Label(characterClass)));
