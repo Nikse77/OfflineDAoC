@@ -701,6 +701,25 @@ namespace DOL.GS
             UpdateObjectForPlayerInternal(player, npc);
         }
 
+        /// <summary>
+        /// A gamebot died: the clients that know it get it removed as a dead body now, which plays the death animation and leaves
+        /// the body lying. A client that does not know it yet gets it from the world update (UpdateNpcs).
+        /// </summary>
+        public static void ShowDeadBody(GameNPC body)
+        {
+            foreach (GamePlayer player in body.GetPlayersInRadius(WorldMgr.VISIBILITY_DISTANCE))
+            {
+                if (player.Client.ClientState is not GameClient.eClientState.Playing)
+                    continue;
+
+                lock (player.PlayerObjectCache.NpcUpdateCacheLock)
+                {
+                    if (player.PlayerObjectCache.NpcUpdateCache.ContainsKey(body) && player.PlayerObjectCache.DeadBodiesShown.Add(body))
+                        player.Out.SendObjectRemove(body);
+                }
+            }
+        }
+
         public static void UpdateNpcForPlayers(GameNPC npc, bool udp = true)
         {
             foreach (GamePlayer player in npc.GetPlayersInRadius(WorldMgr.VISIBILITY_DISTANCE))
@@ -833,14 +852,19 @@ namespace DOL.GS
             HashSet<GameNPC> inRangeSet = player.PlayerObjectCache.NpcInRangeCache;
             Dictionary<GameNPC, CachedNpcValues> npcUpdateCache = player.PlayerObjectCache.NpcUpdateCache;
 
+            List<GameNPC> corpses = null;
             foreach (GameNPC npc in player.GetObjectsInRadius<GameNPC>(eGameObjectType.NPC, WorldMgr.VISIBILITY_DISTANCE))
             {
-                // A dead gamebot is left out: its death animation was sent on removal (GameBot.ProcessDeath), and the update sent every
-                // few seconds to an NPC in range makes the client show it again, standing and targetable. The resurrection and the
-                // release move the bot, and a living bot not in the cache is created here.
-                if (npc.ObjectState is GameObject.eObjectState.Active && npc.IsVisibleTo(player) && player.CanDetect(npc) &&
-                    npc is not GameBot { IsAlive: false })
-                    inRangeSet.Add(npc);
+                // A dead gamebot is not updated: the update sent every few seconds to an NPC in range makes the client show it again,
+                // standing and targetable. It is shown dying once instead (below). The resurrection and the release move the bot,
+                // and a living bot not in the cache is created here.
+                if (npc.ObjectState is GameObject.eObjectState.Active && npc.IsVisibleTo(player) && player.CanDetect(npc))
+                {
+                    if (npc is GameBot { IsAlive: false })
+                        (corpses ??= new()).Add(npc);
+                    else
+                        inRangeSet.Add(npc);
+                }
             }
 
             foreach (var pair in npcUpdateCache)
@@ -871,6 +895,27 @@ namespace DOL.GS
                         UpdateObjectForPlayerInternal(player, npcInRange);
                 }
             }
+
+            // A dead gamebot is shown to this client once: a client that does not know it gets it created first, then it is removed as a
+            // dead body, which makes the client play the death animation and leave the body lying (the removal type comes from the
+            // health). The body is not targetable, as a dead monster's is not.
+            HashSet<GameNPC> shown = player.PlayerObjectCache.DeadBodiesShown;
+            if (corpses != null)
+            {
+                foreach (GameNPC corpse in corpses)
+                {
+                    if (!shown.Add(corpse))
+                        continue;
+
+                    if (!npcUpdateCache.ContainsKey(corpse))
+                        CreateNpcForPlayerInternal(player, corpse);
+
+                    player.Out.SendObjectRemove(corpse);
+                }
+            }
+
+            if (shown.Count > 0)
+                shown.RemoveWhere(npc => corpses == null || !corpses.Contains(npc));
 
             inRangeSet.Clear();
         }

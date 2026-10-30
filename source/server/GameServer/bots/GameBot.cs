@@ -972,10 +972,9 @@ namespace DOL.GS
                 ReportPartyDeath(killer);
             base.ProcessDeath(killer);
             // The client plays a body's death animation when the object is removed with health 0 (SendObjectRemove writes the type from
-            // the health) and keeps the body lying where it fell; a gamebot stays in the world to be raised, so it never got that packet
+            // the health) and leaves the body lying where it fell; a gamebot stays in the world to be raised, so it never got that packet
             // and stood up. The resurrection and the release move the bot (MoveTo), which creates it again for the viewers.
-            foreach (GamePlayer viewer in GetPlayersInRadius(WorldMgr.VISIBILITY_DISTANCE))
-                viewer.Out.SendObjectRemove(this);
+            ClientService.ShowDeadBody(this);
             if (IsAutonomousWorldBot)
                 AutonomousBotStatusPersistence.Queue(this);
             StartDeathRecoveryTimer();

@@ -13651,6 +13651,8 @@ namespace DOL.GS
         public readonly Dictionary<GameDoorBase, long> DoorUpdateCache = new();
         public readonly Dictionary<House, long> HouseUpdateCache = new();
         public readonly HashSet<GameNPC> NpcInRangeCache = new();
+        /// <summary>Dead gamebots this client was shown dying (removed as dead bodies); the body stays lying on its side, so they are not sent again.</summary>
+        public readonly HashSet<GameNPC> DeadBodiesShown = new();
         public readonly HashSet<GameStaticItem> ItemInRangeCache = new();
         public readonly HashSet<GameDoorBase> DoorInRangeCache = new();
         public readonly HashSet<House> HouseInRangeCache = new();
@@ -13662,7 +13664,7 @@ namespace DOL.GS
         /// <summary><see cref="Clear"/> under the cache locks, for a refresh while the world update may be running.</summary>
         public void ClearLocked()
         {
-            lock (NpcUpdateCacheLock) { NpcUpdateCache.Clear(); NpcInRangeCache.Clear(); }
+            lock (NpcUpdateCacheLock) { NpcUpdateCache.Clear(); NpcInRangeCache.Clear(); DeadBodiesShown.Clear(); }
             lock (ItemUpdateCacheLock) { ItemUpdateCache.Clear(); ItemInRangeCache.Clear(); }
             lock (DoorUpdateCacheLock) { DoorUpdateCache.Clear(); DoorInRangeCache.Clear(); }
             lock (HouseUpdateCacheLock) { HouseUpdateCache.Clear(); HouseInRangeCache.Clear(); }
@@ -13671,6 +13673,7 @@ namespace DOL.GS
         public void Clear()
         {
             NpcUpdateCache.Clear();
+            DeadBodiesShown.Clear();
             ItemUpdateCache.Clear();
             DoorUpdateCache.Clear();
             HouseUpdateCache.Clear();
