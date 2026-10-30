@@ -362,7 +362,7 @@ namespace DOL.GS
         }
 
         public Spell(DbSpell dbspell, int requiredLevel, bool minotaur)
-			: base(dbspell.Name, dbspell.SpellID, (ushort) dbspell.Icon, requiredLevel, dbspell.TooltipId)
+			: base(dbspell.Name, dbspell.SpellID, OldClientSongIcons.For((ushort) dbspell.Icon, dbspell.Type), requiredLevel, dbspell.TooltipId)
 		{
 			m_description = dbspell.Description;
 			m_target = Enum.Parse<eSpellTarget>(dbspell.Target, true);
