@@ -341,6 +341,21 @@ The newest version is first. For the full detail of every earlier update, see
   your backpack, then SELL, or APPRAISE to hear what the merchant would pay. Dragging an item onto the window still
   sells it.
 - Closing the new client while characters around you are still loading no longer crashes it on the way out.
+- The new client no longer freezes for good at the loading screen or soon after logging in. It happened on most
+  logins in testing: loading the spell effects, armour and models of the people around you in the background could
+  take every slot the game engine keeps for small background jobs while waiting on the game itself, and the engine
+  then waited on one of those slots forever. That background loading now runs on its own threads, and if the game
+  ever stops responding for 8 seconds it writes what it was waiting on to its log.
+- Logging in with a dyed weapon or helm no longer fills the log with "material is null" errors (and the occasional
+  crash that could follow): the dyed copy of its look is now made once and shared.
+- Crafting works in the new client. /craft (or a tradeskill row in the skills window) opens the tradeskill window:
+  pick a trade, a product and its material tier, see what it needs and how much of it you carry, and MAKE it; the
+  original's progress bar shows while you work, and MAKE again cancels. Your tradeskills and their levels are listed
+  in the skills window.
+- The item information window has SALVAGE and REPAIR buttons for items in your backpack, as in the original client.
+- A house vault's window is titled HOUSE VAULT; only an Account Vault Keeper's page says ACCOUNT VAULT.
+- Dead companion bots and gamebots can be targeted again (click the body, or the group window), so you can
+  resurrect them. Monster bodies still can't be targeted.
 
 **Credits**
 - Thanks to chris4aker's Living Server fork
