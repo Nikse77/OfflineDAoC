@@ -1776,6 +1776,7 @@ namespace DOL.AI.Brain
 
         private bool TryHandleAutonomousRealmExchange(RealmExchangeBroker arrivedBroker = null)
         {
+            using var _section = NavQueryProfile.Section("Brain.Exchange");
             GameBot bot = BotBody;
             long now = GameLoop.GameLoopTime;
             if (bot?.IsAutonomousWorldBot != true || bot.IsTemporaryGroupHelper || bot.IsPlayerLedGroup ||
@@ -2061,6 +2062,7 @@ namespace DOL.AI.Brain
 
         private bool TryMaintainTravelAndClassBuffs()
         {
+            using var _section = NavQueryProfile.Section("Brain.TravelBuffs");
             GameBot bot = BotBody;
             bool waitingForLeader = CompanionFollowPolicy.WaitingForLeaderToStop(bot);
             if (waitingForLeader && !CompanionFollowPolicy.CanStopForNativeTravelSpeed(bot))
@@ -2872,6 +2874,7 @@ namespace DOL.AI.Brain
 
             public override void Think()
             {
+                using var _section = NavQueryProfile.Section("State.Idle");
                 _brain.AlreadyCheckedHeals = false;
 
                 if (_brain.HasAggro)
@@ -2921,6 +2924,7 @@ namespace DOL.AI.Brain
 
             public override void Think()
             {
+                using var _section = NavQueryProfile.Section("State.Follow");
                 _brain.AlreadyCheckedHeals = false;
 
                 if (_brain.HasAggro)
@@ -3053,6 +3057,7 @@ namespace DOL.AI.Brain
 
             public override void Think()
             {
+                using var _section = NavQueryProfile.Section("State.Aggro");
                 _brain.AlreadyCheckedHeals = false;
                 if (_aggroEndTime == long.MaxValue)
                     _aggroEndTime = GameLoop.GameLoopTime + LEAVE_WHEN_OUT_OF_COMBAT_FOR;

@@ -107,6 +107,7 @@ public static class AutonomousBotChatCoordinator
 
     public static bool TryAdvertiseExchangeItem(GameBot seller, string exactItemName)
     {
+        using var _section = NavQueryProfile.Section("Exchange.Advert");
         if (!Eligible(seller) || string.IsNullOrWhiteSpace(exactItemName) || !HasFactionAudience(seller.Realm))
             return false;
         lock (Sync)

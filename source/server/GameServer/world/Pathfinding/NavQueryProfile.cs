@@ -18,12 +18,14 @@ namespace DOL.GS
         [ThreadStatic] private static int[] _calls;
         [ThreadStatic] private static long[] _ticks;
         [ThreadStatic] private static List<(string Site, long Ticks)> _sites;
+        [ThreadStatic] private static List<(string Name, long Ticks)> _sections;
         [ThreadStatic] private static string _scope;
         [ThreadStatic] private static Dictionary<string, (int Calls, long Ticks)> _scopes;
 
         public static void Reset()
         {
             _sites?.Clear();
+            _sections?.Clear();
             _scopes?.Clear();
             _scope = null;
             if (_calls == null) { _calls = new int[(int)Kind.Count]; _ticks = new long[(int)Kind.Count]; return; }
@@ -45,6 +47,34 @@ namespace DOL.GS
             for (int i = 0; i < _sites.Count; i++)
                 if (_sites[i].Site == site) { _sites[i] = (site, _sites[i].Ticks + ticks); return; }
             _sites.Add((site, ticks));
+        }
+
+        /// <summary>
+        /// Times a named stretch of a bot's turn ("sectionsBy=" in the summary, inclusive of anything nested inside it, shown when it took
+        /// <see cref="SiteThresholdMilliseconds"/> or more). Diagnostics only (2026-10-30): 21% of the long turns spent nothing on
+        /// pathfinding and the Realm Exchange turns reached 737 ms, and the summary could not say where.
+        /// <code>using var _section = NavQueryProfile.Section("Name");</code>
+        /// </summary>
+        public static SectionTimer Section(string name) => new(name, Stopwatch.GetTimestamp());
+
+        public readonly struct SectionTimer : IDisposable
+        {
+            private readonly string _name;
+            private readonly long _started;
+
+            public SectionTimer(string name, long started) { _name = name; _started = started; }
+            public void Dispose() => NoteSection(_name, _started);
+        }
+
+        private static void NoteSection(string name, long started)
+        {
+            if (_calls == null) return;
+            long ticks = Stopwatch.GetTimestamp() - started;
+            if (ticks * 1000 < SiteThresholdMilliseconds * Stopwatch.Frequency) return;
+            _sections ??= new List<(string, long)>();
+            for (int i = 0; i < _sections.Count; i++)
+                if (_sections[i].Name == name) { _sections[i] = (name, _sections[i].Ticks + ticks); return; }
+            _sections.Add((name, ticks));
         }
 
         public static long Start() => Stopwatch.GetTimestamp();
@@ -103,6 +133,14 @@ namespace DOL.GS
                 for (int i = 0; i < Math.Min(3, _sites.Count); i++)
                     text.Append(i > 0 ? "," : "").Append(_sites[i].Site).Append(':')
                         .Append((_sites[i].Ticks * 1000 / Stopwatch.Frequency).ToString()).Append("ms");
+            }
+            if (_sections is { Count: > 0 })
+            {
+                _sections.Sort((a, b) => b.Ticks.CompareTo(a.Ticks));
+                text.Append(" sectionsBy=");
+                for (int i = 0; i < Math.Min(5, _sections.Count); i++)
+                    text.Append(i > 0 ? "," : "").Append(_sections[i].Name).Append(':')
+                        .Append((_sections[i].Ticks * 1000 / Stopwatch.Frequency).ToString()).Append("ms");
             }
             return text.Length == 0 ? string.Empty : " nav:" + text;
         }

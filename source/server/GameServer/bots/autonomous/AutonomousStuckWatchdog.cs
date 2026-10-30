@@ -302,6 +302,7 @@ public static class AutonomousStuckWatchdog
     /// </summary>
     public static bool Observe(GameBot bot, DateTime? nowUtc = null)
     {
+        using var _section = NavQueryProfile.Section("Brain.Watchdog");
         if (bot?.IsAutonomousWorldBot != true || bot.DatabaseID <= 0 || bot.PersistentRecord == null ||
             bot.ObjectState != GameObject.eObjectState.Active)
             return false;

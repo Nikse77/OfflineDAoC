@@ -270,6 +270,7 @@ namespace DOL.GS
 
         public bool Tick(BotBrain brain)
         {
+            using var _section = NavQueryProfile.Section("Brain.WorldController");
             GameBot bot = brain?.BotBody;
             if (bot?.IsAutonomousWorldBot != true || bot.IsTemporaryGroupHelper || bot.IsPlayerLedGroup)
                 return false;

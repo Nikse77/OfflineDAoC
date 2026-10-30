@@ -325,6 +325,7 @@ public static class AutonomousPetSupport
         out string activity,
         Func<Spell, bool> spellAllowed = null)
     {
+        using var _section = NavQueryProfile.Section("Brain.PetUpkeep");
         if (owner is GameBot petOwner && PetEaterNear(petOwner) is { } eater)
         {
             if (petOwner.ControlledBrain?.Body != null)

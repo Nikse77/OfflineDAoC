@@ -549,6 +549,7 @@ namespace DOL.GS;
 
         public static ListingCandidate FindValuableListingCandidate(GameBot bot)
     {
+        using var _section = NavQueryProfile.Section("Exchange.FindCandidate");
         if (bot?.Inventory == null || bot.DatabaseID <= 0 ||
             (!IsBackpackFull(bot) && !AutonomousObjectiveAssignments.IsBetweenPveTasks(bot)))
             return null;
@@ -881,6 +882,7 @@ namespace DOL.GS;
 
     public static bool TryList(GameBot bot, DbInventoryItem item, int priceCopper)
     {
+        using var _section = NavQueryProfile.Section("Exchange.TryList");
         if (bot?.IsAutonomousWorldBot != true || bot.IsTemporaryGroupHelper || bot.DatabaseID <= 0 ||
             item == null || !item.IsTradable || priceCopper <= 0 || item.OwnerLot != 0 || BotSiegeRuntime.IsSupply(item.Id_nb) ||
             item.SlotPosition is < (int)eInventorySlot.FirstBackpack or > (int)eInventorySlot.LastBackpack)
@@ -943,6 +945,7 @@ namespace DOL.GS;
 
     public static int FindFreeListingSlot(string ownerId)
     {
+        using var _section = NavQueryProfile.Section("Exchange.FindSlot");
         var used = MarketCache.SearchItems(new ItemQuery { Owner = ownerId })
             .Where(item => RealmExchangeBroker.IsExchangeOwnerLot(item.OwnerLot)).Select(item => item.SlotPosition).ToHashSet();
         if (used.Count >= MaxBotRealmExchangeListings) return -1;
