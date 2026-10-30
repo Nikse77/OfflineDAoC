@@ -3,7 +3,7 @@ namespace DOL.GS
     /// <summary>
     /// Owner 2026-10-30, two rules for the buffs a bot casts that cost concentration:
     /// a self-only dexterity buff is cast before the others (the rest then go in the usual order, as the concentration
-    /// allows), and an acuity buff only goes to casters who really use it.
+    /// allows), and an acuity buff only goes to the pure casters (the mages).
     /// </summary>
     public static class BotBuffRules
     {
@@ -12,12 +12,21 @@ namespace DOL.GS
             spell != null && spell.Target == eSpellTarget.SELF &&
             spell.SpellType is eSpellType.DexterityBuff or eSpellType.DexterityQuicknessBuff;
 
+        /// <summary>The pure casters (the mages): the only classes that get an acuity buff (owner 2026-10-30).</summary>
+        public static readonly System.Collections.Generic.HashSet<eCharacterClass> PureCasters =
+        [
+            eCharacterClass.Wizard, eCharacterClass.Sorcerer, eCharacterClass.Cabalist, eCharacterClass.Necromancer,
+            eCharacterClass.Theurgist,
+            eCharacterClass.Eldritch, eCharacterClass.Enchanter, eCharacterClass.Mentalist, eCharacterClass.Animist,
+            eCharacterClass.Bainshee,
+            eCharacterClass.Runemaster, eCharacterClass.Spiritmaster, eCharacterClass.Bonedancer, eCharacterClass.Warlock,
+        ];
+
         /// <summary>
-        /// Acuity raises the mana stat of the classes with a spell list only (the same rule the stat calculator applies);
-        /// warriors, archers, rogues and hybrids, and pets, gain nothing from it.
+        /// Acuity goes to the pure casters only: not to priests (Cleric, Druid, Shaman...), hybrids, melee classes or pets.
         /// </summary>
         public static bool UsesAcuity(ICharacterClass characterClass) =>
-            characterClass?.ClassType == eClassType.ListCaster;
+            characterClass != null && PureCasters.Contains((eCharacterClass)characterClass.ID);
 
         public static bool UsesAcuity(GameLiving living) => living switch
         {

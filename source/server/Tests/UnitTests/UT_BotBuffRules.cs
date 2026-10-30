@@ -1,5 +1,6 @@
 using DOL.GS;
 using DOL.GS.PlayerClass;
+using DOL.GS.PlayerClass;
 using NUnit.Framework;
 
 namespace DOL.UnitTests
@@ -23,7 +24,24 @@ namespace DOL.UnitTests
         public void NoSpellIsNotADexterityBuff() => Assert.That(BotBuffRules.IsSelfDexterityBuff(null), Is.False);
 
         [Test]
-        public void AcuityBuffsAreWastedOnAnythingButAListCaster()
+        public void OnlyThePureCastersUseAcuity()
+        {
+            Assert.That(BotBuffRules.UsesAcuity(new ClassWizard()), Is.True);
+            Assert.That(BotBuffRules.UsesAcuity(new ClassNecromancer()), Is.True);
+            Assert.That(BotBuffRules.UsesAcuity(new ClassMentalist()), Is.True);
+            Assert.That(BotBuffRules.UsesAcuity(new ClassAnimist()), Is.True);
+            Assert.That(BotBuffRules.UsesAcuity(new ClassRunemaster()), Is.True);
+            Assert.That(BotBuffRules.UsesAcuity(new ClassCleric()), Is.False, "a priest is not a pure caster");
+            Assert.That(BotBuffRules.UsesAcuity(new ClassDruid()), Is.False);
+            Assert.That(BotBuffRules.UsesAcuity(new ClassShaman()), Is.False);
+            Assert.That(BotBuffRules.UsesAcuity(new ClassValewalker()), Is.False);
+            Assert.That(BotBuffRules.UsesAcuity(new ClassArmsman()), Is.False);
+            Assert.That(BotBuffRules.UsesAcuity(new ClassHunter()), Is.False);
+            Assert.That(BotBuffRules.UsesAcuity(new ClassPaladin()), Is.False);
+        }
+
+        [Test]
+        public void AcuityBuffsAreWastedOnAnythingButAPureCaster()
         {
             Assert.That(BotBuffRules.UsesAcuity((ICharacterClass)null), Is.False);
             Assert.That(BotBuffRules.UsesAcuity((GameLiving)null), Is.False);
