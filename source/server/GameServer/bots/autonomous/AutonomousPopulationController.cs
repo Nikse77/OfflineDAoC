@@ -127,7 +127,7 @@ public static class AutonomousPopulationController
             for (int i = 0; i < enqueueCount; i++)
             {
                 long? nextId = AutonomousRealmLoginBalancer.SelectNext(
-                    available.Select(record => new AutonomousRealmLoginBalancer.Candidate(record.BotId, (eRealm)record.Realm)),
+                    available.Select(record => new AutonomousRealmLoginBalancer.Candidate(record.BotId, (eRealm)record.Realm, record.Level)),
                     realmLoad);
                 OfflineWorldBotRecord next = nextId.HasValue
                     ? available.FirstOrDefault(record => record.BotId == nextId.Value)

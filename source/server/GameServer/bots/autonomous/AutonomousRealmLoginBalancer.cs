@@ -4,10 +4,13 @@ using System.Linq;
 
 namespace DOL.GS;
 
-/// <summary>Chooses the next login by realm load rather than database id.</summary>
+/// <summary>
+/// Chooses the next login by level first (owner 2026-10-31: when the server starts the level-50 bots enter the world first, then the
+/// others from the highest level down), and within that level by realm load rather than database id.
+/// </summary>
 public static class AutonomousRealmLoginBalancer
 {
-    public readonly record struct Candidate(long BotId, eRealm Realm);
+    public readonly record struct Candidate(long BotId, eRealm Realm, int Level = 0);
 
     public static long? SelectNext(
         IEnumerable<Candidate> candidates,
@@ -19,6 +22,10 @@ public static class AutonomousRealmLoginBalancer
             .ToArray() ?? [];
         if (available.Length == 0)
             return null;
+
+        // Only the highest level still waiting is considered: all of them enter before the next level does.
+        int highestLevel = available.Max(candidate => candidate.Level);
+        available = available.Where(candidate => candidate.Level == highestLevel).ToArray();
 
         eRealm selectedRealm = available
             .Select(candidate => candidate.Realm)
