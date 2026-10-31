@@ -15,17 +15,31 @@ namespace DOL.UnitTests
         {
             var looks = WeaponReskinCatalog.Looks(new[]
             {
-                C(100, "Heartwood Bow", 25), C(100, "Rowan Bow", 5), C(100, "Elm Bow", 10),
-                C(200, "Runewood Longbow", 30),
+                C(100, "Duskwood Bow", 51), C(100, "Rowan Bow", 5), C(100, "Dyrwood Bow", 50),
+                C(200, "Heartwood Longbow", 50),
             }, currentModel: 0);
 
-            Assert.That(looks.Select(look => (look.Model, look.Name)), Is.EqualTo(new[] { (100, "Rowan Bow"), (200, "Runewood Longbow") }));
+            Assert.That(looks.Select(look => (look.Model, look.Name)), Is.EqualTo(new[] { (100, "Dyrwood Bow"), (200, "Heartwood Longbow") }));
+        }
+
+        [Test]
+        public void OnlyItemsOfLevelFiftyOrAboveGiveLooks()
+        {
+            var looks = WeaponReskinCatalog.Looks(new[]
+            {
+                C(1, "Rowan Bow", 5), C(2, "Elm Bow", 49), C(3, "Heartwood Bow", 50), C(4, "Dyrwood Bow", 51),
+                C(5, "Mixed", 10), C(5, "Mixed Better", 50),
+            }, currentModel: 0);
+
+            Assert.That(looks.Select(look => look.Model), Is.EquivalentTo(new[] { 3, 4, 5 }),
+                "a model also used by an item of level 50 stays, named after that item");
+            Assert.That(looks.Single(look => look.Model == 5).Name, Is.EqualTo("Mixed Better"));
         }
 
         [Test]
         public void TheWeaponsOwnModelAndEmptyModelsAreLeftOut()
         {
-            var looks = WeaponReskinCatalog.Looks(new[] { C(100, "A", 1), C(200, "B", 1), C(0, "No model", 1), C(300, "  ", 1) }, currentModel: 100);
+            var looks = WeaponReskinCatalog.Looks(new[] { C(100, "A", 50), C(200, "B", 50), C(0, "No model", 50), C(300, "  ", 50) }, currentModel: 100);
 
             Assert.That(looks.Select(look => look.Model), Is.EqualTo(new[] { 200 }));
         }
@@ -33,7 +47,7 @@ namespace DOL.UnitTests
         [Test]
         public void LooksAreOrderedByName()
         {
-            var looks = WeaponReskinCatalog.Looks(new[] { C(3, "zeta", 1), C(1, "Alpha", 1), C(2, "beta", 1) }, 0);
+            var looks = WeaponReskinCatalog.Looks(new[] { C(3, "zeta", 50), C(1, "Alpha", 50), C(2, "beta", 50) }, 0);
 
             Assert.That(looks.Select(look => look.Name), Is.EqualTo(new[] { "Alpha", "beta", "zeta" }));
         }

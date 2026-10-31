@@ -13,16 +13,20 @@ namespace DOL.GS
         // stays for a kind that ever has more than this.
         public const int PageSize = 200;
 
+        /// <summary>Owner 2026-10-31: only the looks of items of this level or above are offered.</summary>
+        public const int MinimumLevel = 50;
+
         public sealed record Look(int Model, string Name, int Level);
 
         public sealed record Candidate(int Model, string Name, int Level);
 
         /// <summary>
-        /// One look per model, left out the model the weapon already has. A model is named after its lowest-level item
-        /// (then the first by name); looks are ordered by that name.
+        /// One look per model, left out the model the weapon already has and every model that only items below
+        /// <see cref="MinimumLevel"/> use. A model is named after its lowest-level item of that level or above (then the
+        /// first by name); looks are ordered by that name.
         /// </summary>
         public static IReadOnlyList<Look> Looks(IEnumerable<Candidate> candidates, int currentModel) => candidates
-            .Where(c => c.Model > 0 && c.Model != currentModel && !string.IsNullOrWhiteSpace(c.Name))
+            .Where(c => c.Level >= MinimumLevel && c.Model > 0 && c.Model != currentModel && !string.IsNullOrWhiteSpace(c.Name))
             .GroupBy(c => c.Model)
             .Select(group => group.OrderBy(c => c.Level).ThenBy(c => c.Name, System.StringComparer.OrdinalIgnoreCase).First())
             .Select(c => new Look(c.Model, c.Name.Trim(), c.Level))
