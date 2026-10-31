@@ -193,8 +193,26 @@ public static class AutonomousRvrDashboard
                     ? new Participant(target, force, bot.Name, GlobalConstants.RealmToName(bot.Realm), bot.CurrentZone?.Description ?? "Unknown",
                         bot.PersistentRecord?.Activity ?? "", bot.X, bot.Y, bot.Z) : null;
             }).Where(p => p != null).ToArray();
-            string json = JsonSerializer.Serialize(new Snapshot(DateTime.UtcNow, true, keeps.Concat(relics).Concat(raids).ToArray(), participants,
-                BattlegroundStatus()));
+            // Owner 2026-11-01: groups on patrol are in no siege, so they were in no list. Each patrol zone is a row of its own.
+            Participant[] onPatrol = AutonomousBotRegistry.Snapshot().Where(AutonomousRealmRaid.IsEligible).Select(bot =>
+            {
+                string force = bot.TempProperties.GetProperty<string>("RvrEventForce") ?? $"rvr-{bot.DatabaseID}";
+                if (bot.Group == null || forceTargets.ContainsKey(force) || AutonomousRealmRaid.GetView(bot.Group) != null) return null;
+                ushort? region = AutonomousRvrRoamZones.PatrolRegionOf(force);
+                return region == null ? null : new Participant($"rvr-patrol-{region}", force, bot.Name, GlobalConstants.RealmToName(bot.Realm),
+                    bot.CurrentZone?.Description ?? "Unknown", bot.PersistentRecord?.Activity ?? "", bot.X, bot.Y, bot.Z);
+            }).Where(p => p != null).ToArray();
+            Objective[] patrolRows = AutonomousRvrRoamZones.PatrolOrder.Select(region =>
+            {
+                Participant[] here = onPatrol.Where(p => p.EventId == $"rvr-patrol-{region}").ToArray();
+                string zone = region switch { 200 => "Emain Macha", 100 => "Odin's Gate", _ => "Hadrian's Wall" };
+                string forces = here.Length == 0 ? "No group on patrol" : string.Join(" | ", here.GroupBy(p => p.Realm).Select(group =>
+                    $"{group.Key}: {group.Select(p => p.GroupId).Distinct().Count()} group(s), {group.Count()} bots"));
+                return new Objective("Patrol", "Patrol - " + zone, "-", here.Length == 0 ? "Idle" : "PATROL", WorldMgr.GetRegion(region)?.Description ?? zone,
+                    "", forces, $"rvr-patrol-{region}");
+            }).ToArray();
+            string json = JsonSerializer.Serialize(new Snapshot(DateTime.UtcNow, true,
+                keeps.Concat(relics).Concat(raids).Concat(patrolRows).ToArray(), participants.Concat(onPatrol).ToArray(), BattlegroundStatus()));
             File.WriteAllText(FilePath + ".tmp", json);
             File.Move(FilePath + ".tmp", FilePath, true);
         }

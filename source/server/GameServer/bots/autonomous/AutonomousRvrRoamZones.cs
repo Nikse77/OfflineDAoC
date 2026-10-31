@@ -55,6 +55,10 @@ public static class AutonomousRvrRoamZones
         return chosen;
     }
 
+    /// <summary>The patrol region a force already has (null when it has none yet); it never assigns one.</summary>
+    public static ushort? PatrolRegionOf(string forceId) =>
+        !string.IsNullOrEmpty(forceId) && Patrols.TryGetValue(forceId, out Patrol known) ? known.Region : null;
+
     /// <summary>The group (or force) is over: its zone is free again for the next one.</summary>
     public static void Release(string forceId) => Patrols.TryRemove(forceId, out _);
 
