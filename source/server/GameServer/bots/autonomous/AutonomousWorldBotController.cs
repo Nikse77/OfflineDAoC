@@ -2544,10 +2544,14 @@ namespace DOL.GS
                                                     member.ClassName.Contains("druid", StringComparison.OrdinalIgnoreCase) ||
                                                     member.ClassName.Contains("bard", StringComparison.OrdinalIgnoreCase));
             bool siegeReady = warband.Length >= 4 && averageLevel >= 35 && CanSupplySiege(bot);
+            // Owner 2026-10-31 (step 5 of the RvR plan): a stealth class on its own (not the Minstrel, who gives the group the
+            // priority) is an ambusher: it keeps to the roaming reserve, patrolling its zone and striking from stealth, and does not
+            // go to sieges, defenses or hunts (the brain's BotRvrAmbush does the striking).
+            bool ambusher = bot.Group == null && AutonomousRvrFormation.IsAmbusher(false, (eCharacterClass)bot.CharacterClass.ID);
             AutonomousRvrEventLayer.Plan plan = AutonomousRvrEventLayer.ChooseOrJoin(
                 new AutonomousRvrEventLayer.Force(_groupDirective?.GroupId ?? $"rvr-{bot.DatabaseID}", bot.Realm,
                     warband.Length, averageLevel, healers, siegeReady,
-                    (unchecked((ulong)(_groupDirective?.Leader?.DatabaseID ?? bot.DatabaseID)) * 2654435761UL % 100) < 30,
+                    ambusher || (unchecked((ulong)(_groupDirective?.Leader?.DatabaseID ?? bot.DatabaseID)) * 2654435761UL % 100) < 30,
                     warband.Select(member => member.DatabaseID).ToArray(), warband.Min(member => member.Level)),
                 objectives, GameLoop.GameLoopTime, Random.Shared.NextDouble());
             _rvrSharedEvent = plan?.IsSharedEvent == true;

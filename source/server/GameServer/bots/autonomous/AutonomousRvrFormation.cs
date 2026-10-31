@@ -31,4 +31,10 @@ public static class AutonomousRvrFormation
     /// </summary>
     public static bool IsSoloStealth(eCharacterClass characterClass) =>
         BotRvrAmbush.IsStealthClass(characterClass) && characterClass != eCharacterClass.Minstrel;
+
+    /// <summary>
+    /// A bot that ambushes: a stealth class on its own. In a group it is an ordinary attacker; the Minstrel, who has the group speed song,
+    /// is never an ambusher (it waits for a group like the others).
+    /// </summary>
+    public static bool IsAmbusher(bool inGroup, eCharacterClass characterClass) => !inGroup && IsSoloStealth(characterClass);
 }

@@ -21,6 +21,14 @@ namespace DOL.UnitTests
         public void TheGroupStartsWithEightOrSixToSevenAfterTheWait(int candidates, long waited, int expected) =>
             Assert.That(AutonomousRvrFormation.TargetSize(candidates, waited), Is.EqualTo(expected));
 
+        [TestCase(false, eCharacterClass.Nightshade, true)]
+        [TestCase(true, eCharacterClass.Nightshade, false)]      // in a group it is an ordinary attacker
+        [TestCase(false, eCharacterClass.Hunter, true)]
+        [TestCase(false, eCharacterClass.Minstrel, false)]       // the Minstrel waits for a group
+        [TestCase(false, eCharacterClass.Cleric, false)]
+        public void OnlyAStealthClassOnItsOwnAmbushes(bool inGroup, eCharacterClass characterClass, bool expected) =>
+            Assert.That(AutonomousRvrFormation.IsAmbusher(inGroup, characterClass), Is.EqualTo(expected));
+
         [TestCase(eCharacterClass.Infiltrator, true)]
         [TestCase(eCharacterClass.Nightshade, true)]
         [TestCase(eCharacterClass.Shadowblade, true)]
