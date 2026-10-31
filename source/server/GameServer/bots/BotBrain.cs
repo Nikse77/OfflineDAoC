@@ -823,6 +823,9 @@ namespace DOL.AI.Brain
             // Shamans melee between their nukes (ShamanBotCombatPolicy).
             characterClass.ID != (int)eCharacterClass.Shaman;
 
+        /// <summary>Owner 2026-10-31: a spell caster aimed at a keep door hits it with its staff instead of casting.</summary>
+        public static bool CasterHitsDoorWithStaff(bool spellCaster, bool targetIsKeepDoor) => spellCaster && targetIsKeepDoor;
+
         private bool PrefersCurrentSpellRange() =>
             PrefersSpellRange(BotBody?.CharacterClass, BotBody?.Group?.MemberCount > 1, BotBody?.IsAutonomousWorldBot == true);
 
@@ -3287,7 +3290,10 @@ namespace DOL.AI.Brain
                     ApproachPlayerLedPullTarget(pullTarget))
                     return;
 
-                bool rangedCaster = PrefersCurrentSpellRange();
+                // Owner 2026-10-31: a spell caster never casts at a keep door; it walks up and hits it with its staff
+                // (companions /spawn included, whatever their no-staff rule: that rule is for monsters and players).
+                bool casterAtDoor = CasterHitsDoorWithStaff(PrefersCurrentSpellRange(), Body.TargetObject is DOL.GS.Keeps.GameKeepDoor);
+                bool rangedCaster = PrefersCurrentSpellRange() && !casterAtDoor;
 
                 // A melee bot already chasing its own target at stick range keeps
                 // that order. Clearing it every think made NpcStartAttack stop the
@@ -3348,7 +3354,7 @@ namespace DOL.AI.Brain
                         Body.attackComponent.AttackState,
                         Body.ActiveWeaponSlot,
                         Body.rangeAttackComponent.RangedAttackState);
-                bool spellAction = !bowCycleOwnsAction && CheckSpells(eCheckSpellType.Offensive);
+                bool spellAction = !bowCycleOwnsAction && !casterAtDoor && CheckSpells(eCheckSpellType.Offensive);
                 bool hasPendingSpell = Body.castingComponent?.HasPendingSkillRequests == true;
                 Spell pendingSpell = null;
                 if (hasPendingSpell)
@@ -3397,7 +3403,7 @@ namespace DOL.AI.Brain
 
                     if (BotBody.CharacterClass.ClassType == eClassType.ListCaster && BotBody.CharacterClass.ID != (int)eCharacterClass.Valewalker)
                     {
-                        if (Body.TargetObject is GameLiving casterTarget && ApproachForOffensiveSpell(casterTarget))
+                        if (!casterAtDoor && Body.TargetObject is GameLiving casterTarget && ApproachForOffensiveSpell(casterTarget))
                             return;
 
                     }
