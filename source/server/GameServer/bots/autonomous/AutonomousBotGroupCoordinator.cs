@@ -1938,8 +1938,11 @@ public static partial class AutonomousBotGroupCoordinator
         if (session.ObjectiveKind == eAutonomousObjectiveKind.RvR &&
             AutonomousRvrEventLayer.TryConsumeRelease(session.Id, GameLoop.GameLoopTime, out string eventReason))
         {
-            FinishGroupTask(session, eventReason);
-            return false;
+            // Owner 2026-11-01: a keep taken, a siege defended or a rally that failed does not dissolve the group. It goes back to
+            // patrolling its zone and ends only when its tenure runs out (the TaskClock check below).
+            if (session.Phase == "Siege in progress") session.Phase = "Choosing group target";
+            Log.Info($"AUTONOMOUS_GROUP_RVR_EVENT_OVER group={session.Id} size={members.Length} reason=\"{eventReason}\" " +
+                     $"remainingSeconds={session.TaskClock.RemainingMilliseconds(GameLoop.GameLoopTime) / 1000}; the group goes back to patrol");
         }
         if (session.TaskClock.HasExpired(GameLoop.GameLoopTime) &&
             raidView == null &&
