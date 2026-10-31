@@ -315,7 +315,11 @@ public static partial class AutonomousRvrEventLayer
         {
             // Defensive boundary: protected hubs cannot become new events,
             // reinforcements or reserve patrols, even if a caller supplies one.
+            bool patrolOver = SiegeScheduling && force != null && AutonomousRvrPatrolLock.Expired(force.GroupId, nowTick);
             Plan plan = ChooseCore(force, objectives?.Where(objective => !objective.IsPortalKeep).ToArray(), nowTick, roll);
+            // Owner 2026-11-01: after its twenty minutes of patrol the force chose; an event ends the lock, a patrol renews it.
+            if (patrolOver && plan != null)
+                AutonomousRvrPatrolLock.ChoiceMade(force.GroupId, nowTick, plan.IsSharedEvent);
             if (force != null)
             {
                 if (plan?.IsSharedEvent == true && force.MemberIds != null && Events.TryGetValue(plan.TargetId, out var joined))
@@ -352,6 +356,12 @@ public static partial class AutonomousRvrEventLayer
             Plan committed = CommittedPlan(force, objectives);
             if (committed != null)
                 return committed;
+
+            // Owner 2026-11-01: a group begins with twenty minutes of patrol and patrols at least twenty between one objective and
+            // the next. A player's attack or a forced siege (Forced, DefenseReaction) is not held back.
+            if (SiegeScheduling && !Events.Values.Any(entry => entry.Forced || entry.DefenseReaction) &&
+                AutonomousRvrPatrolLock.Holds(force.GroupId, nowTick))
+                return ReservePlan(force, objectives);
 
             if (force.RoamingReserve)
                 return ReservePlan(force, objectives);
@@ -1152,6 +1162,7 @@ public static partial class AutonomousRvrEventLayer
     public static void RemoveForce(string forceId)
     {
         AutonomousRvrRoamZones.Release(forceId);
+        AutonomousRvrPatrolLock.Release(forceId);
         lock (Sync)
         {
             foreach (var active in Events.Values)
