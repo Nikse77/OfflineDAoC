@@ -2218,9 +2218,13 @@ public static partial class AutonomousBotGroupCoordinator
                 }
                 else
                 {
-                    FinishGroupTask(session,
-                        "A regroup member has no connected route to the safe rendezvous after a bounded retry");
-                    return false;
+                    // Owner 2026-11-01: an RvR group ends only when its time is up. The member without a route stops holding the
+                    // regroup (the stall recovery brings it to the leader) and the group goes on.
+                    foreach (GameBot member in unreachable)
+                    {
+                        session.HeldUnreachableMembers.Remove(MemberKey(member));
+                        session.UnreachableSince.Remove(MemberKey(member));
+                    }
                 }
             }
         }
