@@ -13,12 +13,18 @@ namespace DOL.UnitTests
         [TestCase(12, 0L, 8)]
         [TestCase(7, 4 * Minute, 0)]            // seven, not yet five minutes: keep waiting
         [TestCase(7, 5 * Minute, 7)]
-        [TestCase(6, 5 * Minute, 6)]
-        [TestCase(6, 4 * Minute + 59_999, 0)]
-        [TestCase(5, 60 * Minute, 0)]            // fewer than six never start, however long they wait
-        [TestCase(1, 60 * Minute, 0)]
+        [TestCase(6, 5 * Minute, 0)]            // six waits ten minutes
+        [TestCase(6, 9 * Minute + 59_999, 0)]
+        [TestCase(6, 10 * Minute, 6)]
+        [TestCase(5, 10 * Minute, 0)]           // five waits twenty
+        [TestCase(5, 19 * Minute, 0)]
+        [TestCase(5, 20 * Minute, 5)]
+        [TestCase(3, 20 * Minute, 3)]           // after twenty minutes any number from two
+        [TestCase(2, 20 * Minute, 2)]
+        [TestCase(1, 60 * Minute, 0)]           // one is not a group
         [TestCase(0, 60 * Minute, 0)]
-        public void TheGroupStartsWithEightOrSixToSevenAfterTheWait(int candidates, long waited, int expected) =>
+        [TestCase(7, 60 * Minute, 7)]
+        public void TheGroupStartsWithEightAndTheWaitLowersTheSize(int candidates, long waited, int expected) =>
             Assert.That(AutonomousRvrFormation.TargetSize(candidates, waited), Is.EqualTo(expected));
 
         [TestCase(false, eCharacterClass.Nightshade, true)]

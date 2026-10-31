@@ -5,24 +5,38 @@ namespace DOL.GS;
 /// AutonomousRvrRoster) whatever they are going to do. A group that cannot be completed starts anyway with six or seven once
 /// somebody has waited for it long enough. The classes that can turn invisible go alone (to ambush) or fill a group last, as
 /// attackers; the Minstrel has the group speed song, so it is a normal group member.
+/// The wait that lowers the size (owner 2026-10-31): five minutes for a group of seven, ten for six, twenty for any size.
 /// </summary>
 public static class AutonomousRvrFormation
 {
     public const int FullSize = 8;
-    public const int SmallestSize = 6;
+    public const int SevenSize = 7;
+    public const int SixSize = 6;
+    public const int SmallestGroup = 2;
 
-    /// <summary>Owner 2026-10-31: five minutes (a trial value) before a group of six or seven may start.</summary>
-    public const long SmallGroupWaitMilliseconds = 5 * 60_000;
+    /// <summary>Owner 2026-10-31: the wait after which a group of seven is accepted.</summary>
+    public const long SevenWaitMilliseconds = 5 * 60_000;
+    /// <summary>The wait after which a group of six is accepted.</summary>
+    public const long SixWaitMilliseconds = 10 * 60_000;
+    /// <summary>The wait after which a group of any size (two or more) is accepted.</summary>
+    public const long AnySizeWaitMilliseconds = 20 * 60_000;
 
     /// <summary>
     /// How many members the group starts with, the leader included, given the bots that could be in it and how long the one that
-    /// waited longest has been waiting: eight when there are eight, six to seven once the wait is over, otherwise 0 (keep waiting).
+    /// waited longest has been waiting: eight when there are eight; seven after five minutes; six after ten; any number from two
+    /// after twenty; otherwise 0 (keep waiting).
     /// </summary>
     public static int TargetSize(int candidates, long longestWaitMilliseconds)
     {
         if (candidates >= FullSize)
             return FullSize;
-        return candidates >= SmallestSize && longestWaitMilliseconds >= SmallGroupWaitMilliseconds ? candidates : 0;
+        if (longestWaitMilliseconds >= AnySizeWaitMilliseconds)
+            return candidates >= SmallestGroup ? candidates : 0;
+        if (longestWaitMilliseconds >= SixWaitMilliseconds)
+            return candidates >= SixSize ? candidates : 0;
+        if (longestWaitMilliseconds >= SevenWaitMilliseconds)
+            return candidates >= SevenSize ? candidates : 0;
+        return 0;
     }
 
     /// <summary>
