@@ -42,6 +42,8 @@ public static partial class AutonomousBotGroupCoordinator
     }
     private static long _nextGroupPveFormationTick;
     private static long _nextRvrFormationTick;
+    // When each RvR bot started to wait for a group (bot id -> tick); a group of six or seven may start after five minutes of it.
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<long, long> RvrWaitingSince = new();
     private static long _lastMaintenanceTick = long.MinValue;
     private static long _maintenanceRetryTick;
     private static int _nextGroupNumber;
@@ -283,15 +285,11 @@ public static partial class AutonomousBotGroupCoordinator
     }
 
     /// <summary>
-    /// RvR intentionally retains independent roamer/hunter bots.  Unlike
-    /// GroupPve, its whole assigned cohort is not eligible for party formation;
-    /// this prevents repeated formation passes from asymptotically grouping all
-    /// compatible bots in a realm.
+    /// Owner 2026-10-31: the RvR bots no longer keep a reserve of independent roamers (it was 35% of the realm's RvR cohort and
+    /// the group size was rolled from one to eight); they form groups of eight (AutonomousRvrFormation).
     /// </summary>
     public static int MaximumGroupedForObjective(eAutonomousObjectiveKind objectiveKind, int rosterCount) =>
-        objectiveKind == eAutonomousObjectiveKind.RvR
-            ? Math.Max(0, rosterCount - MinimumSoloRvrReserve(rosterCount))
-            : Math.Max(0, rosterCount);
+        Math.Max(0, rosterCount);   // owner 2026-10-31: no reserve of RvR solo roamers any more; the stealth classes stay alone by their own rule
 
     public static int MinimumSoloRvrReserve(int rosterCount) => rosterCount < 4
         ? Math.Max(0, rosterCount - 2)
@@ -1678,6 +1676,16 @@ public static partial class AutonomousBotGroupCoordinator
             .OrderBy(_ => Random.Shared.Next())
             .ToArray();
         if (pve) FormationStats.Observe(activeRoster, available);
+        if (objectiveKind == eAutonomousObjectiveKind.RvR)
+        {
+            long waitNow = GameLoop.GameLoopTime;
+            var waiting = new HashSet<long>(available.Select(bot => bot.DatabaseID));
+            foreach (GameBot bot in available)
+                RvrWaitingSince.TryAdd(bot.DatabaseID, waitNow);
+            foreach (long id in RvrWaitingSince.Keys.ToArray())
+                if (!waiting.Contains(id))
+                    RvrWaitingSince.TryRemove(id, out _);
+        }
         var claimed = new HashSet<GameBot>();
         int rendezvousChecks = 0;
         // RvR stages at the realm's fixed border keep, so the leader is the
@@ -1687,7 +1695,9 @@ public static partial class AutonomousBotGroupCoordinator
         if (objectiveKind == eAutonomousObjectiveKind.RvR)
         {
             var crossings = new Dictionary<(eRealm Realm, ushort Region), DbZonePoint>();
-            leaders = AutonomousRvrStaging.ClosestToStagingFirst(available, bot => bot.Realm, bot =>
+            // A class that goes alone does not lead a group (AutonomousRvrFormation.IsSoloStealth).
+            leaders = AutonomousRvrStaging.ClosestToStagingFirst(available.Where(bot => !AutonomousRvrFormation.IsSoloStealth(
+                (eCharacterClass)bot.CharacterClass.ID)).ToArray(), bot => bot.Realm, bot =>
                 AutonomousRvrStaging.TryGetNearestBorderKeep(bot, out AutonomousRvrStaging.BorderKeep keep, crossings)
                     ? AutonomousWorldBotController.EstimateTravelMinutes(bot, keep.RegionId,
                         (int)keep.Position.X, (int)keep.Position.Y, crossings)
@@ -1729,11 +1739,7 @@ public static partial class AutonomousBotGroupCoordinator
             // through eight create an actual warband. The realm-local reserve
             // below still guarantees that grouping pressure cannot consume
             // every solo RvR character.
-            int rolledSize = objectiveKind == eAutonomousObjectiveKind.RvR
-                ? AutonomousRvrStaging.RollWarbandSize(largestAllowed, Random.Shared.NextDouble())
-                : 8;
-            if (rolledSize == 1)
-                continue;
+            int rolledSize = 8;
             GameBot[] compatiblePool = available
                 .Where(candidate => candidate != leader && !claimed.Contains(candidate) && candidate.Group == null &&
                                      AutonomousObjectiveAssignments.Is(candidate, objectiveKind) &&
@@ -1764,15 +1770,29 @@ public static partial class AutonomousBotGroupCoordinator
             }
             else
             {
-                if (compatiblePool.Length < rolledSize - 1)
-                    continue;
                 if (objectiveKind == eAutonomousObjectiveKind.RvR)
                 {
+                    // Owner 2026-10-31: groups of eight (six or seven after five minutes of waiting), the classes that go alone only
+                    // as attackers, to fill what the others leave (AutonomousRvrFormation).
+                    long waitedNow = GameLoop.GameLoopTime;
+                    long longestWait = Math.Max(waitedNow - RvrWaitingSince.GetValueOrDefault(leader.DatabaseID, waitedNow),
+                        compatiblePool.Length == 0 ? 0 : compatiblePool.Max(candidate =>
+                            waitedNow - RvrWaitingSince.GetValueOrDefault(candidate.DatabaseID, waitedNow)));
+                    int target = AutonomousRvrFormation.TargetSize(1 + compatiblePool.Length, longestWait);
+                    if (target == 0)
+                        continue;
+                    rolledSize = target;
+                    GameBot[] fighters = compatiblePool.Where(candidate => !AutonomousRvrFormation.IsSoloStealth(
+                        (eCharacterClass)candidate.CharacterClass.ID)).ToArray();
+                    GameBot[] stealthers = compatiblePool.Except(fighters).ToArray();
+                    int fromFighters = Math.Min(target - 1, fighters.Length);
                     // Owner 2026-10-28: one speed song, two who heal, one who mezzes or roots and one tank when they can be had;
                     // a party with a place uncovered is still formed (AutonomousRvrRoster).
-                    var poolRoles = compatiblePool.Select(AutonomousRvrRoster.RolesOf).ToArray();
-                    compatible = AutonomousRvrRoster.Select(AutonomousRvrRoster.RolesOf(leader), poolRoles, rolledSize - 1)
-                        .Select(index => compatiblePool[index]).ToArray();
+                    var poolRoles = fighters.Select(AutonomousRvrRoster.RolesOf).ToArray();
+                    var picked = AutonomousRvrRoster.Select(AutonomousRvrRoster.RolesOf(leader), poolRoles, fromFighters)
+                        .Select(index => fighters[index]).ToList();
+                    picked.AddRange(stealthers.Take(target - 1 - picked.Count));
+                    compatible = picked.ToArray();
                     if (Log.IsInfoEnabled && compatible.Length >= 3)
                         Log.Info($"AUTONOMOUS_RVR_ROSTER realm={GlobalConstants.RealmToName(leader.Realm)} size={compatible.Length + 1} " +
                                  AutonomousRvrRoster.Summary(compatible.Select(AutonomousRvrRoster.RolesOf)

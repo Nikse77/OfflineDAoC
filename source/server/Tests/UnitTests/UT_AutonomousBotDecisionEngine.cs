@@ -167,9 +167,10 @@ public class UT_AutonomousBotDecisionEngine
         Assert.That(AutonomousBotGroupCoordinator.MaximumAutonomousGrouped(180), Is.EqualTo(72));
         Assert.That(AutonomousBotGroupCoordinator.MaximumAutonomousGrouped(9), Is.EqualTo(3));
         Assert.That(AutonomousBotGroupCoordinator.MinimumSoloRvrReserve(10), Is.EqualTo(4));
-        Assert.That(AutonomousBotGroupCoordinator.MaximumGroupedForObjective(eAutonomousObjectiveKind.RvR, 10), Is.EqualTo(6));
-        Assert.That(AutonomousBotGroupCoordinator.AvailableGroupSlotsForObjective(eAutonomousObjectiveKind.RvR, 10, 4), Is.EqualTo(2));
-        Assert.That(AutonomousBotGroupCoordinator.AvailableGroupSlotsForObjective(eAutonomousObjectiveKind.RvR, 10, 6), Is.Zero);
+        // Owner 2026-10-31: no reserve of solo RvR roamers any more, the whole cohort may be grouped.
+        Assert.That(AutonomousBotGroupCoordinator.MaximumGroupedForObjective(eAutonomousObjectiveKind.RvR, 10), Is.EqualTo(10));
+        Assert.That(AutonomousBotGroupCoordinator.AvailableGroupSlotsForObjective(eAutonomousObjectiveKind.RvR, 10, 4), Is.EqualTo(6));
+        Assert.That(AutonomousBotGroupCoordinator.AvailableGroupSlotsForObjective(eAutonomousObjectiveKind.RvR, 10, 10), Is.Zero);
         Assert.That(AutonomousBotGroupCoordinator.ShouldContinueFormationSearch(eAutonomousObjectiveKind.RvR, 0), Is.True);
         Assert.That(AutonomousBotGroupCoordinator.ShouldContinueFormationSearch(eAutonomousObjectiveKind.GroupPve, 0), Is.False);
         Assert.That(AutonomousBotGroupCoordinator.MaximumGroupedForObjective(eAutonomousObjectiveKind.GroupPve, 10), Is.EqualTo(10));
