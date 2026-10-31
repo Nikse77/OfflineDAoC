@@ -9,7 +9,9 @@ namespace DOL.GS
     /// </summary>
     public static class WeaponReskinCatalog
     {
-        public const int PageSize = 8;
+        // Owner 2026-10-31: all the looks of a kind on one page (the longest list in the item table has 86); the paging
+        // stays for a kind that ever has more than this.
+        public const int PageSize = 200;
 
         public sealed record Look(int Model, string Name, int Level);
 

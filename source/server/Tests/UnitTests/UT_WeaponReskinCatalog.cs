@@ -40,20 +40,22 @@ namespace DOL.UnitTests
 
         [TestCase(0, 1)]
         [TestCase(1, 1)]
-        [TestCase(8, 1)]
-        [TestCase(9, 2)]
-        [TestCase(24, 3)]
-        [TestCase(25, 4)]
+        [TestCase(86, 1)]    // the longest list in the item table fits on one page
+        [TestCase(200, 1)]
+        [TestCase(201, 2)]
+        [TestCase(400, 2)]
+        [TestCase(401, 3)]
         public void PageCountRoundsUp(int looks, int expected) => Assert.That(WeaponReskinCatalog.PageCount(looks), Is.EqualTo(expected));
 
         [Test]
         public void PagesAreNumberedFromOneAndClamped()
         {
-            var looks = Enumerable.Range(1, 11).Select(i => new WeaponReskinCatalog.Look(i, "Look " + i, 1)).ToList();
+            int size = WeaponReskinCatalog.PageSize;
+            var looks = Enumerable.Range(1, size + 3).Select(i => new WeaponReskinCatalog.Look(i, "Look " + i, 1)).ToList();
 
             var second = WeaponReskinCatalog.Page(looks, 1).ToList();
-            Assert.That(second.Select(entry => entry.Number), Is.EqualTo(new[] { 9, 10, 11 }));
-            Assert.That(WeaponReskinCatalog.Page(looks, 99).First().Number, Is.EqualTo(9), "past the end shows the last page");
+            Assert.That(second.Select(entry => entry.Number), Is.EqualTo(new[] { size + 1, size + 2, size + 3 }));
+            Assert.That(WeaponReskinCatalog.Page(looks, 99).First().Number, Is.EqualTo(size + 1), "past the end shows the last page");
             Assert.That(WeaponReskinCatalog.Page(looks, -3).First().Number, Is.EqualTo(1), "before the start shows the first page");
             Assert.That(WeaponReskinCatalog.Page(new System.Collections.Generic.List<WeaponReskinCatalog.Look>(), 0), Is.Empty);
         }
