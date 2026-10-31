@@ -154,14 +154,15 @@ namespace DOL.GS
                 return;
             }
 
-            int pages = WeaponReskinCatalog.PageCount(looks.Count);
+            var pageList = WeaponReskinCatalog.Pages(looks);
+            int pages = pageList.Count;
             page = Math.Clamp(page, 0, pages - 1);
             player.TempProperties.SetProperty(TempPage, page);
 
             var text = new StringBuilder();
             text.Append($"Looks for your {item.Name} (page {page + 1} of {pages}). Tell me [look N] to see one:\n\n");
-            foreach ((int number, WeaponReskinCatalog.Look look) in WeaponReskinCatalog.Page(looks, page))
-                text.Append($"[look {number}] {look.Name} (level {look.Level})\n");
+            foreach ((int number, WeaponReskinCatalog.Look look) in pageList[page])
+                text.Append(WeaponReskinCatalog.LineOf(number, look));
             text.Append('\n');
             if (page > 0)
                 text.Append("[previous page]  ");

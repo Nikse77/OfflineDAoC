@@ -52,26 +52,59 @@ namespace DOL.UnitTests
             Assert.That(looks.Select(look => look.Name), Is.EqualTo(new[] { "Alpha", "beta", "zeta" }));
         }
 
-        [TestCase(0, 1)]
-        [TestCase(1, 1)]
-        [TestCase(86, 1)]    // the longest list in the item table fits on one page
-        [TestCase(200, 1)]
-        [TestCase(201, 2)]
-        [TestCase(400, 2)]
-        [TestCase(401, 3)]
-        public void PageCountRoundsUp(int looks, int expected) => Assert.That(WeaponReskinCatalog.PageCount(looks), Is.EqualTo(expected));
+        private static System.Collections.Generic.List<WeaponReskinCatalog.Look> Named(int count, string prefix = "Look ") =>
+            Enumerable.Range(1, count).Select(i => new WeaponReskinCatalog.Look(i, prefix + i, 50)).ToList();
 
         [Test]
-        public void PagesAreNumberedFromOneAndClamped()
+        public void NoLooksStillGiveOneEmptyPage()
         {
-            int size = WeaponReskinCatalog.PageSize;
-            var looks = Enumerable.Range(1, size + 3).Select(i => new WeaponReskinCatalog.Look(i, "Look " + i, 1)).ToList();
+            var pages = WeaponReskinCatalog.Pages(Named(0));
 
-            var second = WeaponReskinCatalog.Page(looks, 1).ToList();
-            Assert.That(second.Select(entry => entry.Number), Is.EqualTo(new[] { size + 1, size + 2, size + 3 }));
-            Assert.That(WeaponReskinCatalog.Page(looks, 99).First().Number, Is.EqualTo(size + 1), "past the end shows the last page");
-            Assert.That(WeaponReskinCatalog.Page(looks, -3).First().Number, Is.EqualTo(1), "before the start shows the first page");
-            Assert.That(WeaponReskinCatalog.Page(new System.Collections.Generic.List<WeaponReskinCatalog.Look>(), 0), Is.Empty);
+            Assert.That(pages, Has.Count.EqualTo(1));
+            Assert.That(pages[0], Is.Empty);
+        }
+
+        [Test]
+        public void ThePagesKeepEveryLookInOrderWithItsOwnNumber()
+        {
+            var looks = Named(120, "A fairly long name of a look ");
+
+            var pages = WeaponReskinCatalog.Pages(looks);
+
+            Assert.That(pages.Count, Is.GreaterThan(1));
+            Assert.That(pages.SelectMany(page => page).Select(entry => entry.Number), Is.EqualTo(Enumerable.Range(1, 120)));
+            Assert.That(pages.SelectMany(page => page).Select(entry => entry.Look), Is.EqualTo(looks));
+        }
+
+        [Test]
+        public void NoPageIsLongerThanItsCharacterBudget()
+        {
+            var pages = WeaponReskinCatalog.Pages(Named(200, "Duskwood Long Bow of the Chasm "));
+
+            foreach (var page in pages)
+                Assert.That(page.Sum(entry => WeaponReskinCatalog.LineOf(entry.Number, entry.Look).Length),
+                    Is.LessThanOrEqualTo(WeaponReskinCatalog.PageCharacters));
+        }
+
+        [Test]
+        public void AFullPageStaysUnderTheServersPacketLimitWithItsHeaderAndButtons()
+        {
+            // The server discards a packet over 2,048 bytes (the 3,058-byte list of 2026-10-31). A page also carries a header
+            // with the item's name and the buttons.
+            string header = "Looks for your Duskwood exceptional long bow of the something (page 10 of 10). Tell me [look N] to see one:\n\n";
+            string footer = "\n[previous page]  [next page]  [cancel]";
+            foreach (var page in WeaponReskinCatalog.Pages(Named(300, "A rather long look name here ")))
+                Assert.That(header.Length + footer.Length + 2 + page.Sum(e => WeaponReskinCatalog.LineOf(e.Number, e.Look).Length),
+                    Is.LessThan(2_048));
+        }
+
+        [Test]
+        public void ALookLongerThanTheBudgetStillGetsAPageOfItsOwn()
+        {
+            var pages = WeaponReskinCatalog.Pages(new[] { new WeaponReskinCatalog.Look(1, new string('x', 2_000), 50) });
+
+            Assert.That(pages, Has.Count.EqualTo(1));
+            Assert.That(pages[0], Has.Count.EqualTo(1));
         }
 
         [Test]

@@ -9,10 +9,6 @@ namespace DOL.GS
     /// </summary>
     public static class WeaponReskinCatalog
     {
-        // Owner 2026-10-31: all the looks of a kind on one page (the longest list in the item table has 86); the paging
-        // stays for a kind that ever has more than this.
-        public const int PageSize = 200;
-
         /// <summary>Owner 2026-10-31: only the looks of items of this level or above are offered.</summary>
         public const int MinimumLevel = 50;
 
@@ -33,13 +29,40 @@ namespace DOL.GS
             .OrderBy(look => look.Name, System.StringComparer.OrdinalIgnoreCase).ThenBy(look => look.Model)
             .ToList();
 
-        public static int PageCount(int looks) => looks <= 0 ? 1 : (looks + PageSize - 1) / PageSize;
+        /// <summary>
+        /// A popup message may not pass 2,048 bytes in one packet (the server discards a bigger one: 3,058 bytes with all
+        /// the looks of a shield on one page, 2026-10-31). The lines of a page therefore fill at most this many
+        /// characters; header, buttons and the packet's own bytes stay in the remainder.
+        /// </summary>
+        public const int PageCharacters = 1_500;
 
-        /// <summary>The page (0-based, clamped) of a list of looks, each with its number counted from 1.</summary>
-        public static IEnumerable<(int Number, Look Look)> Page(IReadOnlyList<Look> looks, int page)
+        /// <summary>One line of a page: the look's number, which the player tells the master, and its name.</summary>
+        public static string LineOf(int number, Look look) => $"[look {number}] {look.Name}\n";
+
+        /// <summary>
+        /// The looks split into pages, each as many lines as fit in <see cref="PageCharacters"/> (at least one), keeping
+        /// their order. A look keeps its number (counted from 1 over all the pages) on whatever page it falls.
+        /// </summary>
+        public static IReadOnlyList<IReadOnlyList<(int Number, Look Look)>> Pages(IReadOnlyList<Look> looks, int characters = PageCharacters)
         {
-            page = System.Math.Clamp(page, 0, PageCount(looks.Count) - 1);
-            return looks.Skip(page * PageSize).Take(PageSize).Select((look, i) => (page * PageSize + i + 1, look));
+            var pages = new List<IReadOnlyList<(int Number, Look Look)>>();
+            var page = new List<(int Number, Look Look)>();
+            int used = 0;
+            for (int i = 0; i < looks.Count; i++)
+            {
+                int length = LineOf(i + 1, looks[i]).Length;
+                if (page.Count > 0 && used + length > characters)
+                {
+                    pages.Add(page);
+                    page = new List<(int Number, Look Look)>();
+                    used = 0;
+                }
+                page.Add((i + 1, looks[i]));
+                used += length;
+            }
+            if (page.Count > 0 || pages.Count == 0)
+                pages.Add(page);
+            return pages;
         }
 
         /// <summary>True for the items the master works on: every weapon type and the shield.</summary>
