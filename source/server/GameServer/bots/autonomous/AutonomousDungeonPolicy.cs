@@ -14,6 +14,12 @@ namespace DOL.GS
         // Passage of Conflict (244), or the unused client aliases 245/247.
         public static bool IsSharedFrontierDungeon(ushort region) => region is 246 or 248 or 276 or 277;
         public static bool IsSharedCombatDungeon(ushort region) => IsSharedFrontierDungeon(region) || region == 249;
+
+        /// <summary>
+        /// Owner 2026-10-31: the level-50 RvR bots roam the frontier maps only, in groups, looking for enemy groups; the four
+        /// old frontier dungeons are not chosen as an RvR objective (Darkness Falls was never part of the frontier).
+        /// </summary>
+        public static bool IsRvrFrontierRegion(ushort region) => !IsSharedFrontierDungeon(region);
         public static bool IsSupportedDungeonZone(ushort zone) => zone is
             19 or 21 or 22 or 23 or 24 or 50 or 60 or 61 or 62 or
             125 or 126 or 127 or 128 or 129 or 150 or 160 or 161 or

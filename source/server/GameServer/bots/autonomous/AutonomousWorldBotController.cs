@@ -2437,7 +2437,7 @@ namespace DOL.GS
             foreach (GameBot enemy in planning.Candidates
                          .Where(candidate => candidate.IsAlive && candidate.Realm != eRealm.None && candidate.Realm != bot.Realm &&
                                              AutonomousObjectiveAssignments.Is(candidate, eAutonomousObjectiveKind.RvR) &&
-                                             local.Contains(candidate.CurrentRegionID) && IsInFrontier(candidate))
+                                             local.Contains(candidate.CurrentRegionID) && IsInRvrFrontier(candidate))
                          .OrderBy(candidate => unchecked((ulong)(candidate.DatabaseID ^ bot.DatabaseID * 397) * 11400714819323198485UL))
                          .Take(24))
             {
@@ -2465,7 +2465,7 @@ namespace DOL.GS
                         relic.OriginalRealm, relic.CurrentRegionID, relic.X, relic.Y, relic.Z, false, 1, 0, 0, 0, true));
                     continue;
                 }
-                if (carrier == null || !carrier.IsAlive || !reachable.Contains(carrier.CurrentRegionID) || !IsInFrontier(carrier))
+                if (carrier == null || !carrier.IsAlive || !reachable.Contains(carrier.CurrentRegionID) || !IsInRvrFrontier(carrier))
                     continue;
                 string id = RelicObjectiveId(relic);
                 CampDestination destination = new(id, $"active {relic.Name}",
@@ -5342,6 +5342,10 @@ namespace DOL.GS
 
         private static bool IsInFrontier(GameLiving bot) =>
             bot?.CurrentZone != null && IsFrontierZone(bot.CurrentRegionID, bot.CurrentZone.ID);
+
+        /// <summary>Where the RvR planning looks for enemies and relic carriers: the frontier maps, not their dungeons.</summary>
+        private static bool IsInRvrFrontier(GameLiving bot) =>
+            IsInFrontier(bot) && AutonomousDungeonPolicy.IsRvrFrontierRegion(bot.CurrentRegionID);
 
         private static bool IsInFrontier(GamePlayer player) =>
             player?.CurrentZone != null && IsFrontierZone(player.CurrentRegionID, player.CurrentZone.ID);

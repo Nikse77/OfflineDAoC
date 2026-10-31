@@ -38,7 +38,7 @@ namespace DOL.GS
                         population[actor.CurrentRegionID] = counts = new int[5];
                     counts[4]++;
                     if ((int)actor.Realm is >= 0 and < 4) counts[(int)actor.Realm]++;
-                    if (actor.Realm != eRealm.None && AutonomousObjectiveAssignments.Is(actor, eAutonomousObjectiveKind.RvR) && IsInFrontier(actor))
+                    if (actor.Realm != eRealm.None && AutonomousObjectiveAssignments.Is(actor, eAutonomousObjectiveKind.RvR) && IsInRvrFrontier(actor))
                         candidates.Add(actor);
                 }
                 view = new(candidates.ToArray(), population);
