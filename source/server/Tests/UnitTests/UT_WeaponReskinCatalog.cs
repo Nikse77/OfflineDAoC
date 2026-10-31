@@ -58,13 +58,29 @@ namespace DOL.UnitTests
             Assert.That(WeaponReskinCatalog.Page(new System.Collections.Generic.List<WeaponReskinCatalog.Look>(), 0), Is.Empty);
         }
 
+        [Test]
+        public void ShieldsAreKeptBySizeWhateverTheirHandField()
+        {
+            int shield = (int)eObjectType.Shield;
+            Assert.That(WeaponReskinCatalog.KindOf(shield, 11, 0, 3), Is.EqualTo(WeaponReskinCatalog.KindOf(shield, 11, 2, 3)));
+            Assert.That(WeaponReskinCatalog.KindOf(shield, 11, 0, 1), Is.Not.EqualTo(WeaponReskinCatalog.KindOf(shield, 11, 0, 3)));
+        }
+
+        [Test]
+        public void WeaponsAreKeptByHandAndNotBySize()
+        {
+            int bow = (int)eObjectType.Longbow;
+            Assert.That(WeaponReskinCatalog.KindOf(bow, 13, 1, 3), Is.EqualTo(WeaponReskinCatalog.KindOf(bow, 13, 1, 1)));
+            Assert.That(WeaponReskinCatalog.KindOf(bow, 13, 1, 3), Is.Not.EqualTo(WeaponReskinCatalog.KindOf(bow, 13, 0, 3)));
+        }
+
         [TestCase(eObjectType.Longbow, true)]
         [TestCase(eObjectType.Crossbow, true)]
         [TestCase(eObjectType.Staff, true)]
-        [TestCase(eObjectType.Shield, false)]
+        [TestCase(eObjectType.Shield, true)]
         [TestCase(eObjectType.Cloth, false)]
         [TestCase(eObjectType.Plate, false)]
-        public void OnlyWeaponsButShields(eObjectType type, bool expected) =>
+        public void OnlyWeaponsAndShields(eObjectType type, bool expected) =>
             Assert.That(WeaponReskinCatalog.IsReskinnable((int)type), Is.EqualTo(expected));
     }
 }

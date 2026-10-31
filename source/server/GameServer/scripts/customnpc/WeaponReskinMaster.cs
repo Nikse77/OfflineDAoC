@@ -9,7 +9,7 @@ using DOL.GS.PacketHandler;
 namespace DOL.GS
 {
     /// <summary>
-    /// Owner 2026-10-31: changes the look of any weapon (but not shields) to the look of another weapon of the same
+    /// Owner 2026-10-31: changes the look of any weapon, and any shield, to the look of another one of the same
     /// kind, chosen among the models the item table already uses. The player hands over a weapon from the backpack, is
     /// shown the looks a page at a time, previews one on a reflection of themselves (as the Reskin NPC does) and
     /// confirms. The weapon keeps its stats and condition; it is replaced by a copy with the new model. Free, like the
@@ -22,7 +22,7 @@ namespace DOL.GS
         private const string TempModel = "WeaponReskinModel";
 
         // Looks per kind of weapon, read once from the item table.
-        private static readonly ConcurrentDictionary<(int ObjectType, int ItemType, int Hand), IReadOnlyList<WeaponReskinCatalog.Candidate>> Kinds = new();
+        private static readonly ConcurrentDictionary<(int ObjectType, int ItemType, int Hand, int Size), IReadOnlyList<WeaponReskinCatalog.Candidate>> Kinds = new();
 
         public override bool Interact(GamePlayer player)
         {
@@ -30,8 +30,8 @@ namespace DOL.GS
                 return false;
 
             TurnTo(player, 500);
-            SendReply(player, "I can give a weapon the look of another weapon of its kind... free of charge.\n" +
-                              "Hand me the weapon from your backpack and I will show you the looks I know.");
+            SendReply(player, "I can give a weapon or a shield the look of another of its kind... free of charge.\n" +
+                              "Hand me the weapon or shield from your backpack and I will show you the looks I know.");
             return true;
         }
 
@@ -48,7 +48,7 @@ namespace DOL.GS
 
             if (!WeaponReskinCatalog.IsReskinnable(item.Object_Type))
             {
-                SendReply(player, "I only work on weapons, and not on shields.");
+                SendReply(player, "I only work on weapons and shields.");
                 return false;
             }
 
@@ -131,11 +131,15 @@ namespace DOL.GS
 
         private static IReadOnlyList<WeaponReskinCatalog.Look> LooksFor(DbInventoryItem item)
         {
-            var kind = (item.Object_Type, item.Item_Type, item.Hand);
+            var kind = WeaponReskinCatalog.KindOf(item.Object_Type, item.Item_Type, item.Hand, item.Type_Damage);
             IReadOnlyList<WeaponReskinCatalog.Candidate> candidates = Kinds.GetOrAdd(kind, key =>
-                GameServer.Database.SelectObjects<DbItemTemplate>(DB.Column("Object_Type").IsEqualTo(key.ObjectType)
-                        .And(DB.Column("Item_Type").IsEqualTo(key.ItemType))
-                        .And(DB.Column("Hand").IsEqualTo(key.Hand)))
+                GameServer.Database.SelectObjects<DbItemTemplate>(key.Hand < 0
+                        ? DB.Column("Object_Type").IsEqualTo(key.ObjectType)
+                            .And(DB.Column("Item_Type").IsEqualTo(key.ItemType))
+                            .And(DB.Column("Type_Damage").IsEqualTo(key.Size))
+                        : DB.Column("Object_Type").IsEqualTo(key.ObjectType)
+                            .And(DB.Column("Item_Type").IsEqualTo(key.ItemType))
+                            .And(DB.Column("Hand").IsEqualTo(key.Hand)))
                     .Select(template => new WeaponReskinCatalog.Candidate(template.Model, template.Name, template.Level))
                     .ToList());
             return WeaponReskinCatalog.Looks(candidates, item.Model);
@@ -146,7 +150,7 @@ namespace DOL.GS
             IReadOnlyList<WeaponReskinCatalog.Look> looks = LooksFor(item);
             if (looks.Count == 0)
             {
-                SendReply(player, "I know no other look for this kind of weapon.");
+                SendReply(player, "I know no other look for this kind of weapon or shield.");
                 return;
             }
 

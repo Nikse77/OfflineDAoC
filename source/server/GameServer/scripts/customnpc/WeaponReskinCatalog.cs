@@ -36,8 +36,17 @@ namespace DOL.GS
             return looks.Skip(page * PageSize).Take(PageSize).Select((look, i) => (page * PageSize + i + 1, look));
         }
 
-        /// <summary>True for the weapons the master works on: every weapon type but the shield.</summary>
-        public static bool IsReskinnable(int objectType) =>
-            GlobalConstants.IsWeapon(objectType) && objectType != (int)eObjectType.Shield;
+        /// <summary>True for the items the master works on: every weapon type and the shield.</summary>
+        public static bool IsReskinnable(int objectType) => GlobalConstants.IsWeapon(objectType);
+
+        /// <summary>
+        /// What "of the same kind" means. Weapons: same object type, slot and hand. Shields: same size (small, medium or
+        /// large, kept in Type_Damage) whatever the hand field says, because the item table fills it in unevenly
+        /// for shields (0 and 2 both mean an ordinary shield) and a shield's size is what matters.
+        /// </summary>
+        public static (int ObjectType, int ItemType, int Hand, int Size) KindOf(int objectType, int itemType, int hand, int typeDamage) =>
+            objectType == (int)eObjectType.Shield
+                ? (objectType, itemType, -1, typeDamage)
+                : (objectType, itemType, hand, 0);
     }
 }
