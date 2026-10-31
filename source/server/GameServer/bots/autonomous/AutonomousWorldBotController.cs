@@ -2604,11 +2604,13 @@ namespace DOL.GS
             IssuePath(bot, _patrolDestination.Value);
         }
 
-        private void SetRvrStatus(GameBot bot, string activity, string progress, string detail, string target = "")
+        private void SetRvrStatus(GameBot bot, string activity, string progress, string detail, string target = "", string destination = null)
         {
             if (bot.PersistentRecord != null)
                 bot.PersistentRecord.ObjectivePhase = activity;
-            SetStatus(bot, activity, "Active frontier RvR", detail, target, _rvrDestination?.ZoneName ?? string.Empty, true);
+            // Owner 2026-11-01: the destination column said where the plan will end (the patrol zone) while the activity said the bot was
+            // travelling to its border keep. Staging passes the keep it is really heading for.
+            SetStatus(bot, activity, "Active frontier RvR", detail, target, destination ?? _rvrDestination?.ZoneName ?? string.Empty, true);
         }
 
         private void BeginSavageMeleePull(GameBot bot, GameNPC target)
@@ -3145,11 +3147,11 @@ namespace DOL.GS
                 if (ambusher)
                 {
                     SetRvrStatus(bot, $"Staged at {keep.Name}", "Enter the frontier and roam for enemy forces",
-                        "Safe border staging complete; selecting a frontier objective");
+                        "Safe border staging complete; selecting a frontier objective", destination: keep.Name);
                     return true;
                 }
                 SetRvrStatus(bot, $"Waiting at {keep.Name} for a group", "Find a group of eight",
-                    "A level-50 bot on its own waits at its border keep until a group forms");
+                    "A level-50 bot on its own waits at its border keep until a group forms", destination: keep.Name);
                 return false;
             }
 
@@ -3161,14 +3163,14 @@ namespace DOL.GS
                 bool moving = TravelAcrossRegions(bot);
                 _camp = previous;
                 SetRvrStatus(bot, $"Traveling to {keep.Name}", "Stage safely before frontier roaming",
-                    "Using the normal collision-safe cross-region route to the realm border keep");
+                    "Using the normal collision-safe cross-region route to the realm border keep", destination: keep.Name);
                 return moving;
             }
 
             if (!TryBeginFasterStableRoute(bot, destination, keep.Name))
                 IssuePath(bot, destination);
             SetRvrStatus(bot, $"Traveling to {keep.Name}", "Stage safely before frontier roaming",
-                "Approaching the safe faction-side border staging point");
+                "Approaching the safe faction-side border staging point", destination: keep.Name);
             return false;
         }
 
