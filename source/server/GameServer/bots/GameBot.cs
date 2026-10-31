@@ -960,8 +960,11 @@ namespace DOL.GS
                 PersistentRecord.DeathCount++;
                 GoalDiagnosticAttempt?.Died();
                 PersistentRecord.TargetName = (TargetObject as GameLiving)?.Name ?? killer?.Name ?? string.Empty;
-                PersistentRecord.Activity = "Defeated; reassessing target difficulty";
-                PersistentRecord.ObjectiveProgress = "The next grind target will be a lower con, never below green";
+                // Owner 2026-11-01: the PvE wording said nothing true of an RvR bot's death.
+                bool rvr = AutonomousObjectiveAssignments.Is(this, eAutonomousObjectiveKind.RvR);
+                PersistentRecord.Activity = rvr ? "Defeated; returning to the frontier" : "Defeated; reassessing target difficulty";
+                PersistentRecord.ObjectiveProgress = rvr ? "Released; the group or its force picks up the RvR objective again"
+                    : "The next grind target will be a lower con, never below green";
                 MarkAutonomousStateDirty();
             }
 
