@@ -388,17 +388,31 @@ public static partial class AutonomousRvrEventLayer
                                                               objective.OwningRealm != force.Realm && !Events.ContainsKey(objective.Id) && !OnCooldown(objective.Id, nowTick))
                 , SelectedKeeps);
             bool siegeCapable = force.MemberCount >= 4 && force.AverageLevel >= 50 && force.CanSupplySiege;
-            if (SiegeScheduling && (keep != null || relic != null) && siegeCapable && !SiegeStartAllowed(nowTick))
-                return ReservePlan(force, objectives);
+            // Owner 2026-10-31 (step 4 of the RvR plan): no more roll to open a siege. A capable force first retakes a keep of its own
+            // frontier that another realm holds; with all of them held, and half an hour after the realm's last conquest attempt, it
+            // goes to conquer a keep in one of the other two frontiers (AutonomousRvrCampaign). Anything else is patrol or hunt.
+            LiveObjective assault = null;
+            bool conquest = false;
+            if (SiegeScheduling && siegeCapable)
+            {
+                LiveObjective[] assaultable = objectives.Where(objective => objective.Kind is Intent.AssaultKeep or Intent.AssaultRelicKeep &&
+                    objective.OwningRealm != force.Realm && objective.OwningRealm != eRealm.None && !Events.ContainsKey(objective.Id) &&
+                    !OnCooldown(objective.Id, nowTick) && (!objective.IsRelicKeep || force.MemberCount >= 6)).ToArray();
+                ushort home = AutonomousRvrCampaign.HomeRegion(force.Realm);
+                bool homeLost = objectives.Any(objective => objective.RegionId == home && objective.Kind is Intent.AssaultKeep or Intent.AssaultRelicKeep &&
+                    objective.OwningRealm != force.Realm && objective.OwningRealm != eRealm.None);
+                assault = AutonomousRvrCampaign.SelectAssault(force.Realm, assaultable, homeLost,
+                    AutonomousRvrCampaign.LastConquestTick(force.Realm), nowTick,
+                    region => AutonomousRvrCampaign.EntryKeep(force.Realm, region), Random.Shared, out conquest);
+            }
             // Relic sieges are the larger, rarer event: about one new siege in eight, strong warbands only.
             Intent intent = !SiegeScheduling ? ChooseIntent(force, hasEnemy, keep != null, relic != null, roll)
-                : !siegeCapable || keep == null && relic == null ? ChooseIntent(force, hasEnemy, false, false, roll)
-                : relic != null && force.MemberCount >= 6 && force.AverageLevel >= 50 && (keep == null || Random.Shared.NextDouble() < RelicSiegeShare)
-                    ? Intent.AssaultRelicKeep : keep != null ? Intent.AssaultKeep : ChooseIntent(force, hasEnemy, false, false, roll);
+                : assault != null ? (assault.IsRelicKeep ? Intent.AssaultRelicKeep : Intent.AssaultKeep)
+                : ChooseIntent(force, hasEnemy, false, false, roll);
             LiveObjective selected = intent switch
             {
-                Intent.AssaultRelicKeep => relic,
-                Intent.AssaultKeep => keep,
+                Intent.AssaultRelicKeep => SiegeScheduling ? assault : relic,
+                Intent.AssaultKeep => SiegeScheduling ? assault : keep,
                 Intent.HuntEnemy => objectives.Where(objective => objective.Kind == Intent.HuntEnemy && objective.EnemyCount > 0)
                     .OrderBy(objective => Math.Abs(objective.EnemyCount - force.MemberCount)).FirstOrDefault(),
                 _ => PickPatrol(force, objectives) ??
@@ -422,6 +436,8 @@ public static partial class AutonomousRvrEventLayer
                 active.Attackers[force.GroupId] = force.MemberCount;
                 Events[selected.Id] = active;
                 _siegeStartReady = false;
+                if (conquest)
+                    AutonomousRvrCampaign.RecordConquest(force.Realm, nowTick);
                 RealmEventRecords.Begin(selected.Id, selected.Name, selected.IsRelicKeep ? "Relic keep" : "Keep", GlobalConstants.RealmToName(force.Realm), "Automatic continuous siege; defender: " + GlobalConstants.RealmToName(selected.OwningRealm));
                 if (!StagedAssault)
                     StartBattle(active, nowTick, "automatic assault opened; each assigned bot converges without formation staging");
