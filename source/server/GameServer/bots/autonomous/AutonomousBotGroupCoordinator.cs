@@ -1618,8 +1618,26 @@ public static partial class AutonomousBotGroupCoordinator
         TryFormGroups(eAutonomousObjectiveKind.RvR);
     }
 
+    /// <summary>
+    /// Owner 2026-10-31: no group forms in the first ten minutes after the server starts (RvR and PvE alike), so that the bots enter
+    /// the world, highest level first, before anybody groups.
+    /// </summary>
+    public static readonly TimeSpan FormationDelayAfterStart = TimeSpan.FromMinutes(10);
+
+    private static readonly DateTime ServerStartedUtc = ServerStart();
+
+    private static DateTime ServerStart()
+    {
+        try { return System.Diagnostics.Process.GetCurrentProcess().StartTime.ToUniversalTime(); }
+        catch (Exception) { return DateTime.UtcNow; }
+    }
+
+    public static bool FormationDelayElapsed(TimeSpan sinceStart) => sinceStart >= FormationDelayAfterStart;
+
     private static void TryFormGroups(eAutonomousObjectiveKind objectiveKind)
     {
+        if (!FormationDelayElapsed(DateTime.UtcNow - ServerStartedUtc))
+            return;
         ref long nextFormationTick = ref objectiveKind == eAutonomousObjectiveKind.RvR
             ? ref _nextRvrFormationTick
             : ref _nextGroupPveFormationTick;
