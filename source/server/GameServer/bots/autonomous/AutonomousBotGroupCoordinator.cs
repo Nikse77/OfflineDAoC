@@ -126,7 +126,7 @@ public static partial class AutonomousBotGroupCoordinator
         public long NextRecoveryReadinessTick { get; set; }
         public int LockedSize { get; set; }
         public ushort RendezvousRegion { get; set; }
-        public AutonomousRendezvousAttendance Attendance { get; } = new();
+        public AutonomousRendezvousAttendance Attendance { get; init; } = new();
         public Dictionary<long, Vector3> RendezvousSlots { get; } = new();
         public HashSet<long> HeldUnreachableMembers { get; } = new();
         public Dictionary<long, long> UnreachableSince { get; } = new();
@@ -1619,8 +1619,8 @@ public static partial class AutonomousBotGroupCoordinator
     }
 
     /// <summary>
-    /// Owner 2026-10-31: no group forms in the first ten minutes after the server starts (RvR and PvE alike), so that the bots enter
-    /// the world, highest level first, before anybody groups.
+    /// Owner 2026-10-31: no RvR group forms in the first ten minutes after the server starts (the PvE groups are not delayed), so that the
+    /// bots enter the world, highest level first, before anybody groups.
     /// </summary>
     public static readonly TimeSpan FormationDelayAfterStart = TimeSpan.FromMinutes(10);
 
@@ -1634,9 +1634,13 @@ public static partial class AutonomousBotGroupCoordinator
 
     public static bool FormationDelayElapsed(TimeSpan sinceStart) => sinceStart >= FormationDelayAfterStart;
 
+    /// <summary>The start delay holds the RvR groups only.</summary>
+    public static bool FormationBlocked(eAutonomousObjectiveKind objectiveKind, TimeSpan sinceStart) =>
+        objectiveKind == eAutonomousObjectiveKind.RvR && !FormationDelayElapsed(sinceStart);
+
     private static void TryFormGroups(eAutonomousObjectiveKind objectiveKind)
     {
-        if (!FormationDelayElapsed(DateTime.UtcNow - ServerStartedUtc))
+        if (FormationBlocked(objectiveKind, DateTime.UtcNow - ServerStartedUtc))
             return;
         ref long nextFormationTick = ref objectiveKind == eAutonomousObjectiveKind.RvR
             ? ref _nextRvrFormationTick
@@ -1891,6 +1895,9 @@ public static partial class AutonomousBotGroupCoordinator
             Rendezvous = center,
             RendezvousName = rendezvousName,
             TaskClock = new AutonomousGroupTaskClock(objectiveKind),
+            // Owner 2026-10-31: an RvR group has twenty minutes to gather at its meeting point (fifteen for the others).
+            Attendance = new AutonomousRendezvousAttendance(objectiveKind == eAutonomousObjectiveKind.RvR
+                ? AutonomousRendezvousAttendance.RvrTimeoutMilliseconds : AutonomousRendezvousAttendance.TimeoutMilliseconds),
             LockedSize = lockedSize > 0 ? lockedSize : BotMembers(group).Length,
             PreferredLevelBonus = RollPreferredLevelBonus(lockedSize > 0 ? lockedSize : BotMembers(group).Length),
             ObjectiveKind = objectiveKind,

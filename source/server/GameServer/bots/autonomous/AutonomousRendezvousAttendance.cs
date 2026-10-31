@@ -9,6 +9,11 @@ namespace DOL.GS
     public sealed class AutonomousRendezvousAttendance
     {
         public const long TimeoutMilliseconds = 15 * 60_000L;
+        /// <summary>Owner 2026-10-31: the time an RvR group has to gather.</summary>
+        public const long RvrTimeoutMilliseconds = 20 * 60_000L;
+        private readonly long _timeout;
+
+        public AutonomousRendezvousAttendance(long timeoutMilliseconds = TimeoutMilliseconds) => _timeout = timeoutMilliseconds;
         public const int ArrivalRadius = 38;
         public const int OutdoorArrivalRadius = 80;
         public const int EndpointTolerance = 8;
@@ -31,9 +36,9 @@ namespace DOL.GS
 
         public void Add(long memberId, long now, DateTime? utcNow = null)
         {
-            if (_due.TryAdd(memberId, now + TimeoutMilliseconds))
+            if (_due.TryAdd(memberId, now + _timeout))
             {
-                _dueUtc[memberId] = (utcNow ?? DateTime.UtcNow).AddMilliseconds(TimeoutMilliseconds);
+                _dueUtc[memberId] = (utcNow ?? DateTime.UtcNow).AddMilliseconds(_timeout);
                 Revision++;
             }
         }
@@ -87,7 +92,7 @@ namespace DOL.GS
             _deathsAtStart.TryGetValue(memberId, out int start) ? Math.Max(0, deathCount - start) : 0;
 
         public long WaitedMilliseconds(long memberId, long now) =>
-            _due.TryGetValue(memberId, out long due) ? now - (due - TimeoutMilliseconds) : 0;
+            _due.TryGetValue(memberId, out long due) ? now - (due - _timeout) : 0;
 
         /// <summary>
         /// Starts one new, shared attendance window after the coordinator has

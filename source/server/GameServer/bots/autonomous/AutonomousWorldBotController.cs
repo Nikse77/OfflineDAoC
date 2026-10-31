@@ -3102,9 +3102,10 @@ namespace DOL.GS
 
         private bool StageSoloRvrAtBorderKeep(GameBot bot)
         {
-            // Preserve a resumed roamer already beyond its home frontier gate;
-            // a restart must not send it all the way back to staging.
-            if (_soloRvrBorderStaged || IsInFrontier(bot))
+            // Owner 2026-10-31: a level-50 bot on its own goes back to its border keep and waits there for a group; only an ambusher
+            // (a stealth class, not the Minstrel) goes on roaming by itself. It used to roam from where it was once in the frontier.
+            bool ambusher = bot.Group == null && AutonomousRvrFormation.IsAmbusher(false, (eCharacterClass)bot.CharacterClass.ID);
+            if (ambusher && (_soloRvrBorderStaged || IsInFrontier(bot)))
             {
                 _soloRvrBorderStaged = true;
                 return true;
@@ -3140,9 +3141,15 @@ namespace DOL.GS
                 _soloRvrBorderStaged = true;
                 bot.StopMovingOnPath();
                 bot.StopMoving();
-                SetRvrStatus(bot, $"Staged at {keep.Name}", "Enter the frontier and roam for enemy forces",
-                    "Safe border staging complete; selecting a frontier objective");
-                return true;
+                if (ambusher)
+                {
+                    SetRvrStatus(bot, $"Staged at {keep.Name}", "Enter the frontier and roam for enemy forces",
+                        "Safe border staging complete; selecting a frontier objective");
+                    return true;
+                }
+                SetRvrStatus(bot, $"Waiting at {keep.Name} for a group", "Find a group of eight",
+                    "A level-50 bot on its own waits at its border keep until a group forms");
+                return false;
             }
 
             if (bot.CurrentRegionID != keep.RegionId)
