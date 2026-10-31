@@ -1743,7 +1743,10 @@ public static partial class AutonomousBotGroupCoordinator
             GameBot[] compatiblePool = available
                 .Where(candidate => candidate != leader && !claimed.Contains(candidate) && candidate.Group == null &&
                                      AutonomousObjectiveAssignments.Is(candidate, objectiveKind) &&
-                                     candidate.Realm == leader.Realm && candidate.CurrentRegionID == leader.CurrentRegionID &&
+                                     // Owner 2026-10-31: an RvR group is made of every candidate of the realm, wherever it is; the members
+                                     // walk (or ride, or port) to the meeting point, the realm's border keep. PvE keeps the leader's region.
+                                     candidate.Realm == leader.Realm &&
+                                     (objectiveKind == eAutonomousObjectiveKind.RvR || candidate.CurrentRegionID == leader.CurrentRegionID) &&
                                      LevelsCompatible(leader.Level, candidate.Level) &&
                                      (objectiveKind != eAutonomousObjectiveKind.GroupPve ||
                                       CanRecruitPveMember(candidate.IsOnStableMasterRoute,
