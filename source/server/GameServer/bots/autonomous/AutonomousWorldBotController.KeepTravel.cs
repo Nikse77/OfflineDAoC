@@ -105,6 +105,10 @@ public sealed partial class AutonomousWorldBotController
                 bot.StopMovingOnPath(); bot.StopMoving();
                 SetRvrStatus(bot, "Keep route retry", destination.MonsterName,
                     $"{failure}; retaining the siege and backing off before retrying");
+                // Owner 2026-11-01: the first failure already gives the keep up for the whole force (see ReportUnreachable).
+                if (destination.Id.StartsWith("rvr-keep-", StringComparison.Ordinal))
+                    AutonomousRvrEventLayer.ReportUnreachable(bot.TempProperties.GetProperty<string>("RvrEventForce") ?? $"rvr-{bot.DatabaseID}",
+                        destination.Id, now);
                 Log.Warn($"RVR_KEEP_ROUTE_FAILED bot=\"{bot.Name}\" id={bot.DatabaseID} realm={GlobalConstants.RealmToName(bot.Realm)} " +
                     $"target=\"{destination.Id}\" region={bot.CurrentRegionID} from={current} queries={queries} " +
                     $"reason=\"{failure}\" retryMs={_keepTravelRetry-now}");

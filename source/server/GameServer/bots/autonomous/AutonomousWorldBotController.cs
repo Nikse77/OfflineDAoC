@@ -1972,7 +1972,8 @@ namespace DOL.GS
             // Release this controller's stale destination on its next AI pulse,
             // rather than letting it march toward a captured or timed-out site.
             if (_rvrSharedEvent && _rvrDestination != null &&
-                !AutonomousRvrEventLayer.IsTargetActive(_rvrDestination.Id, GameLoop.GameLoopTime))
+                (!AutonomousRvrEventLayer.IsTargetActive(_rvrDestination.Id, GameLoop.GameLoopTime) ||
+                 AutonomousRvrEventLayer.IsAvoided(forceId, _rvrDestination.Id, GameLoop.GameLoopTime)))
             {
                 _rvrDestination = null;
                 _rvrApproachDestination = null;

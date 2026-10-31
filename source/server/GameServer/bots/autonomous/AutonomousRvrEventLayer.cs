@@ -107,6 +107,54 @@ public static partial class AutonomousRvrEventLayer
     private static readonly Dictionary<string, (long ExpiresTick, Dictionary<eRealm, Dictionary<string, int>> Participants)> CarrierEvents = new(StringComparer.Ordinal);
     private static readonly Dictionary<string, LiveObjective> CarrierTargets = new(StringComparer.Ordinal);
     private static readonly Dictionary<string, long> Cooldowns = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// Owner 2026-11-01: a bot that finds no route to a keep (RVR_KEEP_ROUTE_FAILED) used to retry the same planning, almost a
+    /// thousand navmesh queries, every 30-120 seconds for as long as the siege lasted. Now its force gives that keep up for this long
+    /// and goes where the planner sends it next.
+    /// </summary>
+    public const long UnreachableAvoidMilliseconds = 20 * 60_000;
+    private static readonly Dictionary<(string Force, string Target), long> Avoided = new();
+
+    public static bool IsAvoided(string forceId, string targetId, long nowTick)
+    {
+        if (string.IsNullOrEmpty(forceId) || string.IsNullOrEmpty(targetId)) return false;
+        lock (Sync)
+            return Avoided.TryGetValue((forceId, targetId), out long until) && until > nowTick;
+    }
+
+    /// <summary>
+    /// A member of <paramref name="forceId"/> found no route to <paramref name="targetId"/>: the force leaves that siege and does not
+    /// choose the keep again for <see cref="UnreachableAvoidMilliseconds"/>. A rally left with no attackers ends at once, so that its
+    /// realm may open another one.
+    /// </summary>
+    public static void ReportUnreachable(string forceId, string targetId, long nowTick)
+    {
+        if (string.IsNullOrWhiteSpace(forceId) || string.IsNullOrWhiteSpace(targetId)) return;
+        lock (Sync)
+        {
+            if (Avoided.TryGetValue((forceId, targetId), out long known) && known > nowTick) return;
+            Avoided[(forceId, targetId)] = nowTick + UnreachableAvoidMilliseconds;
+            var log = DOL.Logging.LoggerManager.Create(typeof(AutonomousRvrEventLayer));
+            if (log.IsInfoEnabled) log.Info($"RVR_KEEP_UNREACHABLE force={forceId} target={targetId} avoidMinutes={UnreachableAvoidMilliseconds / 60_000}");
+            if (!Events.TryGetValue(targetId, out ActiveEvent active)) return;
+            bool attacker = active.Attackers.ContainsKey(forceId);
+            active.Attackers.Remove(forceId);
+            active.Defenders.Remove(forceId);
+            active.ThirdRealm.Remove(forceId);
+            active.Slots.Remove(forceId);
+            foreach (long id in active.Travel.Where(pair => pair.Value.Force == forceId).Select(pair => pair.Key).ToArray())
+                active.Travel.Remove(id);
+            foreach (long id in active.Present.Where(pair => pair.Value.Force == forceId).Select(pair => pair.Key).ToArray())
+                active.Present.Remove(id);
+            foreach (long id in active.Mustered.Where(pair => pair.Value.Force == forceId).Select(pair => pair.Key).ToArray())
+                active.Mustered.Remove(id);
+            foreach (long id in active.DefenseMustered.Where(pair => pair.Value.Force == forceId).Select(pair => pair.Key).ToArray())
+                active.DefenseMustered.Remove(id);
+            if (attacker && !active.BattleStarted && !active.Forced && active.Attackers.Count == 0)
+                EndEvent(active, nowTick, "Rally failed: no attacker can reach the keep");
+        }
+    }
     private static readonly Dictionary<string, string> ReleasedForces = new(StringComparer.Ordinal);
     private static long _nextStragglerSweep;
     private static readonly HashSet<string> SelectedKeeps = new(StringComparer.Ordinal);
@@ -331,6 +379,7 @@ public static partial class AutonomousRvrEventLayer
                 LiveObjective target = objectives.FirstOrDefault(objective => objective.Id == active.TargetId);
                 if (target == null)
                     continue;
+                if (Avoided.TryGetValue((force.GroupId, active.TargetId), out long avoidUntil) && avoidUntil > nowTick) continue;
                 if (!IsLatestDefenseFocus(active)) continue;
                 if (target.UnderAttack) active.AttackObserved = true;
                 // The attacking commitment raises the alarm before combat. Defenders
@@ -397,7 +446,8 @@ public static partial class AutonomousRvrEventLayer
             {
                 LiveObjective[] assaultable = objectives.Where(objective => objective.Kind is Intent.AssaultKeep or Intent.AssaultRelicKeep &&
                     objective.OwningRealm != force.Realm && objective.OwningRealm != eRealm.None && !Events.ContainsKey(objective.Id) &&
-                    !OnCooldown(objective.Id, nowTick) && (!objective.IsRelicKeep || force.MemberCount >= 6)).ToArray();
+                    !OnCooldown(objective.Id, nowTick) && (!objective.IsRelicKeep || force.MemberCount >= 6) &&
+                    !(Avoided.TryGetValue((force.GroupId, objective.Id), out long avoidedUntil) && avoidedUntil > nowTick)).ToArray();
                 ushort home = AutonomousRvrCampaign.HomeRegion(force.Realm);
                 bool homeLost = objectives.Any(objective => objective.RegionId == home && objective.Kind is Intent.AssaultKeep or Intent.AssaultRelicKeep &&
                     objective.OwningRealm != force.Realm && objective.OwningRealm != eRealm.None);
@@ -1470,6 +1520,8 @@ public static partial class AutonomousRvrEventLayer
         }
         foreach (string id in Cooldowns.Where(pair => pair.Value <= nowTick).Select(pair => pair.Key).ToArray())
             Cooldowns.Remove(id);
+        foreach (var key in Avoided.Where(pair => pair.Value <= nowTick).Select(pair => pair.Key).ToArray())
+            Avoided.Remove(key);
         foreach (string id in CarrierEvents.Where(pair => pair.Value.ExpiresTick <= nowTick)
                      .Select(pair => pair.Key).ToArray())
         {
