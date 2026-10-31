@@ -29,7 +29,9 @@ public enum eAutonomousPveCompletionMode
 public static class AutonomousObjectiveAssignments
 {
     private const long RebalanceIntervalMilliseconds = 60_000;
-    public static readonly TimeSpan MinimumRvrTenure = TimeSpan.FromMinutes(45);
+    // Owner 2026-10-31: a level-50 bot that does RvR stays in its group for at least two hours (it was 45 to 120 minutes at random),
+    // then it may do other things (the between-task services, up to MaximumBetweenTaskDuration) and must find another group.
+    public static readonly TimeSpan MinimumRvrTenure = TimeSpan.FromMinutes(120);
     public static readonly TimeSpan MaximumRvrTenure = TimeSpan.FromMinutes(120);
     public static readonly TimeSpan MinimumPveTenure = TimeSpan.FromMinutes(45);
     public static readonly TimeSpan MaximumPveTenure = TimeSpan.FromMinutes(120);

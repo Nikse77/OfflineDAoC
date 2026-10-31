@@ -74,7 +74,7 @@ namespace DOL.GS.Tests
         }
 
         [TestCase(eAutonomousObjectiveKind.GroupPve, 45, 120)]
-        [TestCase(eAutonomousObjectiveKind.RvR, 45, 120)]
+        [TestCase(eAutonomousObjectiveKind.RvR, 120, 120)]
         public void SharedClockUsesCorrectGroupDuration(eAutonomousObjectiveKind kind, int minimum, int maximum)
         {
             for (int seed = 0; seed < 500; seed++)
@@ -160,7 +160,7 @@ namespace DOL.GS.Tests
             Assert.That(AutonomousObjectiveAssignments.IsRvrEligible(record, DateTime.UtcNow.AddDays(10)), Is.False);
             record.Level = 50;
             Assert.That(AutonomousObjectiveAssignments.IsRvrEligible(record, DateTime.UtcNow), Is.False);
-            Assert.That(AutonomousObjectiveAssignments.MinimumRvrTenure, Is.EqualTo(TimeSpan.FromMinutes(45)));
+            Assert.That(AutonomousObjectiveAssignments.MinimumRvrTenure, Is.EqualTo(TimeSpan.FromMinutes(120)));
             Assert.That(AutonomousObjectiveAssignments.MaximumRvrTenure, Is.EqualTo(TimeSpan.FromMinutes(120)));
             Assert.That(AutonomousObjectiveAssignments.MaximumBetweenTaskDuration, Is.EqualTo(TimeSpan.FromMinutes(30)));
         }
