@@ -637,27 +637,7 @@ namespace DOL.GS.Keeps
 					}
 			}
 
-			if (player.Group != null)
-			{
-				int count = 0;
-				foreach (GamePlayer p in player.Group.GetPlayersInTheGroup())
-				{
-					// if (GameServer.KeepManager.GetKeepCloseToSpot(p.CurrentRegionID, p, 1000) == this)
-					if (p.CurrentAreas.Contains(this.Area)) //Check if player is in keep area
-						count++;
-				}
-
-				int needed = ServerProperties.Properties.CLAIM_NUM;
-				if (this is GameKeepTower)
-					needed = needed / 2;
-				if (player.Client.Account.PrivLevel > 1)
-					needed = 0;
-				if (count < needed)
-				{
-					player.Out.SendMessage("Not enough group members are near the keep. You have " + count + "/" + needed + ".", eChatType.CT_System, eChatLoc.CL_SystemWindow);
-					return false;
-				}
-			}
+			// Owner 2026-10-31: the group of CLAIM_NUM players near the keep is no longer required.
 			return true;
 		}
 

@@ -68,18 +68,7 @@ namespace DOL.GS.Keeps
 			if (player.Client.Account.PrivLevel > 1)
 				return true;
 
-			if (player.Group == null)
-			{
-				player.Out.SendMessage("You must be in a group to claim.", eChatType.CT_System, eChatLoc.CL_SystemWindow);
-				return false;
-			}
-
-			if (player.Group.MemberCount < ServerProperties.Properties.CLAIM_NUM / 2)
-			{
-				player.Out.SendMessage("You need " + ServerProperties.Properties.CLAIM_NUM / 2 + " players to claim.", eChatType.CT_System, eChatLoc.CL_SystemWindow);
-				return false;
-			}
-
+			// Owner 2026-10-31: no group, and no group of CLAIM_NUM / 2 players, is needed (nobody else plays on this server).
 			return base.CheckForClaim(player);
 		}
 
