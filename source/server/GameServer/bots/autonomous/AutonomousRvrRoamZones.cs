@@ -27,14 +27,16 @@ public static class AutonomousRvrRoamZones
     // Owner 2026-10-31, step 3 of the RvR plan: the patrol zone of each force, spread equally over the three zones per realm.
     // The zones are taken in this order: Emain Macha (region 200) first, Odin's Gate (100) second, Hadrian's Wall (1) third.
     public static readonly ushort[] PatrolOrder = [200, 100, 1];
-    private const long AssignmentMemoryMilliseconds = 30 * 60_000;
+    // A safety net only: a force keeps its zone until its group ends (Release), but a bot on its own never ends one, and an
+    // entry nobody has asked for in four hours (longer than any tenure) belongs to a force that is gone.
+    private const long AssignmentMemoryMilliseconds = 4 * 60 * 60_000;
     private sealed record Patrol(eRealm Realm, ushort Region, long SeenTick);
     private static readonly ConcurrentDictionary<string, Patrol> Patrols = new();
 
     /// <summary>
-    /// The region (that is, the zone of its portal keeps) a force patrols. A force keeps its zone while it asks; a new force gets the
-    /// zone with the fewest forces of its realm, the first of <see cref="PatrolOrder"/> on a tie. Zones of forces that stopped
-    /// asking half an hour ago are free again.
+    /// The region (that is, the zone of its portal keeps) a force patrols. A force chooses once and stays there, through any siege,
+    /// defense or relic it is called to, until its group ends (<see cref="Release"/>); a new force gets the zone with the fewest
+    /// forces of its realm, the first of <see cref="PatrolOrder"/> on a tie.
     /// </summary>
     public static ushort PatrolRegionFor(string forceId, eRealm realm, long nowTick)
     {
@@ -52,6 +54,9 @@ public static class AutonomousRvrRoamZones
         Patrols[forceId] = new Patrol(realm, chosen, nowTick);
         return chosen;
     }
+
+    /// <summary>The group (or force) is over: its zone is free again for the next one.</summary>
+    public static void Release(string forceId) => Patrols.TryRemove(forceId, out _);
 
     /// <summary>The first region of the order with the fewest forces.</summary>
     public static ushort LeastUsed(IReadOnlyList<ushort> order, IReadOnlyDictionary<ushort, int> counts)

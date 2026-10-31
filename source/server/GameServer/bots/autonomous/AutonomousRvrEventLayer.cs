@@ -1085,6 +1085,7 @@ public static partial class AutonomousRvrEventLayer
 
     public static void RemoveForce(string forceId)
     {
+        AutonomousRvrRoamZones.Release(forceId);
         lock (Sync)
         {
             foreach (var active in Events.Values)

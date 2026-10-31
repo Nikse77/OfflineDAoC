@@ -51,6 +51,23 @@ namespace DOL.UnitTests
         }
 
         [Test]
+        public void AForceKeepsItsZoneForHoursAndLeavesItOnlyWhenItsGroupEnds()
+        {
+            long now = 5_000_000;
+            string a = "test-hold-a", b = "test-hold-b", c = "test-hold-c", d = "test-hold-d";
+            ushort first = AutonomousRvrRoamZones.PatrolRegionFor(a, eRealm.Hibernia, now);
+            AutonomousRvrRoamZones.PatrolRegionFor(b, eRealm.Hibernia, now);
+            AutonomousRvrRoamZones.PatrolRegionFor(c, eRealm.Hibernia, now);
+
+            // three hours later, with no request in between (a long siege), it still has its zone
+            Assert.That(AutonomousRvrRoamZones.PatrolRegionFor(a, eRealm.Hibernia, now + 3 * 60 * 60_000L), Is.EqualTo(first));
+
+            AutonomousRvrRoamZones.Release(a);
+            Assert.That(AutonomousRvrRoamZones.PatrolRegionFor(d, eRealm.Hibernia, now + 3 * 60 * 60_000L), Is.EqualTo(first),
+                "the zone its group left is the first to be filled again");
+        }
+
+        [Test]
         public void WithNoKeepDataEveryPointIsPatrolled() =>
             Assert.That(AutonomousRvrRoamZones.IsPatrolPoint("test-rvr-none", eRealm.Albion, 1, 1, 1000, 1000), Is.True);
     }
