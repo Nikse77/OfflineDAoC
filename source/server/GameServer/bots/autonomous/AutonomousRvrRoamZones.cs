@@ -8,13 +8,13 @@ namespace DOL.GS;
 /// Owner 2026-10-31: when the level-50 RvR bots have no siege, defense or relic to go to, the random zone they patrol or hunt
 /// in is one of the three zones of the old frontiers that hold the portal keeps: Hadrian's Wall (region 1, zone 15), Odin's
 /// Gate (region 100, zone 115) and Emain Macha (region 200, zone 214). The zones are read from the portal keeps themselves,
-/// so a different map follows its own keeps. With no keep data (unit tests, a map without portal keeps) nothing is restricted.
+/// so a different map follows its own keeps. Hunting an enemy force is not limited to them. With no keep data (unit tests, a map without portal keeps) nothing is restricted.
 /// </summary>
 public static class AutonomousRvrRoamZones
 {
     private static readonly ConcurrentDictionary<ushort, HashSet<ushort>> Cache = new();
 
-    /// <summary>True when a patrol or a hunt may take place at this point (or when no portal keep zone is known for the region).</summary>
+    /// <summary>True when a patrol may take place at this point (or when no portal keep zone is known for the region).</summary>
     public static bool IsRoamPoint(ushort regionId, int x, int y)
     {
         HashSet<ushort> zones = ZonesOf(regionId);

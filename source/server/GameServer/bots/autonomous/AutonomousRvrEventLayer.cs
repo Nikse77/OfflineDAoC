@@ -380,7 +380,7 @@ public static partial class AutonomousRvrEventLayer
                     (!SiegeScheduling || active.AttackerRealm == force.Realm)))
                 return ReservePlan(force, objectives);
 
-            bool hasEnemy = objectives.Any(objective => objective.Kind == Intent.HuntEnemy && objective.EnemyCount > 0 && RoamsHere(objective));
+            bool hasEnemy = objectives.Any(objective => objective.Kind == Intent.HuntEnemy && objective.EnemyCount > 0);
             LiveObjective relic = ChooseVariedTarget(objectives.Where(objective => objective.Kind == Intent.AssaultRelicKeep && objective.IsRelicKeep &&
                                                                objective.OwningRealm != force.Realm && !Events.ContainsKey(objective.Id) && !OnCooldown(objective.Id, nowTick))
                 , SelectedRelics);
@@ -399,10 +399,10 @@ public static partial class AutonomousRvrEventLayer
             {
                 Intent.AssaultRelicKeep => relic,
                 Intent.AssaultKeep => keep,
-                Intent.HuntEnemy => objectives.Where(objective => objective.Kind == Intent.HuntEnemy && objective.EnemyCount > 0 && RoamsHere(objective))
+                Intent.HuntEnemy => objectives.Where(objective => objective.Kind == Intent.HuntEnemy && objective.EnemyCount > 0)
                     .OrderBy(objective => Math.Abs(objective.EnemyCount - force.MemberCount)).FirstOrDefault(),
                 _ => objectives.Where(objective => objective.Kind == Intent.Roam && RoamsHere(objective)).OrderBy(_ => Random.Shared.Next()).FirstOrDefault() ??
-                     objectives.Where(objective => objective.Kind == Intent.HuntEnemy && RoamsHere(objective)).OrderBy(_ => Random.Shared.Next()).FirstOrDefault(),
+                     objectives.Where(objective => objective.Kind == Intent.HuntEnemy).OrderBy(_ => Random.Shared.Next()).FirstOrDefault(),
             };
             if (selected == null)
                 return null;
@@ -448,8 +448,9 @@ public static partial class AutonomousRvrEventLayer
         new(Intent, target.Id, target.Name, target.RegionId, target.X, target.Y, target.Z, shared, reason);
 
     /// <summary>
-    /// Owner 2026-10-31: a patrol or a hunt picks its place among the zones that hold the portal keeps (AutonomousRvrRoamZones).
-    /// A relic carrier is followed wherever it goes.
+    /// Owner 2026-10-31: a patrol (Roam) picks its random place among the zones that hold the portal keeps
+    /// (AutonomousRvrRoamZones). A hunt is not limited to them: an enemy force is hunted wherever it is in the frontier, and a
+    /// relic carrier is followed wherever it goes.
     /// </summary>
     private static bool RoamsHere(LiveObjective objective) =>
         objective.IsRelicCarrier || AutonomousRvrRoamZones.IsRoamPoint(objective.RegionId, objective.X, objective.Y);
@@ -458,7 +459,7 @@ public static partial class AutonomousRvrEventLayer
     {
         LiveObjective target = objectives.Where(objective => objective.Kind == Intent.Roam && RoamsHere(objective))
             .OrderBy(_ => Random.Shared.Next()).FirstOrDefault()
-            ?? objectives.Where(objective => objective.Kind == Intent.HuntEnemy && !objective.IsRelicCarrier && objective.EnemyCount > 0 && RoamsHere(objective))
+            ?? objectives.Where(objective => objective.Kind == Intent.HuntEnemy && !objective.IsRelicCarrier && objective.EnemyCount > 0)
                 .OrderBy(_ => Random.Shared.Next()).FirstOrDefault();
         return target == null ? null : ToPlan(target.Kind == Intent.HuntEnemy ? Intent.HuntEnemy : Intent.Roam, target, false,
             "Keeping a deliberate roaming reserve instead of automatically joining the active event.");
