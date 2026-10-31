@@ -4418,7 +4418,8 @@ namespace DOL.GS
         {
             if (_groupDirective?.IsDynamic != true || _groupDirective.Leader != bot) return false;
             bool move = AutonomousGroupPace.Decide(
-                AutonomousBotGroupCoordinator.FarthestMemberDistance(_groupDirective), _groupPaceWaiting) ==
+                AutonomousBotGroupCoordinator.FarthestMemberDistance(_groupDirective), _groupPaceWaiting,
+                compact: _groupDirective.ObjectiveKind == eAutonomousObjectiveKind.RvR) ==
                 AutonomousGroupPace.Decision.FullSpeed;
             _groupPaceWaiting = !move;
             return move;

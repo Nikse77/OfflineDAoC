@@ -24,8 +24,17 @@ namespace DOL.GS
 
         public enum Decision { FullSpeed, Wait }
 
-        public static Decision Decide(float farthestMember, bool waiting) =>
-            farthestMember <= (waiting ? ResumeRadius : TrailRadius) ? Decision.FullSpeed : Decision.Wait;
+        /// <summary>Owner 2026-11-01: an RvR group travels compact. Its leader waits when a member is this far behind...</summary>
+        public const int CompactTrailRadius = 600;
+        /// <summary>...and goes on when every member is within this.</summary>
+        public const int CompactResumeRadius = 300;
+
+        public static Decision Decide(float farthestMember, bool waiting, bool compact = false)
+        {
+            int trail = compact ? CompactTrailRadius : TrailRadius;
+            int resume = compact ? CompactResumeRadius : ResumeRadius;
+            return farthestMember <= (waiting ? resume : trail) ? Decision.FullSpeed : Decision.Wait;
+        }
 
         /// <summary>Speed multiplier for a follower this far from its formation spot (1.0 to 1.25).</summary>
         public static float CatchUpFactor(float distanceFromFormation) =>

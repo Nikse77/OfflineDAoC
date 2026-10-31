@@ -81,6 +81,13 @@ namespace DOL.UnitTests
             AutonomousGroupPace.Decision expected) =>
             Assert.That(AutonomousGroupPace.Decide(farthest, waiting), Is.EqualTo(expected));
 
+        [TestCase(600f, false, AutonomousGroupPace.Decision.FullSpeed)]
+        [TestCase(601f, false, AutonomousGroupPace.Decision.Wait)]
+        [TestCase(400f, true, AutonomousGroupPace.Decision.Wait)]
+        [TestCase(300f, true, AutonomousGroupPace.Decision.FullSpeed)]
+        public void AnRvrGroupTravelsCompact(float farthest, bool waiting, AutonomousGroupPace.Decision expected) =>
+            Assert.That(AutonomousGroupPace.Decide(farthest, waiting, compact: true), Is.EqualTo(expected));
+
         [Test]
         public void AvalonCityIsAProvenDungeonNow()
         {
