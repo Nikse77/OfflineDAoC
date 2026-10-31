@@ -24,6 +24,53 @@ public static class AutonomousRvrRoamZones
         return zone != null && zones.Contains(zone.ID);
     }
 
+    // Owner 2026-10-31, step 3 of the RvR plan: the patrol zone of each force, spread equally over the three zones per realm.
+    // The zones are taken in this order: Emain Macha (region 200) first, Odin's Gate (100) second, Hadrian's Wall (1) third.
+    public static readonly ushort[] PatrolOrder = [200, 100, 1];
+    private const long AssignmentMemoryMilliseconds = 30 * 60_000;
+    private sealed record Patrol(eRealm Realm, ushort Region, long SeenTick);
+    private static readonly ConcurrentDictionary<string, Patrol> Patrols = new();
+
+    /// <summary>
+    /// The region (that is, the zone of its portal keeps) a force patrols. A force keeps its zone while it asks; a new force gets the
+    /// zone with the fewest forces of its realm, the first of <see cref="PatrolOrder"/> on a tie. Zones of forces that stopped
+    /// asking half an hour ago are free again.
+    /// </summary>
+    public static ushort PatrolRegionFor(string forceId, eRealm realm, long nowTick)
+    {
+        foreach (var old in Patrols.Where(entry => nowTick - entry.Value.SeenTick > AssignmentMemoryMilliseconds).ToArray())
+            Patrols.TryRemove(old.Key, out _);
+        if (Patrols.TryGetValue(forceId, out Patrol known))
+        {
+            Patrols[forceId] = known with { SeenTick = nowTick };
+            return known.Region;
+        }
+        var counts = new Dictionary<ushort, int>();
+        foreach (ushort region in PatrolOrder)
+            counts[region] = Patrols.Values.Count(patrol => patrol.Realm == realm && patrol.Region == region);
+        ushort chosen = LeastUsed(PatrolOrder, counts);
+        Patrols[forceId] = new Patrol(realm, chosen, nowTick);
+        return chosen;
+    }
+
+    /// <summary>The first region of the order with the fewest forces.</summary>
+    public static ushort LeastUsed(IReadOnlyList<ushort> order, IReadOnlyDictionary<ushort, int> counts)
+    {
+        ushort best = order[0];
+        foreach (ushort region in order)
+            if (counts.GetValueOrDefault(region) < counts.GetValueOrDefault(best))
+                best = region;
+        return best;
+    }
+
+    /// <summary>True when the force patrols this point: its own zone, or any point when the zones are not known.</summary>
+    public static bool IsPatrolPoint(string forceId, eRealm realm, long nowTick, ushort regionId, int x, int y)
+    {
+        if (ZonesOf(regionId) == null)
+            return true;
+        return regionId == PatrolRegionFor(forceId, realm, nowTick) && IsRoamPoint(regionId, x, y);
+    }
+
     /// <summary>The zone ids of a region's portal keeps; null when none can be read.</summary>
     private static HashSet<ushort> ZonesOf(ushort regionId)
     {

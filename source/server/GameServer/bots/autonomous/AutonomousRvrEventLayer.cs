@@ -401,7 +401,7 @@ public static partial class AutonomousRvrEventLayer
                 Intent.AssaultKeep => keep,
                 Intent.HuntEnemy => objectives.Where(objective => objective.Kind == Intent.HuntEnemy && objective.EnemyCount > 0)
                     .OrderBy(objective => Math.Abs(objective.EnemyCount - force.MemberCount)).FirstOrDefault(),
-                _ => objectives.Where(objective => objective.Kind == Intent.Roam && RoamsHere(objective)).OrderBy(_ => Random.Shared.Next()).FirstOrDefault() ??
+                _ => PickPatrol(force, objectives) ??
                      objectives.Where(objective => objective.Kind == Intent.HuntEnemy).OrderBy(_ => Random.Shared.Next()).FirstOrDefault(),
             };
             if (selected == null)
@@ -455,10 +455,23 @@ public static partial class AutonomousRvrEventLayer
     private static bool RoamsHere(LiveObjective objective) =>
         objective.IsRelicCarrier || AutonomousRvrRoamZones.IsRoamPoint(objective.RegionId, objective.X, objective.Y);
 
+    /// <summary>
+    /// Owner 2026-10-31 (step 3 of the RvR plan): a force patrols the zone it was given (Emain Macha, Odin's Gate or Hadrian's Wall,
+    /// shared equally by the forces of its realm, AutonomousRvrRoamZones.PatrolRegionFor). With nothing to patrol in it, any of the
+    /// three zones will do.
+    /// </summary>
+    private static LiveObjective PickPatrol(Force force, IEnumerable<LiveObjective> objectives)
+    {
+        LiveObjective[] patrols = objectives.Where(objective => objective.Kind == Intent.Roam).ToArray();
+        long now = GameLoop.GameLoopTime;
+        return patrols.Where(objective => AutonomousRvrRoamZones.IsPatrolPoint(force.GroupId, force.Realm, now,
+                objective.RegionId, objective.X, objective.Y)).OrderBy(_ => Random.Shared.Next()).FirstOrDefault()
+            ?? patrols.Where(RoamsHere).OrderBy(_ => Random.Shared.Next()).FirstOrDefault();
+    }
+
     private static Plan ReservePlan(Force force, IReadOnlyCollection<LiveObjective> objectives)
     {
-        LiveObjective target = objectives.Where(objective => objective.Kind == Intent.Roam && RoamsHere(objective))
-            .OrderBy(_ => Random.Shared.Next()).FirstOrDefault()
+        LiveObjective target = PickPatrol(force, objectives)
             ?? objectives.Where(objective => objective.Kind == Intent.HuntEnemy && !objective.IsRelicCarrier && objective.EnemyCount > 0)
                 .OrderBy(_ => Random.Shared.Next()).FirstOrDefault();
         return target == null ? null : ToPlan(target.Kind == Intent.HuntEnemy ? Intent.HuntEnemy : Intent.Roam, target, false,
