@@ -74,7 +74,7 @@ namespace DOL.GS.Tests
         }
 
         [TestCase(eAutonomousObjectiveKind.GroupPve, 45, 120)]
-        [TestCase(eAutonomousObjectiveKind.RvR, 120, 120)]
+        [TestCase(eAutonomousObjectiveKind.RvR, 120, 180)]
         public void SharedClockUsesCorrectGroupDuration(eAutonomousObjectiveKind kind, int minimum, int maximum)
         {
             for (int seed = 0; seed < 500; seed++)
@@ -161,7 +161,7 @@ namespace DOL.GS.Tests
             record.Level = 50;
             Assert.That(AutonomousObjectiveAssignments.IsRvrEligible(record, DateTime.UtcNow), Is.False);
             Assert.That(AutonomousObjectiveAssignments.MinimumRvrTenure, Is.EqualTo(TimeSpan.FromMinutes(120)));
-            Assert.That(AutonomousObjectiveAssignments.MaximumRvrTenure, Is.EqualTo(TimeSpan.FromMinutes(120)));
+            Assert.That(AutonomousObjectiveAssignments.MaximumRvrTenure, Is.EqualTo(TimeSpan.FromMinutes(180)));
             Assert.That(AutonomousObjectiveAssignments.MaximumBetweenTaskDuration, Is.EqualTo(TimeSpan.FromMinutes(30)));
         }
 
@@ -177,10 +177,11 @@ namespace DOL.GS.Tests
             Assert.That(record.ObjectivePveKillTarget, Is.Zero);
             Assert.That(DateTime.Parse(record.ObjectiveExpiresUtc).ToUniversalTime(), Is.EqualTo(utc.AddMinutes(120)));
             Assert.That(AutonomousObjectiveAssignments.NormalizeLegacyTimedAssignment(record, utc.AddMinutes(30)), Is.False);
+            // An RvR tenure may last up to 180 minutes (owner 2026-10-31); a longer one is cut to that.
             record.ObjectiveKind = "RvR";
-            record.ObjectiveExpiresUtc = utc.AddMinutes(180).ToString("O");
+            record.ObjectiveExpiresUtc = utc.AddMinutes(240).ToString("O");
             Assert.That(AutonomousObjectiveAssignments.NormalizeLegacyTimedAssignment(record, utc.AddMinutes(40)), Is.True);
-            Assert.That(DateTime.Parse(record.ObjectiveExpiresUtc).ToUniversalTime(), Is.EqualTo(utc.AddMinutes(120)));
+            Assert.That(DateTime.Parse(record.ObjectiveExpiresUtc).ToUniversalTime(), Is.EqualTo(utc.AddMinutes(180)));
         }
 
         [Test]

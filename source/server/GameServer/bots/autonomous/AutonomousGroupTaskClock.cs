@@ -15,9 +15,9 @@ namespace DOL.GS
         public AutonomousGroupTaskClock(eAutonomousObjectiveKind kind, Random random = null)
         {
             random ??= Random.Shared;
-            // Owner 2026-10-31: an RvR group holds for two hours; the other group tasks keep their 45 to 120 minutes.
+            // Owner 2026-10-31: an RvR group holds for 120 to 180 minutes; the other group tasks keep their 45 to 120.
             DurationMilliseconds = kind == eAutonomousObjectiveKind.RvR
-                ? 120 * 60_000L
+                ? random.NextInt64(120 * 60_000L, 180 * 60_000L + 1)
                 : random.NextInt64(45 * 60_000L, 120 * 60_000L + 1);
             PausedRemainingMilliseconds = DurationMilliseconds;
         }

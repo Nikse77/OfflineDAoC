@@ -29,10 +29,10 @@ public enum eAutonomousPveCompletionMode
 public static class AutonomousObjectiveAssignments
 {
     private const long RebalanceIntervalMilliseconds = 60_000;
-    // Owner 2026-10-31: a level-50 bot that does RvR stays in its group for at least two hours (it was 45 to 120 minutes at random),
+    // Owner 2026-10-31: a level-50 bot that does RvR stays in its group for 120 to 180 minutes at random (it was 45 to 120),
     // then it may do other things (the between-task services, up to MaximumBetweenTaskDuration) and must find another group.
     public static readonly TimeSpan MinimumRvrTenure = TimeSpan.FromMinutes(120);
-    public static readonly TimeSpan MaximumRvrTenure = TimeSpan.FromMinutes(120);
+    public static readonly TimeSpan MaximumRvrTenure = TimeSpan.FromMinutes(180);
     public static readonly TimeSpan MinimumPveTenure = TimeSpan.FromMinutes(45);
     public static readonly TimeSpan MaximumPveTenure = TimeSpan.FromMinutes(120);
     public static readonly TimeSpan GroupMatchmakingTimeout = TimeSpan.FromMinutes(20);
@@ -129,9 +129,11 @@ public static class AutonomousObjectiveAssignments
         bool validExpiry = DateTime.TryParse(record.ObjectiveExpiresUtc, null,
             System.Globalization.DateTimeStyles.RoundtripKind, out DateTime expiry);
         double duration = validExpiry ? (expiry.ToUniversalTime() - assigned.ToUniversalTime()).TotalMinutes : 45;
-        if (!validExpiry || duration < 45 || duration > 120)
+        // An RvR tenure may last up to MaximumRvrTenure; the other timed assignments keep their 120-minute ceiling.
+        double ceiling = Parse(record.ObjectiveKind) == eAutonomousObjectiveKind.RvR ? MaximumRvrTenure.TotalMinutes : 120;
+        if (!validExpiry || duration < 45 || duration > ceiling)
         {
-            record.ObjectiveExpiresUtc = assigned.ToUniversalTime().AddMinutes(Math.Clamp(duration, 45, 120)).ToString("O");
+            record.ObjectiveExpiresUtc = assigned.ToUniversalTime().AddMinutes(Math.Clamp(duration, 45, ceiling)).ToString("O");
             changed = true;
         }
         return changed;
