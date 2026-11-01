@@ -10,13 +10,14 @@ namespace DOL.GS;
 /// urgent (a defense, an own relic, a siege of its realm already running; those are the event layer's business).
 /// First it retakes a keep of its own frontier that another realm holds. Only when it holds all its own frontier's keeps may it
 /// go to conquer a keep of another realm: in one of the other two frontiers, chosen at random, the keep nearest to the
-/// realm's entry (portal) keep there, and at least half an hour after the previous conquest attempt of the realm.
+/// realm's entry (portal) keep there, and at least forty minutes after the end of the realm's previous conquest attempt.
 /// The rest is patrol. This replaces the once-a-minute roll that opened sieges at random.
 /// </summary>
 public static class AutonomousRvrCampaign
 {
-    /// <summary>Owner 2026-10-31: at least this long between one conquest attempt of a realm and the next.</summary>
-    public const long ConquestGapMilliseconds = 30 * 60_000;
+    /// <summary>Owner 2026-10-31: at least this long between one conquest attempt of a realm and the next.
+    /// Owner 2026-11-01: forty minutes, counted from the end of the previous attempt (not from its start).</summary>
+    public const long ConquestGapMilliseconds = 40 * 60_000;
 
     private static readonly ConcurrentDictionary<eRealm, long> LastConquest = new();
 

@@ -57,6 +57,9 @@ public static partial class AutonomousRvrEventLayer
         public bool BattleStarted;
         public bool PreparationNoticeSent;
         public long CreatedTick;
+        /// <summary>Owner 2026-11-01: opened as a conquest of a keep in another realm's frontier, not as a retake; the end of
+        /// the attempt starts the realm's forty-minute gap before it may try another conquest.</summary>
+        public bool Conquest;
         public bool AttackObserved;
         /// <summary>Started by a player or the test harness (ForceStart): joined first, and it takes the army of an
         /// automatic siege by the same realm that has not begun fighting yet.</summary>
@@ -317,9 +320,13 @@ public static partial class AutonomousRvrEventLayer
             // reinforcements or reserve patrols, even if a caller supplies one.
             bool patrolOver = SiegeScheduling && force != null && AutonomousRvrPatrolLock.Expired(force.GroupId, nowTick);
             Plan plan = ChooseCore(force, objectives?.Where(objective => !objective.IsPortalKeep).ToArray(), nowTick, roll);
-            // Owner 2026-11-01: after its twenty minutes of patrol the force chose; an event ends the lock, a patrol renews it.
+            // Owner 2026-11-01: after its thirty minutes of patrol the force chose; an event ends the lock, a patrol renews it.
             if (patrolOver && plan != null)
                 AutonomousRvrPatrolLock.ChoiceMade(force.GroupId, nowTick, plan.IsSharedEvent);
+            // Owner 2026-11-01: a defense interrupts the patrol; the lock is released and a new thirty-minute patrol starts once
+            // the defense is over.
+            else if (SiegeScheduling && plan?.Intent == Intent.DefendEvent && AutonomousRvrPatrolLock.Holds(force.GroupId, nowTick))
+                AutonomousRvrPatrolLock.ChoiceMade(force.GroupId, nowTick, sharedEvent: true);
             if (force != null)
             {
                 if (plan?.IsSharedEvent == true && force.MemberIds != null && Events.TryGetValue(plan.TargetId, out var joined))
@@ -341,6 +348,54 @@ public static partial class AutonomousRvrEventLayer
         }
     }
 
+    /// <summary>
+    /// Owner 2026-11-01: joining the defense of an assault on one of the realm's own keeps. Shared by the rally choice and by a
+    /// force still on patrol, which may break off to defend but not to attack.
+    /// </summary>
+    private static Plan JoinDefense(Force force, ActiveEvent active, LiveObjective target, long nowTick, double roll)
+    {
+        if (force?.Realm != active.DefenderRealm || target == null || force.AverageLevel < 50) return null;
+        bool canRespond = SiegeScheduling
+            ? RealmEventPolicy.CanRespond(true, active.AttackObserved, active.BattleStarted, active.ThirdRealmIntervenes,
+                nowTick - active.BattleStartedTick)
+            : RealmEventPolicy.CanRecruitRealm(true, active.AttackObserved || active.BattleStarted,
+                active.Attackers.Values.Sum(), active.Defenders.Values.Sum(), Capacity(active));
+        if (!canRespond) return null;
+        if (active.BattleStarted && !active.Defenders.ContainsKey(force.GroupId) &&
+            !ShouldJoinActiveEvent(force, active.Defenders.Values.Sum(), Capacity(active), active.RelicKeep, true, roll))
+            return null;
+        if (!TryJoin(active.Defenders, force, DefenderCapFor(active))) return null;
+        if (SiegeScheduling && !active.DefenseMustering) BeginDefenseMuster(active, nowTick);
+        return ToPlan(Intent.DefendEvent, target, true,
+            "Choosing to converge to defend the live opposing-realm assault; participation is capped.");
+    }
+
+    /// <summary>
+    /// Owner 2026-11-01: while the patrol holds, the only objective that may interrupt it is a defense of the realm's own keep
+    /// under assault. Assaults, hunts and contested relics wait for the patrol to end; a defense response already running is not
+    /// held back at all (the gate above steps aside when one exists).
+    /// </summary>
+    private static Plan PatrolDefensePlan(Force force, IReadOnlyCollection<LiveObjective> objectives, long nowTick, double roll)
+    {
+        if (force == null || objectives == null) return null;
+        foreach (ActiveEvent active in Events.Values
+                     .Where(active => !active.DefenseReaction && active.DefenderRealm == force.Realm)
+                     .OrderByDescending(active => active.Forced)
+                     .ThenBy(active => active.BattleStarted)
+                     .ThenByDescending(active => JoinPriority(active, force))
+                     .ThenBy(active => active.TargetId, StringComparer.Ordinal))
+        {
+            LiveObjective target = objectives.FirstOrDefault(objective => objective.Id == active.TargetId);
+            if (target == null) continue;
+            if (Avoided.TryGetValue((force.GroupId, active.TargetId), out long avoidUntil) && avoidUntil > nowTick) continue;
+            if (!IsLatestDefenseFocus(active)) continue;
+            if (target.UnderAttack) active.AttackObserved = true;
+            Plan defense = JoinDefense(force, active, target, nowTick, roll);
+            if (defense != null) return defense;
+        }
+        return null;
+    }
+
     private static Plan ChooseCore(Force force, IReadOnlyCollection<LiveObjective> objectives, long nowTick, double roll)
     {
         if (force == null || string.IsNullOrWhiteSpace(force.GroupId) || force.Realm == eRealm.None || objectives == null)
@@ -357,11 +412,12 @@ public static partial class AutonomousRvrEventLayer
             if (committed != null)
                 return committed;
 
-            // Owner 2026-11-01: a group begins with twenty minutes of patrol and patrols at least twenty between one objective and
-            // the next. A player's attack or a forced siege (Forced, DefenseReaction) is not held back.
+            // Owner 2026-11-01: a group begins with thirty minutes of patrol and patrols at least thirty between one objective and
+            // the next; the patrol may be broken to defend but never to attack, so an assault or a hunt waits for it to run out.
+            // A player's attack or a forced siege (Forced, DefenseReaction) is not held back.
             if (SiegeScheduling && !Events.Values.Any(entry => entry.Forced || entry.DefenseReaction) &&
                 AutonomousRvrPatrolLock.Holds(force.GroupId, nowTick))
-                return ReservePlan(force, objectives);
+                return PatrolDefensePlan(force, objectives, nowTick, roll) ?? ReservePlan(force, objectives);
 
             if (force.RoamingReserve)
                 return ReservePlan(force, objectives);
@@ -411,14 +467,8 @@ public static partial class AutonomousRvrEventLayer
                 }
                 if (force.Realm == active.DefenderRealm)
                 {
-                    if (force.AverageLevel >= 50 && (!active.BattleStarted || active.Defenders.ContainsKey(force.GroupId) ||
-                        ShouldJoinActiveEvent(force, active.Defenders.Values.Sum(), Capacity(active), active.RelicKeep, true, roll)) &&
-                        TryJoin(active.Defenders, force, DefenderCapFor(active)))
-                    {
-                        if (SiegeScheduling && !active.DefenseMustering) BeginDefenseMuster(active, nowTick);
-                        return ToPlan(Intent.DefendEvent, target, true,
-                            "Choosing to converge to defend the live opposing-realm assault; participation is capped.");
-                    }
+                    Plan defense = JoinDefense(force, active, target, nowTick, roll);
+                    if (defense != null) return defense;
                     continue;
                 }
                 // The third realm contests the same event under its own cap;
@@ -490,14 +540,13 @@ public static partial class AutonomousRvrEventLayer
                     AttackerRealm = force.Realm,
                     DefenderRealm = selected.OwningRealm,
                     RelicKeep = selected.IsRelicKeep,
+                    Conquest = conquest,
                     ExpiresTick = nowTick + RealmEventPolicy.RecruitmentMilliseconds(Random.Shared.NextDouble()),
                     CreatedTick = nowTick,
                 };
                 active.Attackers[force.GroupId] = force.MemberCount;
                 Events[selected.Id] = active;
                 _siegeStartReady = false;
-                if (conquest)
-                    AutonomousRvrCampaign.RecordConquest(force.Realm, nowTick);
                 RealmEventRecords.Begin(selected.Id, selected.Name, selected.IsRelicKeep ? "Relic keep" : "Keep", GlobalConstants.RealmToName(force.Realm), "Automatic continuous siege; defender: " + GlobalConstants.RealmToName(selected.OwningRealm));
                 if (!StagedAssault)
                     StartBattle(active, nowTick, "automatic assault opened; each assigned bot converges without formation staging");
@@ -1432,6 +1481,8 @@ public static partial class AutonomousRvrEventLayer
             ReleasedForces[force] = reason;
         Events.Remove(active.TargetId);
         Cooldowns[active.TargetId] = nowTick + TargetCooldownMilliseconds;
+        // Owner 2026-11-01: the conquest gap of the realm runs from the end of its attempt, whichever way it ended.
+        if (active.Conquest) AutonomousRvrCampaign.RecordConquest(active.AttackerRealm, nowTick);
         var log = DOL.Logging.LoggerManager.Create(typeof(AutonomousRvrEventLayer));
         if (log.IsInfoEnabled) log.Info($"RVR_EVENT_ENDED target={active.TargetId} reason=\"{reason}\"");
     }
@@ -1644,6 +1695,7 @@ public static partial class AutonomousRvrEventLayer
             RealmEventRecords.Progress(carrierId, "Battle", "Relic escort / interception", active.Attackers.Values.Sum() + active.Defenders.Values.Sum() + active.ThirdRealm.Values.Sum(), 0);
             Events.Remove(keepId);
             Cooldowns[keepId] = nowTick + TargetCooldownMilliseconds;
+            if (active.Conquest) AutonomousRvrCampaign.RecordConquest(active.AttackerRealm, nowTick);
         }
     }
 

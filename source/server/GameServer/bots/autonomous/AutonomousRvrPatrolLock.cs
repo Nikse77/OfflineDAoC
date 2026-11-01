@@ -3,13 +3,15 @@ using System.Collections.Concurrent;
 namespace DOL.GS;
 
 /// <summary>
-/// Owner 2026-11-01: an RvR group begins with twenty minutes of patrol; after that it may retake or conquer a keep, join a defense or
-/// hunt, and when that is over it patrols again for at least twenty minutes before it changes objective once more, and so on until its
-/// tenure ends. A patrol that was chosen again after the twenty minutes also lasts twenty.
+/// Owner 2026-11-01: an RvR group begins with thirty minutes of patrol; after that it may retake or conquer a keep, join a defense or
+/// hunt, and when that is over it patrols again for at least thirty minutes before it changes objective once more, and so on until its
+/// tenure ends. A patrol that was chosen again after the thirty minutes also lasts thirty.
+/// Owner 2026-11-01: a patrol may be interrupted to defend (the realm's own keep under assault, a defense response already running), never
+/// to attack: an assault or a hunt waits for the patrol to run out.
 /// </summary>
 public static class AutonomousRvrPatrolLock
 {
-    public const long MinimumMilliseconds = 20 * 60_000;
+    public const long MinimumMilliseconds = 30 * 60_000;
     private static readonly ConcurrentDictionary<string, long> Until = new();
 
     /// <summary>The force starts a patrol now (the group has just assembled, or its siege is over).</summary>

@@ -15,11 +15,11 @@ namespace DOL.UnitTests
             new(id, id, AutonomousRvrEventLayer.Intent.AssaultKeep, owner, region, x, y, 0, false, 0, 0, 0, 0);
 
         [TestCase(null, 0L, true)]
-        [TestCase(0L, 29 * Minute, false)]
-        [TestCase(0L, 30 * Minute - 1, false)]
-        [TestCase(0L, 30 * Minute, true)]
-        [TestCase(1_000L, 31 * Minute, true)]
-        public void TheConquestGapIsThirtyMinutes(long? last, long now, bool expected) =>
+        [TestCase(0L, 39 * Minute, false)]
+        [TestCase(0L, 40 * Minute - 1, false)]
+        [TestCase(0L, 40 * Minute, true)]
+        [TestCase(1_000L, 41 * Minute, true)]
+        public void TheConquestGapIsFortyMinutesFromTheEndOfTheAttempt(long? last, long now, bool expected) =>
             Assert.That(AutonomousRvrCampaign.ConquestGapElapsed(last, now), Is.EqualTo(expected));
 
         [Test]
@@ -59,8 +59,8 @@ namespace DOL.UnitTests
             var assaultable = new[] { Keep("far", 100, 900, 900), Keep("near", 100, 110, 100), Keep("middle", 100, 400, 400) };
             Func<ushort, (int X, int Y)?> entry = region => region == 100 ? (100, 100) : null;
 
-            var tooSoon = AutonomousRvrCampaign.SelectAssault(eRealm.Albion, assaultable, false, 0, 29 * Minute, entry, new Random(1), out bool early);
-            var later = AutonomousRvrCampaign.SelectAssault(eRealm.Albion, assaultable, false, 0, 30 * Minute, entry, new Random(1), out bool conquest);
+            var tooSoon = AutonomousRvrCampaign.SelectAssault(eRealm.Albion, assaultable, false, 0, 39 * Minute, entry, new Random(1), out bool early);
+            var later = AutonomousRvrCampaign.SelectAssault(eRealm.Albion, assaultable, false, 0, 40 * Minute, entry, new Random(1), out bool conquest);
 
             Assert.That(tooSoon, Is.Null);
             Assert.That(early, Is.False);
