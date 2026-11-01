@@ -213,9 +213,9 @@ public static class AutonomousPopulationController
                 bot.Z = (int)dungeonEntrance.Z;
             }
 
-            // Owner 2026-11-01: the level-50 RvR bots enter the world at their realm's frontier keep, the one with the teleporter
+            // Owner 2026-11-01: every level-50 bot enters the world at their realm's frontier keep, the one with the teleporter
             // mages, where their groups gather (AutonomousRvrLogin).
-            if (AutonomousRvrLogin.Applies(record.Level, record.ObjectiveKind) &&
+            if (AutonomousRvrLogin.Applies(record.Level) &&
                 AutonomousRvrLogin.TryGetPoint((eRealm)record.Realm, record.BotId, out ushort keepRegion, out Vector3 keepPoint))
             {
                 Log.Info($"AUTONOMOUS_RVR_LOGIN_AT_KEEP bot={record.Name} id={record.BotId} realm={(eRealm)record.Realm} " +

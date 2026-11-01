@@ -15,11 +15,11 @@ namespace DOL.UnitTests
         public void AnArmyNeverMarchesUnderSixteen(int assigned, bool relic, int expected) =>
             Assert.That(AutonomousRvrEventLayer.MarchThreshold(relic, assigned), Is.EqualTo(expected));
 
-        [TestCase(50, "RvR", true)]
-        [TestCase(50, "SoloPve", false)]
-        [TestCase(49, "RvR", false)]
-        public void OnlyLevelFiftyRvrBotsLoginAtTheKeep(int level, string kind, bool expected) =>
-            Assert.That(AutonomousRvrLogin.Applies(level, kind), Is.EqualTo(expected));
+        [TestCase(50, true)]
+        [TestCase(49, false)]
+        [TestCase(1, false)]
+        public void EveryLevelFiftyBotLogsInAtTheKeep(int level, bool expected) =>
+            Assert.That(AutonomousRvrLogin.Applies(level), Is.EqualTo(expected));
 
         [TestCase(eRealm.Albion, (ushort)1)]
         [TestCase(eRealm.Midgard, (ushort)100)]
