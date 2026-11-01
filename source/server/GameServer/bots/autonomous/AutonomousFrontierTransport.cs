@@ -212,19 +212,13 @@ public static class AutonomousFrontierTransport
             bool MemberReady(GameBot member) => member.CurrentRegionID == request.Passage.Region ||
                 member.TempProperties.GetProperty<Request>(RequestKey) is Request memberRequest &&
                 memberRequest.Passage.Region == request.Passage.Region && Ready(member, porter, memberRequest);
-            if (!group.All(MemberReady))
-            {
-                // Owner 2026-11-01: a party crosses behind its leader. The partial departure below was the whole bug: seven
-                // members boarded on the leader's request while he was still holding the rendezvous, the batch gave up
-                // waiting, and the party was split for good with no walk back between the two frontiers.
-                GameBot partyLeader = group.FirstOrDefault(member => member.Group != null && ReferenceEquals(member.Group.Leader, member));
-                if (partyLeader != null && !MemberReady(partyLeader)) continue;
-                long now = GameLoop.GameLoopTime;
-                long since = bot.TempProperties.GetProperty<long>(BlockedSinceKey, 0L);
-                if (since == 0) bot.TempProperties.SetProperty(BlockedSinceKey, now);
-                if (!PartialDepartureDue(since, now)) continue;
-                group = group.Where(MemberReady).ToArray();
-            }
+            // Owner 2026-11-01: the party walks to the teleporter as one body and each member crosses on its own as soon
+            // as it is ready - no batch gate, no waiting for the leader. The two deadlocks this replaces: members held at
+            // the porter for a leader who was waiting for them at the rendezvous, and a partial departure that split the
+            // party for good. Reassembly happens on the far side, at the arrival pad.
+            group = group.Where(MemberReady).ToArray();
+            if (group.Length == 0) continue;
+            bot.TempProperties.RemoveProperty(BlockedSinceKey);
             int departed=0;
             for (int index = 0; index < group.Length; index++)
             {
