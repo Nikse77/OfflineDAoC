@@ -244,21 +244,55 @@ namespace DOL.GS
 		{
 			get
 			{
-				int crew = CurrentRiders.Length;
+				int riders = CurrentRiders.Length;
+				// Owner 2026-11-01: a player's companions crew the ram by standing at it, the same way a bot ram is
+				// crewed by the bots around it. They cannot be riders - only player characters can mount a siege
+				// weapon - but while the player is on the ram they stay at it and count, and when the player steps
+				// off there is no operator left, so the ram stops firing and they follow again.
+				// The companions are added without an owner-type test: the log showed a property that returned the
+				// riders alone while the probe beside it counted seven, so nothing here can depend on which branch the
+				// operator's type takes.
+				int companions = CompanionsAtRam(Owner as GamePlayer);
 				// A gamebot ram is crewed by any friendly gamebot at it, not only the operator's own group (run 2026-10-07:
 				// Midgard's ram at Caer Erasleigh ran on one bot while its army fought beside it).
 				if (Owner is GameBot op && (op.Group != null || op.IsAutonomousWorldBot))
 					foreach (GameNPC npc in GetNPCsInRadius(300))
 						if (npc is GameBot member && member != op && member.IsAlive && member.Realm == Realm &&
 							(op.Group?.IsInTheGroup(member) == true || op.IsAutonomousWorldBot && member.IsAutonomousWorldBot))
-							crew++;
-				// Owner 2026-11-01: a player's companions crew the ram by standing at it, the same way a bot ram is
-				// crewed by the bots around it. They cannot be riders - only player characters can mount a siege
-				// weapon - but while the player is on the ram they stay at it and count, and when the player steps
-				// off there is no operator left, so the ram stops firing and they follow again.
-				else if (Owner is GamePlayer leader)
-					crew += CompanionsAtRam(leader);
-				return CrewTotal(Level, crew);
+							companions++;
+				int total = CrewTotal(Level, riders + companions);
+				LogCrewCalculation(riders, companions, total);
+				return total;
+			}
+		}
+
+		private int _loggedRiders = -1, _loggedCompanions = -1, _loggedTotal = -1;
+		private string _loggedOwnerType;
+
+		/// <summary>
+		/// Diagnostics only: the three numbers the property actually used, written when they change. The shot marker
+		/// beside it already prints the probe, and the two disagreed once.
+		/// </summary>
+		private void LogCrewCalculation(int riders, int companions, int total)
+		{
+			string ownerType = Owner?.GetType().Name ?? "null";
+			if (riders == _loggedRiders && companions == _loggedCompanions && total == _loggedTotal &&
+				ownerType == _loggedOwnerType)
+				return;
+			_loggedRiders = riders;
+			_loggedCompanions = companions;
+			_loggedTotal = total;
+			_loggedOwnerType = ownerType;
+			try
+			{
+				Log.Warn($"SIEGE_RAM_CREW_CALC level={Level} owner_type={ownerType} riders={riders} " +
+				         $"companions={companions} total={total} max_passengers={MaxPassengersFor(Level)} " +
+				         $"group={(Owner is GamePlayer gp && gp.Group != null)} " +
+				         $"region={CurrentRegionID} realm={(int)Realm}");
+			}
+			catch (System.Exception)
+			{
+				// A shot is worth more than a log line.
 			}
 		}
 
@@ -274,7 +308,7 @@ namespace DOL.GS
 		/// </summary>
 		private int CompanionsAtRam(GamePlayer leader)
 		{
-			if (leader.Group == null)
+			if (leader == null || leader.Group == null)
 				return 0;
 			int companions = 0;
 			// Owner 2026-11-01: measured from the leader, who is standing on the ram, and not from the ram's own Realm
