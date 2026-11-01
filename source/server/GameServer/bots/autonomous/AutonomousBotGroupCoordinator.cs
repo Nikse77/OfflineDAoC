@@ -1649,10 +1649,11 @@ public static partial class AutonomousBotGroupCoordinator
     }
 
     /// <summary>
-    /// Owner 2026-10-31: no RvR group forms in the first ten minutes after the server starts (the PvE groups are not delayed), so that the
+    /// Owner 2026-10-31: no RvR group forms in the first minutes after the server starts (the PvE groups are not delayed), so that the
     /// bots enter the world, highest level first, before anybody groups.
+    /// Owner 2026-11-01: five minutes, not ten - the entrance is quick enough and ten minutes of an empty frontier is wasted play.
     /// </summary>
-    public static readonly TimeSpan FormationDelayAfterStart = TimeSpan.FromMinutes(10);
+    public static readonly TimeSpan FormationDelayAfterStart = TimeSpan.FromMinutes(5);
 
     private static readonly DateTime ServerStartedUtc = ServerStart();
 

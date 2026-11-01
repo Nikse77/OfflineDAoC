@@ -4,19 +4,19 @@ using NUnit.Framework;
 
 namespace DOL.UnitTests
 {
-    /// <summary>Owner 2026-10-31: no group forms in the first ten minutes after the server starts.</summary>
+    /// <summary>Owner 2026-10-31: no group forms in the first minutes after the server starts; owner 2026-11-01: five, not ten.</summary>
     [TestFixture]
     public class UT_GroupFormationDelay
     {
         [Test]
-        public void TheDelayIsTenMinutes() =>
-            Assert.That(AutonomousBotGroupCoordinator.FormationDelayAfterStart, Is.EqualTo(TimeSpan.FromMinutes(10)));
+        public void TheDelayIsFiveMinutes() =>
+            Assert.That(AutonomousBotGroupCoordinator.FormationDelayAfterStart, Is.EqualTo(TimeSpan.FromMinutes(5)));
 
         [TestCase(eAutonomousObjectiveKind.RvR, 0, true)]
-        [TestCase(eAutonomousObjectiveKind.RvR, 599, true)]
-        [TestCase(eAutonomousObjectiveKind.RvR, 600, false)]
+        [TestCase(eAutonomousObjectiveKind.RvR, 299, true)]
+        [TestCase(eAutonomousObjectiveKind.RvR, 300, false)]
         [TestCase(eAutonomousObjectiveKind.GroupPve, 0, false)]     // the PvE groups are not delayed
-        [TestCase(eAutonomousObjectiveKind.GroupPve, 599, false)]
+        [TestCase(eAutonomousObjectiveKind.GroupPve, 299, false)]
         public void OnlyTheRvrGroupsAreHeldBack(eAutonomousObjectiveKind kind, int seconds, bool blocked) =>
             Assert.That(AutonomousBotGroupCoordinator.FormationBlocked(kind, TimeSpan.FromSeconds(seconds)), Is.EqualTo(blocked));
 
@@ -36,10 +36,10 @@ namespace DOL.UnitTests
 
         [TestCase(0, false)]
         [TestCase(9, false)]
-        [TestCase(599, false)]   // seconds
-        [TestCase(600, true)]
+        [TestCase(299, false)]   // seconds
+        [TestCase(300, true)]
         [TestCase(3600, true)]
-        public void GroupsFormOnlyOnceTenMinutesHavePassed(int seconds, bool expected) =>
+        public void GroupsFormOnlyOnceFiveMinutesHavePassed(int seconds, bool expected) =>
             Assert.That(AutonomousBotGroupCoordinator.FormationDelayElapsed(TimeSpan.FromSeconds(seconds)), Is.EqualTo(expected));
     }
 }
