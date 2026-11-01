@@ -35,22 +35,29 @@ namespace DOL.GS
 
 		public override int MAX_PASSENGERS
 		{
-			get
-			{
-				switch (Level)
-				{
-					case 0:
-						return 2;
-					case 1:
-						return 6;
-					case 2:
-						return 8;
-					case 3:
-						return 12;
-				}
-				return Level * 3;
-			}
+			get { return MaxPassengersFor(Level); }
 		}
+
+		/// <summary>How many people (riders or crew) a ram of this level can carry.</summary>
+		public static int MaxPassengersFor(int level)
+		{
+			switch (level)
+			{
+				case 0:
+					return 2;
+				case 1:
+					return 6;
+				case 2:
+					return 8;
+				case 3:
+					return 12;
+			}
+			return level * 3;
+		}
+
+		/// <summary>Owner 2026-11-01: the people at a ram, capped by its size. Companions count too.</summary>
+		public static int CrewTotal(int level, int people) =>
+			System.Math.Max(0, System.Math.Min(MaxPassengersFor(level), people));
 
 		public override int SLOT_OFFSET
 		{
@@ -102,6 +109,7 @@ namespace DOL.GS
 
 		public override void Fire()
 		{
+			UpdateRamStatus();
 			GameLiving target = (TargetObject as GameLiving);
 			if(target != null && !target.IsAlive)
 			{
@@ -206,7 +214,16 @@ namespace DOL.GS
 						if (npc is GameBot member && member != op && member.IsAlive && member.Realm == Realm &&
 							(op.Group?.IsInTheGroup(member) == true || op.IsAutonomousWorldBot && member.IsAutonomousWorldBot))
 							crew++;
-				return System.Math.Min(MAX_PASSENGERS, crew);
+				// Owner 2026-11-01: a player's companions crew the ram by standing at it, the same way a bot ram is
+				// crewed by the bots around it. They cannot be riders - only player characters can mount a siege
+				// weapon - but while the player is on the ram they stay at it and count, and when the player steps
+				// off there is no operator left, so the ram stops firing and they follow again.
+				else if (Owner is GamePlayer leader)
+					foreach (GameNPC near in GetNPCsInRadius(300))
+						if (near is GameBot mate && mate.IsAlive && mate.Realm == Realm &&
+							CompanionEngagementMode.LeaderOf(mate) == leader)
+							crew++;
+				return CrewTotal(Level, crew);
 			}
 		}
 
