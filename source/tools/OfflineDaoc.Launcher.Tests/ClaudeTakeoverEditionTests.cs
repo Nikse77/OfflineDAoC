@@ -35,7 +35,7 @@ public sealed class ClaudeTakeoverEditionTests
     }
 
     [Test]
-    public void DisabledCustomClassIsNeverRolled()
+    public void TheSluaghbinderIsNeverRolledByAnyEdition()
     {
         var reserved = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         MethodInfo generate = Launcher.GetType("OfflineDaoc.Launcher.BotCharacterGenerator")!
@@ -45,10 +45,13 @@ public sealed class ClaudeTakeoverEditionTests
             object identity = generate.Invoke(null, [3, reserved, allow])!;
             return (int)identity.GetType().GetProperty("ClassId")!.GetValue(identity)!;
         }
+        // The Sluaghbinder was discontinued on 2026-10-30 and its last Hibernian entry left
+        // BotCharacterGenerator.Choices, so no edition rolls class 63 any more: the allowSluaghbinder
+        // argument changes nothing (it is kept for the call sites of the old editions).
         var disabled = Enumerable.Range(0, 1500).Select(_ => Roll(false)).ToList();
         Assert.That(disabled, Does.Not.Contain(63));
         var enabled = Enumerable.Range(0, 1500).Select(_ => Roll(true)).ToList();
-        Assert.That(enabled, Does.Contain(63), "the default (the b edition) keeps the Sluaghbinder in the Hibernian pool");
+        Assert.That(enabled, Does.Not.Contain(63), "the discontinued Sluaghbinder is never rolled, whatever enable_sluaghbinder says");
     }
 
     [TestCase(true, "VERSION 0.37b")]

@@ -43,9 +43,7 @@ dotnet test source/tools/OfflineDaoc.Launcher.Tests/OfflineDaoc.Launcher.Tests.c
 
 - `serverconfig.xml` is local and ignored by git. The build only needs it to exist.
 - Some launcher tests expect that no local DAoC server is running.
-- At 0.38 development (2026-11-01): 3,328 server tests pass, 0 fail. The launcher suite has 114
-  tests; 113 pass and `ClaudeTakeoverEditionTests.DisabledCustomClassIsNeverRolled` fails, because it
-  still expects the Sluaghbinder (class 63) in the Hibernian pool that was discontinued on 2026-10-30.
+- At 0.38 development (2026-11-01): 3,328 server tests and 114 launcher tests pass, 0 fail in both.
   (0.37 shipped with 2,790 server and 107 launcher tests; see [RELEASE VERIFICATION.txt](../RELEASE%20VERIFICATION.txt).)
 
 The new client builds separately; see [source/new-client/README.md](../source/new-client/README.md).
