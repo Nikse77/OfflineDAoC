@@ -4458,9 +4458,13 @@ namespace DOL.GS
         private bool KeepGroupMovingAtPace(GameBot bot)
         {
             if (_groupDirective?.IsDynamic != true || _groupDirective.Leader != bot) return false;
+            bool rvr = _groupDirective.ObjectiveKind == eAutonomousObjectiveKind.RvR;
+            // Owner 2026-11-01: the party waits only for the members that actually left, and the ones that never joined
+            // the march are taken out of the group (see AutonomousGroupMarchRoster).
+            AutonomousGroupMarchRoster.Note(bot, rvr, GameLoop.GameLoopTime);
             bool move = AutonomousGroupPace.Decide(
                 AutonomousBotGroupCoordinator.FarthestMemberDistance(_groupDirective), _groupPaceWaiting,
-                compact: _groupDirective.ObjectiveKind == eAutonomousObjectiveKind.RvR) ==
+                compact: rvr) ==
                 AutonomousGroupPace.Decision.FullSpeed;
             _groupPaceWaiting = !move;
             return move;

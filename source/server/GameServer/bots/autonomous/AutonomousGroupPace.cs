@@ -24,9 +24,11 @@ namespace DOL.GS
 
         public enum Decision { FullSpeed, Wait }
 
-        /// <summary>Owner 2026-11-01: an RvR group travels compact. Its leader waits when a member is this far behind...</summary>
+        /// <summary>Owner 2026-11-01: an RvR group travels compact. Its leader waits when a member is this far behind
+        /// (owner: "facciamo che il leader aspetta a 600").</summary>
         public const int CompactTrailRadius = 600;
-        /// <summary>...and goes on when every member is within this.</summary>
+        /// <summary>...and goes on when every member is back within this, which keeps it from stopping and starting
+        /// at every step.</summary>
         public const int CompactResumeRadius = 300;
 
         public static Decision Decide(float farthestMember, bool waiting, bool compact = false)

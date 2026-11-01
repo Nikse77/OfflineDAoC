@@ -652,6 +652,10 @@ public static partial class AutonomousBotGroupCoordinator
         foreach (GameBot member in BotMembers(leader.Group))
         {
             if (!member.IsAlive || member == leader) continue;
+            // Owner 2026-11-01: only the members that left with the party hold it. One left behind at the muster keep -
+            // or in another region - used to report an infinite distance, and the party stood still waiting for it.
+            if (directive.ObjectiveKind == eAutonomousObjectiveKind.RvR &&
+                !AutonomousGroupMarchRoster.IsDeparted(leader.Group, member)) continue;
             if (member.CurrentRegionID != leader.CurrentRegionID) return float.MaxValue;
             float distance = member.GetDistanceTo(leader);
             // A member stuck for 45 seconds no longer holds the group (see AutonomousGroupMemberStall).
