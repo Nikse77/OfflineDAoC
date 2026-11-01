@@ -2636,7 +2636,9 @@ namespace DOL.GS
 					return 0;
 				}
 
-				ChangeMana(this, eManaChangeType.Regenerate, GetModified(eProperty.PowerRegenerationAmount));
+				int powerAmount = GetModified(eProperty.PowerRegenerationAmount);
+				RegenerationDiagnostics.ReportPower(this, powerAmount);
+				ChangeMana(this, eManaChangeType.Regenerate, powerAmount);
 			}
 
 			return GetPowerRegenerationInterval();
