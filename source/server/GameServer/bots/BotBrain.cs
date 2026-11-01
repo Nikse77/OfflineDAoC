@@ -2141,13 +2141,15 @@ namespace DOL.AI.Brain
                 if (spell.NeedInstrument && !TryEquipRealInstrument(bot, spell.InstrumentRequirement))
                     continue;
 
-                // Owner 2026-11-01: a party on the march does not stop for upkeep. Casting a buff means standing still,
-                // and a buffer with six buffs to refresh dropped out of the formation and was left behind while the rest
-                // walked on; the buffs now wait for the next halt (the muster, the siege camp, a line at the door), where
-                // the bot is standing anyway. Speed is the one exception: it is what carries the party, and one cast the
-                // party waits six hundred units for is cheaper than marching unbuffed for the whole trip.
+                // Owner 2026-11-01: "NO buff mentre si è in movimento tra la partenza e la destinazione. Buff solo mentre
+                // si aspetta di partire e si è fuori combat." A cast-time buff makes the caster stand still, so a member
+                // refreshing six of them fell out of the formation and the party walked on in single file, two thousand
+                // units ahead of it. Cast-time buffs are now cast only while standing still, out of combat and not on a
+                // route: the muster before departure, the halt, the siege camp. Instant buffs keep their ordinary path.
+                // Speed is the one cast-time exception, because it is what carries the party and the leader waits for it.
                 if (spell.CastTime > 0 && spell.SpellType != eSpellType.SpeedEnhancement &&
-                    AutonomousGroupMarchRoster.IsMarching(bot, GameLoop.GameLoopTime))
+                    (traveling || bot.IsMoving || bot.Group?.LivingLeader?.IsMoving == true ||
+                     AutonomousGroupMarchRoster.IsMarching(bot, GameLoop.GameLoopTime)))
                     continue;
 
                 GameLiving target = FindMissingMaintenanceTarget(spell);

@@ -83,6 +83,13 @@ namespace DOL.GS
             state.Offset = slot - center;
             state.Tight = tight;
             state.RefreshedTick = GameLoop.GameLoopTime;
+            // Owner 2026-11-01: "se il leader si muove fuori combat, tutti istantaneamente lo seguono, interrompendo
+            // qualsiasi cosa stiano facendo". A follow order does not break a spell cast - and a buff cast is exactly
+            // what a member starts the moment it stops walking - so a leader that walks while not fighting ends
+            // whatever the member is casting and takes it along.
+            if (!leader.InCombat && leader.IsMoving && follower.CurrentRegion == leader.CurrentRegion &&
+                follower.IsCasting)
+                follower.StopCurrentSpellcast();
             if (follower.movementComponent is NpcMovementComponent mover && mover.FollowTarget != leader)
                 follower.Follow(leader, 0, MaximumFollowDistance);
         }
