@@ -93,5 +93,30 @@ namespace DOL.GS
                 return true;
             return state.Departed.Contains(member.ObjectID);
         }
+
+        /// <summary>A follower turn refreshes this mark; when it stops arriving the party is no longer marching.</summary>
+        public const long FormationMarkMilliseconds = 5_000;
+
+        private sealed class MarchMark
+        {
+            public long Tick;
+        }
+
+        private static readonly ConditionalWeakTable<GameBot, MarchMark> Marching = new();
+
+        /// <summary>Called by the group travel branch for every member that moves in formation toward the objective.</summary>
+        public static void MarkMarching(GameBot bot, long now)
+        {
+            if (bot == null)
+                return;
+            Marching.GetOrCreateValue(bot).Tick = now;
+        }
+
+        /// <summary>
+        /// True while the bot walks in a party formation. Used to keep the march from stopping for upkeep: the buffers
+        /// fell behind because a cast costs the whole party a halt, and the party walked on without them.
+        /// </summary>
+        public static bool IsMarching(GameBot bot, long now) =>
+            bot != null && Marching.TryGetValue(bot, out MarchMark mark) && now - mark.Tick < FormationMarkMilliseconds;
     }
 }
