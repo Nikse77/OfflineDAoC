@@ -28,6 +28,8 @@ namespace DOL.GS
             AutonomousBotRegistry.PrepareBrainTick();
             AutonomousWorldBotController.PrepareRvrPlanningTick();
             AutonomousBotGroupCoordinator.PrepareCoordinatorTick();
+            // Owner 2026-11-01: the RvR group leaders declare their next objective in the faction chat.
+            AutonomousRvrChatAnnouncer.Tick();
             AutonomousWorldBotController.PrepareCampPlanningTick();
             int lastValidIndex;
 

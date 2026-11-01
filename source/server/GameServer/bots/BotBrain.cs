@@ -1844,9 +1844,7 @@ namespace DOL.AI.Brain
             {
                 int listingPrice = AutonomousBotEconomy.RollListingPrice(candidate.Item);
 
-                bool advertised = Random.Shared.NextDouble() < 0.70 &&
-                                  AutonomousBotChatCoordinator.TryAdvertiseExchangeItem(bot, candidate.Item.Name);
-                if (!advertised)
+                // Owner 2026-11-01: bots no longer advertise on the faction chat; the item goes straight to the listing.
                 {
                     bool listed = AutonomousBotEconomy.TryList(bot, candidate.Item, listingPrice);
                     if (listed)

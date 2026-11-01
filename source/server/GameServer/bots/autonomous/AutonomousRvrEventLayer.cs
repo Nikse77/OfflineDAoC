@@ -1077,6 +1077,29 @@ public static partial class AutonomousRvrEventLayer
         }
     }
 
+    /// <summary>
+    /// Owner 2026-11-01: every force currently committed to a live event, with its realm. The faction-chat announcement
+    /// (AutonomousRvrChatAnnouncer) reads the leader's next objective from this, then asks KeepPlan for that force; the
+    /// events themselves stay private, so nothing mutable escapes.
+    /// </summary>
+    public static List<(string ForceId, eRealm Realm)> ActiveForces(long nowTick)
+    {
+        var forces = new List<(string ForceId, eRealm Realm)>();
+        lock (Sync)
+        {
+            foreach (ActiveEvent active in Events.Values)
+            {
+                if (active.ExpiresTick <= nowTick)
+                    continue;
+                foreach (string forceId in active.Attackers.Keys)
+                    forces.Add((forceId, active.AttackerRealm));
+                foreach (string forceId in active.Defenders.Keys)
+                    forces.Add((forceId, active.DefenderRealm));
+            }
+        }
+        return forces;
+    }
+
     private static int Attendance(ActiveEvent active, eRealm realm, long nowTick) => active.Present.Values
         .Where(entry => entry.Realm == realm && nowTick - entry.Tick <= AttendanceFreshnessMilliseconds && entry.Tick <= nowTick &&
             (entry.Bot == null || entry.Bot.IsAlive && entry.Bot.ObjectState == GameObject.eObjectState.Active &&

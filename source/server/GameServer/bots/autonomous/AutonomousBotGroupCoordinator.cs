@@ -210,6 +210,23 @@ public static partial class AutonomousBotGroupCoordinator
         }
     }
 
+    /// <summary>
+    /// Owner 2026-11-01: the leader of a party by its id. An RvR party's id is also its force id (see RvrForceId), which
+    /// is what the RvR layer hands out, so the faction-chat announcement can speak as the group's leader.
+    /// </summary>
+    public static GameBot LeaderOfGroup(string groupId)
+    {
+        if (string.IsNullOrEmpty(groupId))
+            return null;
+        lock (Sync)
+        {
+            foreach (Session session in Sessions.Values)
+                if (string.Equals(session.Id, groupId, StringComparison.Ordinal))
+                    return session.Leader;
+        }
+        return null;
+    }
+
     public static Directive Pulse(GameBot bot)
     {
         if (bot?.IsAutonomousWorldBot != true || bot.IsTemporaryGroupHelper)

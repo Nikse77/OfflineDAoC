@@ -41,43 +41,31 @@ public static class AutonomousBotChatCoordinator
 
     public static bool TryStartAmbient(GameBot starter, AutonomousBotChat.Context context)
     {
-        if (!Eligible(starter))
+        // Owner 2026-11-01: bots no longer open conversations in the faction chat. The realm channel is for the RvR
+        // group leaders declaring their next objective (AutonomousRvrChatAnnouncer); local chatter stays where it was,
+        // among the people who can see each other.
+        if (!Eligible(starter) || !HasLocalAudience(starter))
             return false;
 
-        bool factionAudience = HasFactionAudience(starter.Realm);
-        bool localAudience = HasLocalAudience(starter);
-        if (!factionAudience && !localAudience)
-            return false;
-
-        bool faction = factionAudience && (!localAudience || Random.Shared.NextDouble() < 0.24);
         lock (Sync)
         {
-            if (faction)
-            {
-                if (LastFactionAmbient.TryGetValue(starter.Realm, out long last) && GameLoop.GameLoopTime - last < 180_000)
-                    return false;
-                LastFactionAmbient[starter.Realm] = GameLoop.GameLoopTime;
-            }
-            else
-            {
-                if (LastLocalAmbient.TryGetValue(starter.CurrentRegionID, out long last) && GameLoop.GameLoopTime - last < 90_000)
-                    return false;
-                LastLocalAmbient[starter.CurrentRegionID] = GameLoop.GameLoopTime;
-            }
+            if (LastLocalAmbient.TryGetValue(starter.CurrentRegionID, out long last) && GameLoop.GameLoopTime - last < 90_000)
+                return false;
+            LastLocalAmbient[starter.CurrentRegionID] = GameLoop.GameLoopTime;
         }
 
-        string opening = BuildAmbientOpening(starter, context, faction);
-        if (faction)
-            BroadcastFaction(starter.Name, starter.Realm, opening);
-        else if (!starter.Say(opening))
+        string opening = BuildAmbientOpening(starter, context, false);
+        if (!starter.Say(opening))
             return false;
 
-        ScheduleBotReplies(starter, opening, faction, false);
+        ScheduleBotReplies(starter, opening, false, false);
         return true;
     }
 
     public static void OnPlayerFactionChat(GamePlayer player, string message)
     {
+        // Owner 2026-11-01: bots no longer start conversations or advertise on the faction chat, but they still answer
+        // when the player writes there - that is the one exchange the channel keeps.
         if (player == null || string.IsNullOrWhiteSpace(message))
             return;
         BroadcastFaction(player.Name, player.Realm, message);
@@ -103,27 +91,6 @@ public static class AutonomousBotChatCoordinator
             LastLocalPlayerResponse[player.CurrentRegionID] = GameLoop.GameLoopTime;
         }
         SchedulePlayerReplies(player, message, false);
-    }
-
-    public static bool TryAdvertiseExchangeItem(GameBot seller, string exactItemName)
-    {
-        using var _section = NavQueryProfile.Section("Exchange.Advert");
-        if (!Eligible(seller) || string.IsNullOrWhiteSpace(exactItemName) || !HasFactionAudience(seller.Realm))
-            return false;
-        lock (Sync)
-        {
-            if (LastFactionAmbient.TryGetValue(seller.Realm, out long last) && GameLoop.GameLoopTime - last < 180_000)
-                return false;
-            LastFactionAmbient[seller.Realm] = GameLoop.GameLoopTime;
-        }
-
-        string item = exactItemName.Trim();
-        string opening = Random.Shared.Next(2) == 0
-            ? $"Does anybody want to make me an offer on {item}?"
-            : $"How much do u think {item} is worth?";
-        BroadcastFaction(seller.Name, seller.Realm, opening);
-        ScheduleBotReplies(seller, opening, true, false);
-        return true;
     }
 
     public static string GenerateFactionReply(string incoming, Random random = null)
