@@ -57,8 +57,18 @@ namespace DOL.GS
             return BotSiegeRuntime.Item(bot, kit) == null && SupplySiegeItem(bot, kit, kind == BotSiegeKind.Ram ? 2 : 1);
         }
 
+        /// <summary>
+        /// Owner 2026-11-01: with synthetic equipment a party is siege-capable by definition, and this is why the test no
+        /// longer decides it. The engine is created on site (<see cref="CreateSiegeWeapon"/>), so nothing is bought: the
+        /// old test asked for a ram kit sold by a reachable siege merchant, affordable with the bot's copper, with a free
+        /// backpack slot, and none of the three has anything to do with whether a warband can break a door. It also read
+        /// the party's capability off one bot - the leader calling it - so a leader with a full bag closed sieges for his
+        /// whole realm, which is the shape of the asymmetry the owner saw (Albion assaulting and taking Dun Crimthain
+        /// while Hibernia, with more groups and more deaths, never opened one).
+        /// </summary>
         private static bool CanSupplySiege(GameBot bot)
         {
+            if (SyntheticSiegeEquipment) return true;
             if (BotSiegeRuntime.Item(bot,BotSiegeRuntime.Kit(bot.Realm,BotSiegeKind.Ram))!=null) return true;
             var merchant=FindReachableSiegeMerchant(bot);
             long price=merchant?.TradeItems?.GetAllItems().Values.OfType<DbItemTemplate>()
