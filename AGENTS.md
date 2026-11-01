@@ -1,6 +1,7 @@
 # Offline DAoC — instructions for AI assistants and developers
 
-Read this first, then [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md). This file is also loaded by
+Read this first, then [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) and, for the day-to-day commands (build, test, install,
+stop/start the server, launcher, new client, logs, Git), [docs/WORKFLOW-AND-COMMANDS.md](docs/WORKFLOW-AND-COMMANDS.md). This file is also loaded by
 Claude Code as `CLAUDE.md`.
 
 ## What this is
