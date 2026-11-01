@@ -39,13 +39,22 @@ public static class RegenerationDiagnostics
         }
 
         eProperty property = eProperty.PowerRegenerationAmount;
-        Log.Info($"POWER_REGEN_TICK who=\"{living.Name}\" kind={(living is GameBot ? "companion" : "player")} " +
-                 $"level={living.Level} amount={amount} mana={living.Mana}/{living.MaxMana} " +
-                 $"base={2.5 + living.Level * 0.2:0.00} buff={living.BaseBuffBonusCategory[property]} " +
-                 $"ability={living.AbilityBonus[property]} item={living.ItemBonus[property]} " +
-                 $"spec_debuff={living.SpecBuffBonusCategory[property]} " +
-                 $"modifier={ServerProperties.Properties.MANA_REGEN_AMOUNT_MODIFIER} " +
-                 $"halved_below_50={ServerProperties.Properties.MANA_REGEN_AMOUNT_HALVED_BELOW_50_PERCENT} " +
-                 $"in_combat={living.InCombat}");
+        // Owner 2026-11-01: diagnostics sit on the regeneration tick, so a logging failure must never stop a tick - the
+        // test fixtures call this path with no logger initialised and it threw there.
+        try
+        {
+            Log.Info($"POWER_REGEN_TICK who=\"{living.Name}\" kind={(living is GameBot ? "companion" : "player")} " +
+                     $"level={living.Level} amount={amount} mana={living.Mana}/{living.MaxMana} " +
+                     $"base={2.5 + living.Level * 0.2:0.00} buff={living.BaseBuffBonusCategory[property]} " +
+                     $"ability={living.AbilityBonus[property]} item={living.ItemBonus[property]} " +
+                     $"spec_debuff={living.SpecBuffBonusCategory[property]} " +
+                     $"modifier={ServerProperties.Properties.MANA_REGEN_AMOUNT_MODIFIER} " +
+                     $"halved_below_50={ServerProperties.Properties.MANA_REGEN_AMOUNT_HALVED_BELOW_50_PERCENT} " +
+                     $"in_combat={living.InCombat}");
+        }
+        catch (System.Exception)
+        {
+            // A tick is worth more than a log line.
+        }
     }
 }

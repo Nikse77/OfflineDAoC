@@ -164,12 +164,20 @@ namespace DOL.GS
 			{
 				_loggedCrew = crew;
 				var probe = ProbeCompanions();
-				Log.Warn($"SIEGE_RAM_CREW level={Level} name=\"{Name}\" riders={CurrentRiders.Length} crew={crew} " +
-				         $"damage={damageAmount} reload_ms={GetReloadDelay} " +
-				         $"owner=\"{((Owner as GamePlayer)?.Name ?? "null")}\" bots_at_ram={probe.Seen} " +
-				         $"alive_same_realm={probe.AliveSameRealm} leader_of={probe.LeaderOf} " +
-				         $"owned_by_owner={probe.OwnedByOwner} group_bots={probe.GroupBots} " +
-				         $"group_in_600={probe.GroupInRadius}");
+				// Owner 2026-11-01: diagnostics must never cost a shot, and the test fixtures run with no logger initialised.
+				try
+				{
+					Log.Warn($"SIEGE_RAM_CREW level={Level} name=\"{Name}\" riders={CurrentRiders.Length} crew={crew} " +
+					         $"damage={damageAmount} reload_ms={GetReloadDelay} " +
+					         $"owner=\"{((Owner as GamePlayer)?.Name ?? "null")}\" bots_at_ram={probe.Seen} " +
+					         $"alive_same_realm={probe.AliveSameRealm} leader_of={probe.LeaderOf} " +
+					         $"owned_by_owner={probe.OwnedByOwner} group_bots={probe.GroupBots} " +
+					         $"group_in_600={probe.GroupInRadius}");
+				}
+				catch (System.Exception)
+				{
+					// A shot is worth more than a log line.
+				}
 			}
 
 			AttackData ad = new AttackData();
