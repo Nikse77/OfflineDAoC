@@ -163,11 +163,13 @@ namespace DOL.GS
 			if (crew != _loggedCrew)
 			{
 				_loggedCrew = crew;
-				(int seen, int aliveSameRealm, int leaderOf, int ownedBy) = ProbeCompanions();
+				var probe = ProbeCompanions();
 				Log.Warn($"SIEGE_RAM_CREW level={Level} name=\"{Name}\" riders={CurrentRiders.Length} crew={crew} " +
 				         $"damage={damageAmount} reload_ms={GetReloadDelay} " +
-				         $"owner=\"{((Owner as GamePlayer)?.Name ?? "null")}\" bots_at_ram={seen} " +
-				         $"alive_same_realm={aliveSameRealm} leader_of={leaderOf} owned_by_owner={ownedBy}");
+				         $"owner=\"{((Owner as GamePlayer)?.Name ?? "null")}\" bots_at_ram={probe.Seen} " +
+				         $"alive_same_realm={probe.AliveSameRealm} leader_of={probe.LeaderOf} " +
+				         $"owned_by_owner={probe.OwnedByOwner} group_bots={probe.GroupBots} " +
+				         $"group_in_600={probe.GroupInRadius}");
 			}
 
 			AttackData ad = new AttackData();
@@ -238,37 +240,70 @@ namespace DOL.GS
 				// weapon - but while the player is on the ram they stay at it and count, and when the player steps
 				// off there is no operator left, so the ram stops firing and they follow again.
 				else if (Owner is GamePlayer leader)
-					foreach (GameNPC near in GetNPCsInRadius(300))
-						if (near is GameBot mate && mate.IsAlive && mate.Realm == Realm &&
-							CompanionEngagementMode.LeaderOf(mate) == leader)
-							crew++;
+					crew += CompanionsAtRam(leader);
 				return CrewTotal(Level, crew);
 			}
 		}
 
+		/// <summary>Sanity distance for a companion crewing a player's ram; generous because a party of companions spreads out.</summary>
+		private const int CompanionCrewRadius = 600;
+
 		/// <summary>
-		/// Diagnostics only: how many bots stand at the ram, and how many pass each test a companion has to pass to be
-		/// counted. It reads what Crew reads and changes nothing - the fix is chosen from these four numbers.
+		/// Owner 2026-11-01: the player's companions crew the ram, counted from the <b>group</b> - /spawn puts every
+		/// companion in the player's group - and not from a radius query. A radius read inside the damage path came back
+		/// with one crew member while two companions stood inside 300 units and passed every test, so the spatial list
+		/// cannot be the authority here; with seven companions most of them also stand further out than 300. Distance
+		/// stays only as sanity, so one left behind does not count as if it were at the door. Up to the ram's places.
 		/// </summary>
-		private (int Seen, int AliveSameRealm, int LeaderOf, int OwnedByOwner) ProbeCompanions()
+		private int CompanionsAtRam(GamePlayer leader)
 		{
-			if (Owner is not GamePlayer leader)
-				return (0, 0, 0, 0);
-			int seen = 0, alive = 0, leaderOf = 0, owned = 0;
-			foreach (GameNPC near in GetNPCsInRadius(300))
+			if (leader.Group == null)
+				return 0;
+			int companions = 0;
+			foreach (GameLiving member in leader.Group.GetMembersInTheGroup())
+				if (member is GameBot mate && mate.IsAlive && mate.Realm == Realm &&
+					!mate.IsAutonomousWorldBot && mate.CurrentRegionID == CurrentRegionID &&
+					IsWithinRadius(mate, CompanionCrewRadius))
+					companions++;
+			return companions;
+		}
+
+		/// <summary>
+		/// Diagnostics only: how many bots stand at the ram, how many pass each test, and what the group says. The radius
+		/// and the group are printed side by side because they disagreed once; the difference decides which is right.
+		/// </summary>
+		private (int Seen, int AliveSameRealm, int LeaderOf, int OwnedByOwner, int GroupBots, int GroupInRadius) ProbeCompanions()
+		{
+			int seen = 0, alive = 0, leaderOf = 0, owned = 0, groupBots = 0, groupInRadius = 0;
+			if (Owner is GamePlayer leader)
 			{
-				if (near is not GameBot mate)
-					continue;
-				seen++;
-				if (!mate.IsAlive || mate.Realm != Realm)
-					continue;
-				alive++;
-				if (CompanionEngagementMode.LeaderOf(mate) == leader)
-					leaderOf++;
-				if (ReferenceEquals(mate.Owner, leader))
-					owned++;
+				foreach (GameNPC near in GetNPCsInRadius(300))
+				{
+					if (near is not GameBot subject)
+						continue;
+					seen++;
+					if (!subject.IsAlive || subject.Realm != Realm)
+						continue;
+					alive++;
+					if (CompanionEngagementMode.LeaderOf(subject) == leader)
+						leaderOf++;
+					if (ReferenceEquals(subject.Owner, leader))
+						owned++;
+				}
+
+				if (leader.Group != null)
+				{
+					foreach (GameLiving member in leader.Group.GetMembersInTheGroup())
+					{
+						if (member is not GameBot subject || subject.IsAutonomousWorldBot)
+							continue;
+						groupBots++;
+						if (subject.CurrentRegionID == CurrentRegionID && IsWithinRadius(subject, CompanionCrewRadius))
+							groupInRadius++;
+					}
+				}
 			}
-			return (seen, alive, leaderOf, owned);
+			return (seen, alive, leaderOf, owned, groupBots, groupInRadius);
 		}
 
 		public void UpdateRamStatus()
