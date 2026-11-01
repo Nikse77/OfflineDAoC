@@ -16,6 +16,11 @@ public static class AutonomousRvrDungeonGuard
     /// <summary>The regions a level-50 RvR bot is allowed to be in: Hadrian's Wall, Odin's Gate, Emain Macha.</summary>
     public static bool IsPatrolRegion(ushort region) => region is 1 or 100 or 200;
 
+    /// <summary>The frontier dungeons that lead to Summoner's Hall: Dodens Gruva, Marfach Caverns, Hall of the
+    /// Corrupt. Named explicitly rather than by Zone.IsDungeon: the capitals Camelot (10), Jordheim (101) and Tir na
+    /// Nog (201) also report IsDungeon true, and a frontier party trains and queues for the teleporter there.</summary>
+    public static bool IsFrontierDungeon(ushort region) => region is 246 or 276 or 277;
+
     /// <summary>Pure rule: an RvR bot only fights outdoors, so a dungeon camp is never offered to it. This is the
     /// anticipatory half: with no dungeon camp there is no route into the dungeon in the first place.</summary>
     public static bool ShouldStayOutOfDungeons(eAutonomousObjectiveKind objective, bool onRelicDuty) =>
@@ -23,7 +28,6 @@ public static class AutonomousRvrDungeonGuard
 
     /// <summary>Pure rule: an RvR bot is sent home from a dungeon unless its group is on a relic operation, which is the
     /// only reason a frontier group has to be inside one.</summary>
-    public static bool ShouldReturnToFrontier(eAutonomousObjectiveKind objective, bool onRelicDuty, bool inDungeon,
-        ushort region) =>
-        ShouldStayOutOfDungeons(objective, onRelicDuty) && inDungeon && !IsPatrolRegion(region);
+    public static bool ShouldReturnToFrontier(eAutonomousObjectiveKind objective, bool onRelicDuty, ushort region) =>
+        ShouldStayOutOfDungeons(objective, onRelicDuty) && IsFrontierDungeon(region);
 }

@@ -296,7 +296,7 @@ namespace DOL.GS
                     _nextDungeonGuardTick = nowTick + 2_000 + bot.ObjectID % 500;
                     if (AutonomousRvrDungeonGuard.ShouldReturnToFrontier(AutonomousObjectiveAssignments.KindFor(bot),
                             AutonomousRvrEventLayer.OnRelicDuty(AutonomousBotGroupCoordinator.RvrForceId(bot)),
-                            bot.CurrentRegion?.IsDungeon == true, bot.CurrentRegionID) &&
+                            bot.CurrentRegionID) &&
                         AutonomousRvrLogin.TryGetPoint(bot.Realm, bot.PersistentRecord?.BotId ?? 0,
                             out ushort homeRegion, out Vector3 homePoint))
                     {

@@ -2793,6 +2793,20 @@ namespace DOL.GS
             if (!IsAutonomousWorldBot)
                 return base.MoveTo(regionID, x, y, z, heading);
 
+            // Owner 2026-11-01: a level-50 RvR bot never enters a frontier dungeon off relic duty, whatever asked it to
+            // move. This is the doorway every world transfer passes through, so no route, porter or stale camp can carry
+            // a frontier party in: the first run of the camp rule still saw parties land on the Marfach Caverns zone
+            // point (276:32915,29238,16268) and this refusal names the destination when it happens.
+            if (regionID != CurrentRegionID && Level == 50 &&
+                AutonomousRvrDungeonGuard.ShouldReturnToFrontier(AutonomousObjectiveAssignments.KindFor(this),
+                    AutonomousRvrEventLayer.OnRelicDuty(AutonomousBotGroupCoordinator.RvrForceId(this)), regionID))
+            {
+                log.Warn($"RVR_DUNGEON_CROSSING_REFUSED bot={Name} id={DatabaseID} level={Level} " +
+                         $"from={CurrentRegionID}:{X},{Y},{Z} target_region={regionID}:{x},{y},{z} " +
+                         $"activity=\"{PersistentRecord?.Activity}\"");
+                return false;
+            }
+
             if (regionID != CurrentRegionID)
             {
                 AutonomousPetSupport.CancelPendingCharm(this);

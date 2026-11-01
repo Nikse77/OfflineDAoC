@@ -15,9 +15,9 @@ namespace DOL.UnitTests
         public void AnRvRBotInsideADungeonIsSentHome()
         {
             Assert.That(AutonomousRvrDungeonGuard.ShouldReturnToFrontier(
-                eAutonomousObjectiveKind.RvR, false, true, 276), Is.True, "Marfach Caverns");
+                eAutonomousObjectiveKind.RvR, false, (ushort)276), Is.True, "Marfach Caverns");
             Assert.That(AutonomousRvrDungeonGuard.ShouldReturnToFrontier(
-                eAutonomousObjectiveKind.RvR, false, true, 277), Is.True, "Hall of the Corrupt");
+                eAutonomousObjectiveKind.RvR, false, (ushort)277), Is.True, "Hall of the Corrupt");
         }
 
         [Test]
@@ -35,16 +35,27 @@ namespace DOL.UnitTests
         public void ARelicOperationMayBeInsideAFrontierDungeon()
         {
             Assert.That(AutonomousRvrDungeonGuard.ShouldReturnToFrontier(
-                eAutonomousObjectiveKind.RvR, true, true, 276), Is.False, "a relic group uses the approach");
+                eAutonomousObjectiveKind.RvR, true, (ushort)276), Is.False, "a relic group uses the approach");
+        }
+
+        [Test]
+        public void ACapitalIsNotAFrontierDungeon()
+        {
+            Assert.That(AutonomousRvrDungeonGuard.IsFrontierDungeon((ushort)10), Is.False, "Camelot");
+            Assert.That(AutonomousRvrDungeonGuard.IsFrontierDungeon((ushort)101), Is.False, "Jordheim");
+            Assert.That(AutonomousRvrDungeonGuard.IsFrontierDungeon((ushort)201), Is.False, "Tir na Nog");
+            Assert.That(AutonomousRvrDungeonGuard.ShouldReturnToFrontier(
+                eAutonomousObjectiveKind.RvR, false, (ushort)201), Is.False, "a level-50 bot trains in its capital");
+            Assert.That(AutonomousRvrDungeonGuard.IsFrontierDungeon((ushort)246), Is.True, "Dodens Gruva");
         }
 
         [Test]
         public void ADungeonGroupKeepsItsObjective()
         {
             Assert.That(AutonomousRvrDungeonGuard.ShouldReturnToFrontier(
-                eAutonomousObjectiveKind.GroupPve, false, true, 276), Is.False, "a PvE group is in the dungeon on purpose");
+                eAutonomousObjectiveKind.GroupPve, false, (ushort)276), Is.False, "a PvE group is in the dungeon on purpose");
             Assert.That(AutonomousRvrDungeonGuard.ShouldReturnToFrontier(
-                eAutonomousObjectiveKind.SoloPve, false, true, 249), Is.False, "Darkness Falls expedition");
+                eAutonomousObjectiveKind.SoloPve, false, (ushort)249), Is.False, "Darkness Falls expedition");
         }
 
         [Test]
@@ -54,7 +65,7 @@ namespace DOL.UnitTests
             Assert.That(AutonomousRvrDungeonGuard.IsPatrolRegion(100), Is.True, "Odin's Gate");
             Assert.That(AutonomousRvrDungeonGuard.IsPatrolRegion(200), Is.True, "Emain Macha");
             Assert.That(AutonomousRvrDungeonGuard.ShouldReturnToFrontier(
-                eAutonomousObjectiveKind.RvR, false, false, 1), Is.False);
+                eAutonomousObjectiveKind.RvR, false, (ushort)1), Is.False);
         }
     }
 }
