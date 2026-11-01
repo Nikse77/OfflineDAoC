@@ -642,6 +642,50 @@ public static partial class AutonomousBotGroupCoordinator
                  AutonomousGroupMemberStall.Release(member, directive.Leader, distance, CohesionRadius, now)));
     }
 
+    /// <summary>
+    /// Owner 2026-11-01: "ognuno raggiunge con i suoi tempi e autonomamente il punto d'incontro, da lì si parte seguendo
+    /// il capogruppo." A member may take a frontier passage on its own only while the party is still converging on its
+    /// rendezvous ("Leader staging", "Meeting up"); once it is assembled the crossing belongs to the leader and the
+    /// members follow him. Unknown phases count as assembled, so a phase added later never reopens the solo crossing.
+    /// </summary>
+    public static bool MemberMayCrossAlone(string phase) => phase is "Leader staging" or "Meeting up";
+
+    /// <summary>How close two rendezvous must be to count as the same one, when the party re-anchors its frontier.</summary>
+    public const int RendezvousReanchorRadius = 600;
+
+    /// <summary>
+    /// Owner 2026-11-01: "se un gruppo è in una frontiera e cambia obiettivo e deve andare in un'altra frontiera è il
+    /// capogruppo che deve andare al teletrasporto del proprio regno e assegnare il nuovo punto di ritrovo nella frontiera
+    /// del nuovo obiettivo." So changing frontier is a new meetup, not a march: the rendezvous moves to where the
+    /// medallion lands, the phase goes back to staging - the one moment a member may cross a frontier on its own - and
+    /// the party converges on that landing before it walks anywhere again.
+    /// </summary>
+    public static bool MoveRvRRendezvous(Group group, ushort region, Vector3 point, string name)
+    {
+        lock (Sync)
+        {
+            if (!TryGetSession(group, out Session session) || session.ObjectiveKind != eAutonomousObjectiveKind.RvR)
+                return false;
+            if (session.RendezvousRegion == region &&
+                Vector2.Distance(new Vector2(session.Rendezvous.X, session.Rendezvous.Y),
+                    new Vector2(point.X, point.Y)) <= RendezvousReanchorRadius)
+                return false;
+            session.Rendezvous = point;
+            session.RendezvousName = name;
+            session.RendezvousRegion = region;
+            session.Phase = "Leader staging";
+            session.LeaderReadyForAssembly = false;
+            session.RendezvousReselectionAttempted = false;
+            session.Attendance.Reset();
+            session.LeaderStagingDeadlineTick = GameLoop.GameLoopTime + LeaderStagingTimeoutMilliseconds;
+            session.LeaderStagingDeadlineUtc = DateTime.UtcNow.AddMilliseconds(LeaderStagingTimeoutMilliseconds);
+            TryBuildRendezvousSlots(session, BotMembers(group));
+            Log.Info($"RVR_RENDEZVOUS_MOVED group={session.Id} region={region} town=\"{name}\" " +
+                $"at={point.X:N0},{point.Y:N0}");
+            return true;
+        }
+    }
+
     /// <summary>How far the farthest living member trails the leader; MaxValue when one is in another region.</summary>
     public static float FarthestMemberDistance(Directive directive)
     {

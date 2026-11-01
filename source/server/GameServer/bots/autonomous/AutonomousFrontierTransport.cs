@@ -214,6 +214,11 @@ public static class AutonomousFrontierTransport
                 memberRequest.Passage.Region == request.Passage.Region && Ready(member, porter, memberRequest);
             if (!group.All(MemberReady))
             {
+                // Owner 2026-11-01: a party crosses behind its leader. The partial departure below was the whole bug: seven
+                // members boarded on the leader's request while he was still holding the rendezvous, the batch gave up
+                // waiting, and the party was split for good with no walk back between the two frontiers.
+                GameBot partyLeader = group.FirstOrDefault(member => member.Group != null && ReferenceEquals(member.Group.Leader, member));
+                if (partyLeader != null && !MemberReady(partyLeader)) continue;
                 long now = GameLoop.GameLoopTime;
                 long since = bot.TempProperties.GetProperty<long>(BlockedSinceKey, 0L);
                 if (since == 0) bot.TempProperties.SetProperty(BlockedSinceKey, now);

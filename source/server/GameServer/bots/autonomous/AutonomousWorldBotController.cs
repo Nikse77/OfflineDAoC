@@ -1788,6 +1788,14 @@ namespace DOL.GS
                 try { return TravelAcrossRegions(bot); }
                 finally { _camp = previous; }
             }
+            // Owner 2026-11-01: "i viaggi tra reami diversi passano sempre per il teletrasporto!" Between two frontiers
+            // there is no walkable edge at all - the only region points leave a frontier for its capital or for a
+            // frontier dungeon - so the crossing search could only fail and leave the party REPLANNING forever.
+            if (bot.CurrentRegionID != targetRegion && bot.CurrentRegionID is 1 or 100 or 200 && targetRegion is 1 or 100 or 200 &&
+                TryFrontierTransport(bot, new("frontier-passage", destinationLabel, "frontier",
+                    targetRegion, targetX, targetY, bot.Z, 50, false, true)))
+                return true;
+
             DbZonePoint crossing = FindNextCrossing(bot, targetRegion, targetX, targetY);
             if (crossing == null)
             {
@@ -1875,7 +1883,12 @@ namespace DOL.GS
                 }
             }
 
+            // Owner 2026-11-01: a member reaches the rendezvous on its own, but the party leaves the rendezvous behind its
+            // leader. A member used to copy the leader's passage and cross alone while the leader was still holding the
+            // town, and between two frontiers there is no walk back - the party stayed split for the rest of the run and
+            // seven bots stood on the arrival pad while their leader stood at Druim Ligen.
             if (directive.ObjectiveKind == eAutonomousObjectiveKind.RvR &&
+                AutonomousBotGroupCoordinator.MemberMayCrossAlone(directive.Phase) &&
                 leader.TempProperties.GetProperty<AutonomousFrontierTransport.Request>(AutonomousFrontierTransport.RequestKey) is { } passage &&
                 leader.CurrentRegion == bot.CurrentRegion && passage.Passage.Region != bot.CurrentRegionID &&
                 TryFrontierTransport(bot,new("frontier-passage",passage.Passage.Location.Name,"frontier",

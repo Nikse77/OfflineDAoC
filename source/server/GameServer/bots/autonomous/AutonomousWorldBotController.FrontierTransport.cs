@@ -36,6 +36,12 @@ public sealed partial class AutonomousWorldBotController
             destination.RegionId is not (1 or 100 or 200) || GameRelic.IsPlayerCarryingRelic(bot)) return false;
         var passage = AutonomousFrontierTransport.Destination(bot.Realm,destination.RegionId);
         if (passage == null) return false;
+        // Owner 2026-11-01: the leader is the one who takes the medallion of his own realm and assigns the new rendezvous
+        // on the far side, so the party converges there instead of trying to walk between two frontiers that share no
+        // region edge.
+        if (bot.Group != null && ReferenceEquals(bot.Group.Leader, bot))
+            AutonomousBotGroupCoordinator.MoveRvRRendezvous(bot.Group, passage.Region,
+                new Vector3(passage.Location.X, passage.Location.Y, passage.Location.Z), passage.Location.Name);
         bool returningToPve = passage.Medallion == "home_necklace" &&
             AutonomousObjectiveAssignments.Parse(bot.PersistentRecord?.ObjectiveKind) != eAutonomousObjectiveKind.RvR;
         var party=AutonomousFrontierTransport.BoardingParty(bot, passage);
