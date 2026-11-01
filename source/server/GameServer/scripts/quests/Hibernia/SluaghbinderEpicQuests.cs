@@ -647,6 +647,12 @@ public static class SluaghbinderEpicQuestRuntime
     [ScriptUnloadedEvent]
     public static void ScriptUnloaded(DOLEvent e, object sender, EventArgs args)
     {
+        // Mirrors the guard of ScriptLoaded: when the line is discontinued nothing is registered, so the event chains
+        // the removals look for may not exist at all. RemoveHandler then threw ArgumentNullException ("chain") in the
+        // shutdown of 2026-11-01 (the class was discontinued on 2026-10-30 and its handlers are never added).
+        if (Discontinued || !ServerProperties.Properties.LOAD_QUESTS)
+            return;
+
         GameEventMgr.RemoveHandler(GamePlayerEvent.GameEntered, PlayerEntered);
         GameEventMgr.RemoveHandler(GamePlayerEvent.Quit, PlayerQuit);
         if (Muirenn == null)
