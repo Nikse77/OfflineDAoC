@@ -213,6 +213,19 @@ public static class AutonomousPopulationController
                 bot.Z = (int)dungeonEntrance.Z;
             }
 
+            // Owner 2026-11-01: the level-50 RvR bots enter the world at their realm's frontier keep, the one with the teleporter
+            // mages, where their groups gather (AutonomousRvrLogin).
+            if (AutonomousRvrLogin.Applies(record.Level, record.ObjectiveKind) &&
+                AutonomousRvrLogin.TryGetPoint((eRealm)record.Realm, record.BotId, out ushort keepRegion, out Vector3 keepPoint))
+            {
+                Log.Info($"AUTONOMOUS_RVR_LOGIN_AT_KEEP bot={record.Name} id={record.BotId} realm={(eRealm)record.Realm} " +
+                         $"saved={record.RegionId}:{record.X},{record.Y},{record.Z} keep={keepRegion}:{(int)keepPoint.X},{(int)keepPoint.Y},{(int)keepPoint.Z}");
+                bot.CurrentRegionID = keepRegion;
+                bot.X = (int)keepPoint.X;
+                bot.Y = (int)keepPoint.Y;
+                bot.Z = (int)keepPoint.Z;
+            }
+
             // GameNPC keeps a separate interpolated movement position. Before
             // AddToWorld it still contains the constructor default (0,0,0),
             // even after the authoritative saved/start coordinates were set.
