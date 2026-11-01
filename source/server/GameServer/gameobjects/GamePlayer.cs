@@ -6883,6 +6883,11 @@ namespace DOL.GS
                                                             Inventory.RemoveCountFromStack(useItem, 1);
                                                             InventoryLogging.LogInventoryAction(this, "(potion)", eInventoryActionType.Other, useItem.Template);
                                                         }
+                                                        else if (ItemKeepsAfterUse(useItem))
+                                                        {
+                                                            // Owner 2026-11-01: an everlasting siege kit (MaxCharges -1, the artifact
+                                                            // convention) casts and stays in the bag: no charge is spent, nothing removed.
+                                                        }
                                                         else
                                                         {
                                                             useItem.Charges--;
@@ -7286,6 +7291,13 @@ namespace DOL.GS
             }
             return false;
         }
+
+        /// <summary>
+        /// Owner 2026-11-01: an item whose template says MaxCharges is -1 is never used up. -1 is the convention this
+        /// codebase already uses for items that need no charges (see the "artifacts" gate in UseSlot); the everlasting
+        /// siege kits use it so they can take the ordinary charged-item path, the one that works on a keep door.
+        /// </summary>
+        public static bool ItemKeepsAfterUse(DbInventoryItem item) => item != null && item.MaxCharges < 0;
 
         public static bool CanPoisonWeapon(int objectType)
         {

@@ -1,5 +1,6 @@
 ﻿using System.Collections.Generic;
 using DOL.GS.Keeps;
+using DOL.Logging;
 using DOL.GS.PacketHandler;
 
 namespace DOL.GS.Spells
@@ -8,6 +9,13 @@ namespace DOL.GS.Spells
     public class SummonSiegeRam : SpellHandler
     {
         public GameSiegeRam LastSummonedRam { get; private set; }
+
+        private static readonly Logger Log = LoggerManager.Create(typeof(SummonSiegeRam));
+
+        /// <summary>Owner 2026-11-01: say what the caster had targeted when a ram is refused, so a report of "I had
+        /// the door targeted" can be answered from the log instead of guessed at.</summary>
+        private static void LogRefusedTarget(string where, GameLiving target) =>
+            Log.Warn($"SIEGE_RAM_REFUSED at={where} target={(target == null ? "null" : target.GetType().Name + ":\"" + target.Name + "\"")}");
 
         public SummonSiegeRam(GameLiving caster, Spell spell, SpellLine line) : base(caster, spell, line) { }
 
@@ -28,6 +36,7 @@ namespace DOL.GS.Spells
 
             if (target is not (GameKeepDoor or GameRelicDoor))
             {
+                LogRefusedTarget("StartSpell", target);
                 MessageToCaster("You need to target a door!", eChatType.CT_SpellResisted);
                 return false;
             }
@@ -139,6 +148,7 @@ namespace DOL.GS.Spells
         {
             if (selectedTarget is not (GameKeepDoor or GameRelicDoor))
             {
+                LogRefusedTarget("CheckBeginCast", selectedTarget);
                 MessageToCaster("You need to target a door!", eChatType.CT_SpellResisted);
                 return false;
             }
