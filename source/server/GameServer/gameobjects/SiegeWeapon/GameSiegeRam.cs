@@ -28,6 +28,12 @@ namespace DOL.GS
 
 		//Set the maxium rams allowed to attack a target at the same time.
 		private const int MAX_RAMS_ATTACKING_TARGET = 2;
+
+		// Owner 2026-11-01: diagnostics only. A medium ram reported 225 damage and a 14 s reload with five companions
+		// standing at it, which is crew 1 - the companions were not counted. This line says how many bots the ram sees
+		// and which test rejects them, so the fix is chosen from evidence instead of guessed.
+		private static readonly DOL.Logging.Logger Log = DOL.Logging.LoggerManager.Create(typeof(GameSiegeRam));
+		private int _loggedCrew = -1;
 		public override ushort Type()
 		{
 			return 0x9602;
@@ -151,6 +157,19 @@ namespace DOL.GS
 
 			int damageAmount = CalcDamageToTarget(target);
 
+			// Owner 2026-11-01: diagnostics only. One line whenever the crew changes, naming the rider count, the crew the
+			// formula used, and how many bots the radius holds against each test - so an uncounted companion is explained.
+			int crew = Crew;
+			if (crew != _loggedCrew)
+			{
+				_loggedCrew = crew;
+				(int seen, int aliveSameRealm, int leaderOf, int ownedBy) = ProbeCompanions();
+				Log.Warn($"SIEGE_RAM_CREW level={Level} name=\"{Name}\" riders={CurrentRiders.Length} crew={crew} " +
+				         $"damage={damageAmount} reload_ms={GetReloadDelay} " +
+				         $"owner=\"{((Owner as GamePlayer)?.Name ?? "null")}\" bots_at_ram={seen} " +
+				         $"alive_same_realm={aliveSameRealm} leader_of={leaderOf} owned_by_owner={ownedBy}");
+			}
+
 			AttackData ad = new AttackData();
 			ad.Attacker = this;
 			ad.Target = target;
@@ -225,6 +244,31 @@ namespace DOL.GS
 							crew++;
 				return CrewTotal(Level, crew);
 			}
+		}
+
+		/// <summary>
+		/// Diagnostics only: how many bots stand at the ram, and how many pass each test a companion has to pass to be
+		/// counted. It reads what Crew reads and changes nothing - the fix is chosen from these four numbers.
+		/// </summary>
+		private (int Seen, int AliveSameRealm, int LeaderOf, int OwnedByOwner) ProbeCompanions()
+		{
+			if (Owner is not GamePlayer leader)
+				return (0, 0, 0, 0);
+			int seen = 0, alive = 0, leaderOf = 0, owned = 0;
+			foreach (GameNPC near in GetNPCsInRadius(300))
+			{
+				if (near is not GameBot mate)
+					continue;
+				seen++;
+				if (!mate.IsAlive || mate.Realm != Realm)
+					continue;
+				alive++;
+				if (CompanionEngagementMode.LeaderOf(mate) == leader)
+					leaderOf++;
+				if (ReferenceEquals(mate.Owner, leader))
+					owned++;
+			}
+			return (seen, alive, leaderOf, owned);
 		}
 
 		public void UpdateRamStatus()
