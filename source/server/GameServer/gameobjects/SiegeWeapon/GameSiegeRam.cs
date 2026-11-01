@@ -34,6 +34,7 @@ namespace DOL.GS
 		// and which test rejects them, so the fix is chosen from evidence instead of guessed.
 		private static readonly DOL.Logging.Logger Log = DOL.Logging.LoggerManager.Create(typeof(GameSiegeRam));
 		private int _loggedCrew = -1;
+		private long _lastCrewLogTick;
 		public override ushort Type()
 		{
 			return 0x9602;
@@ -160,18 +161,26 @@ namespace DOL.GS
 			// Owner 2026-11-01: diagnostics only. One line whenever the crew changes, naming the rider count, the crew the
 			// formula used, and how many bots the radius holds against each test - so an uncounted companion is explained.
 			int crew = Crew;
-			if (crew != _loggedCrew)
+			long crewLogTick = GameLoop.GameLoopTime;
+			if (crew != _loggedCrew || crewLogTick - _lastCrewLogTick >= 20_000)
 			{
 				_loggedCrew = crew;
+				_lastCrewLogTick = crewLogTick;
 				var probe = ProbeCompanions();
+				GamePlayer operatorPlayer = Owner as GamePlayer;
 				// Owner 2026-11-01: diagnostics must never cost a shot, and the test fixtures run with no logger initialised.
 				try
 				{
 					Log.Warn($"SIEGE_RAM_CREW level={Level} name=\"{Name}\" riders={CurrentRiders.Length} crew={crew} " +
-					         $"damage={damageAmount} reload_ms={GetReloadDelay} " +
-					         $"owner=\"{((Owner as GamePlayer)?.Name ?? "null")}\" bots_at_ram={probe.Seen} " +
-					         $"alive_same_realm={probe.AliveSameRealm} leader_of={probe.LeaderOf} " +
-					         $"owned_by_owner={probe.OwnedByOwner} group_bots={probe.GroupBots} " +
+					         $"crew_companions={probe.CrewCount} damage={damageAmount} reload_ms={GetReloadDelay} " +
+					         $"owner=\"{operatorPlayer?.Name ?? "null"}\" ram_realm={(int)Realm} " +
+					         $"leader_realm={(operatorPlayer != null ? (int)operatorPlayer.Realm : -1)} " +
+					         $"ram_region={CurrentRegionID} " +
+					         $"leader_region={(operatorPlayer != null ? operatorPlayer.CurrentRegionID : -1)} " +
+					         $"bots_at_ram={probe.Seen} alive_same_realm={probe.AliveSameRealm} " +
+					         $"leader_of={probe.LeaderOf} owned_by_owner={probe.OwnedByOwner} " +
+					         $"group_bots={probe.GroupBots} group_alive={probe.GroupAlive} " +
+					         $"group_same_realm={probe.GroupSameRealm} group_same_region={probe.GroupSameRegion} " +
 					         $"group_in_600={probe.GroupInRadius}");
 				}
 				catch (System.Exception)
@@ -268,10 +277,13 @@ namespace DOL.GS
 			if (leader.Group == null)
 				return 0;
 			int companions = 0;
+			// Owner 2026-11-01: measured from the leader, who is standing on the ram, and not from the ram's own Realm
+			// and region. Those two properties of a deployed siege weapon are the only comparisons the group probe did
+			// not test, and they are the ones that can come back empty on a ram placed from a kit.
 			foreach (GameLiving member in leader.Group.GetMembersInTheGroup())
-				if (member is GameBot mate && mate.IsAlive && mate.Realm == Realm &&
-					!mate.IsAutonomousWorldBot && mate.CurrentRegionID == CurrentRegionID &&
-					IsWithinRadius(mate, CompanionCrewRadius))
+				if (member is GameBot mate && mate.IsAlive && mate.Realm == leader.Realm &&
+					!mate.IsAutonomousWorldBot && mate.CurrentRegionID == leader.CurrentRegionID &&
+					leader.IsWithinRadius(mate, CompanionCrewRadius))
 					companions++;
 			return companions;
 		}
@@ -279,11 +291,17 @@ namespace DOL.GS
 		/// <summary>
 		/// Diagnostics only: how many bots stand at the ram, how many pass each test, and what the group says. The radius
 		/// and the group are printed side by side because they disagreed once; the difference decides which is right.
+		/// The group tests are counted one at a time, so a crew of zero names the condition that emptied it.
 		/// </summary>
-		private (int Seen, int AliveSameRealm, int LeaderOf, int OwnedByOwner, int GroupBots, int GroupInRadius) ProbeCompanions()
+		private readonly record struct CrewProbe(int Seen, int AliveSameRealm, int LeaderOf, int OwnedByOwner,
+			int GroupBots, int GroupAlive, int GroupSameRealm, int GroupSameRegion, int GroupInRadius, int CrewCount);
+
+		private CrewProbe ProbeCompanions()
 		{
-			int seen = 0, alive = 0, leaderOf = 0, owned = 0, groupBots = 0, groupInRadius = 0;
-			if (Owner is GamePlayer leader)
+			int seen = 0, alive = 0, leaderOf = 0, owned = 0;
+			int groupBots = 0, groupAlive = 0, groupSameRealm = 0, groupSameRegion = 0, groupInRadius = 0;
+			GamePlayer leader = Owner as GamePlayer;
+			if (leader != null)
 			{
 				foreach (GameNPC near in GetNPCsInRadius(300))
 				{
@@ -306,12 +324,24 @@ namespace DOL.GS
 						if (member is not GameBot subject || subject.IsAutonomousWorldBot)
 							continue;
 						groupBots++;
-						if (subject.CurrentRegionID == CurrentRegionID && IsWithinRadius(subject, CompanionCrewRadius))
-							groupInRadius++;
+						if (!subject.IsAlive)
+							continue;
+						groupAlive++;
+						if (subject.Realm != leader.Realm)
+							continue;
+						groupSameRealm++;
+						if (subject.CurrentRegionID != leader.CurrentRegionID)
+							continue;
+						groupSameRegion++;
+						if (!leader.IsWithinRadius(subject, CompanionCrewRadius))
+							continue;
+						groupInRadius++;
 					}
 				}
 			}
-			return (seen, alive, leaderOf, owned, groupBots, groupInRadius);
+
+			return new CrewProbe(seen, alive, leaderOf, owned, groupBots, groupAlive, groupSameRealm,
+				groupSameRegion, groupInRadius, leader != null ? CompanionsAtRam(leader) : 0);
 		}
 
 		public void UpdateRamStatus()
