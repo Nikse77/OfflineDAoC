@@ -74,8 +74,9 @@ namespace DOL.GS
         }
 
         // Battleground keeps have no planned siege event, so a siege "starts" when an enemy realm first damages the keep
-        // after it has been quiet for BattlegroundSiegeQuietMilliseconds (owner 2026-10-07: announce battleground keep
-        // sieges starting and keeps taken; the take itself is announced by PlayerMgr.BroadcastCapture).
+        // after it has been quiet for BattlegroundSiegeQuietMilliseconds. Owner 2026-11-01: the siege starting is no
+        // longer announced (the message "Albion's forces have laid siege to ... in ..." was unwanted); the take itself
+        // is still announced by PlayerMgr.BroadcastCapture, and BG_SIEGE_STARTED stays in the log for diagnosis.
         public const long BattlegroundSiegeQuietMilliseconds = 5 * 60_000L;
         private static readonly Dictionary<(int Keep, eRealm Attacker, eRealm Holder), long> BattlegroundSiegePressure = new();
 
@@ -98,9 +99,6 @@ namespace DOL.GS
                 BattlegroundSiegePressure[key] = now;
             }
             if (!fresh) return;
-            string battleground = BattlegroundBrackets.ForRegion(keep.Region)?.Name ?? "the battleground";
-            GameWideAnnouncements.Queue(AnnouncementKind.RvrBattleground,
-                GameWideAnnouncements.BattlegroundSiegeStarted(attacker, keep.Name, battleground, keep.Realm));
             var log = DOL.Logging.LoggerManager.Create(typeof(AutonomousRvrEventLayer));
             if (log.IsInfoEnabled) log.Info($"BG_SIEGE_STARTED keep=\"{keep.Name}\" region={keep.Region} attacker={GlobalConstants.RealmToName(attacker)} " +
                 $"holder={(keep.Realm == eRealm.None ? "unclaimed" : GlobalConstants.RealmToName(keep.Realm))}");

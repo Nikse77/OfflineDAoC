@@ -38,13 +38,8 @@ namespace DOL.UnitTests
             Assert.That(AutonomousRvrEventLayer.BattlegroundSiegeIsNew(10_000, 10_000 + quiet), Is.True);
         }
 
-        [Test]
-        public void BattlegroundSiegeLinesNameTheHolder()
-        {
-            Assert.That(GameWideAnnouncements.BattlegroundSiegeStarted(eRealm.Albion, "Dun Abermenai", "Abermenai", eRealm.None),
-                Is.EqualTo("Albion's forces are assaulting the unclaimed Dun Abermenai in Abermenai!"));
-            Assert.That(GameWideAnnouncements.BattlegroundSiegeStarted(eRealm.Midgard, "Dun Abermenai", "Abermenai", eRealm.Hibernia),
-                Is.EqualTo("Midgard's forces have laid siege to Hibernia's Dun Abermenai in Abermenai!"));
-        }
+        // The line this used to pin ("Albion's forces have laid siege to ... in ...") is gone: owner 2026-11-01 dropped the
+        // announcement a battleground siege starting used to send to every realm. The quiet-spell pacing above still runs
+        // for the BG_SIEGE_STARTED log entry.
     }
 }
