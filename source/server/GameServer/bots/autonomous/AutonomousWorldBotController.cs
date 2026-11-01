@@ -1921,6 +1921,9 @@ namespace DOL.GS
             // (smooth group travel from the stefanrows/OfflineDAoC fork).
             Vector3 formationCenter = leader.IsMoving && !tight ? AutonomousGroupMotion.PredictLeader(leader) : new(leader.X, leader.Y, leader.Z);
             Vector3 formation = AutonomousBotGroupCoordinator.FormationPoint(bot, formationCenter, tight);
+            // Owner 2026-11-01: this member is walking toward the objective with its party; the upkeep code reads the mark
+            // so a party on the march does not stop for a buff (see TryMaintainTravelAndClassBuffs).
+            AutonomousGroupMarchRoster.MarkMarching(bot, GameLoop.GameLoopTime);
             // Close the gap on the move so the party travels as one unit instead of the
             // leader stopping for formation (the follower runs up to 25% faster while behind).
             if (bot.CurrentRegionID == leader.CurrentRegionID)
@@ -3580,7 +3583,15 @@ namespace DOL.GS
             // and pulling Aidon the Archwizard at level 75. Only a force on relic duty may take one.
             if (AutonomousRvrDungeonGuard.ShouldStayOutOfDungeons(AutonomousObjectiveAssignments.KindFor(bot),
                     AutonomousRvrEventLayer.OnRelicDuty(AutonomousBotGroupCoordinator.RvrForceId(bot))))
-                legal = legal.Where(camp => !camp.IsDungeon);
+                legal = legal.Where(camp => !camp.IsDungeon &&
+                                            !AutonomousRvrDungeonGuard.ExcludesRegion(bot, (ushort)camp.RegionId));
+            // Owner 2026-11-01: a party refused the same doorway three times in a minute has no goal worth keeping - it is
+            // standing at the dungeon mouth. Dropping the candidates sends it through the "choosing a new live goal" path.
+            if (AutonomousRvrDungeonGuard.ShouldAbandonGoal(bot, GameLoop.GameLoopTime))
+            {
+                AutonomousRvrDungeonGuard.ClearRefusal(bot);
+                legal = legal.Where(_ => false);
+            }
             AutonomousBotDecisionEngine.PveEnvironment environment;
             if (sharedGroup)
             {
@@ -5467,6 +5478,7 @@ namespace DOL.GS
             DbZonePoint[] points = ZonePoints()
                 .Where(point => IsAuthoritativeZonePointEdge(point) &&
                                 AutonomousDungeonGoalCatalog.CanUseEntrance(point, targetRegion, targetX, targetY) &&
+                                !AutonomousRvrDungeonGuard.ExcludesEdge(quarantineBot, point) &&
                                 (point.Realm == 0 || point.Realm == (ushort)realm) &&
                                 AutonomousDarknessFallsPolicy.CanUsePortalRow(realm, point) &&
                                 IsRegionEdgeAccessible(realm, point.SourceRegion, point.TargetRegion) &&

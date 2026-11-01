@@ -2804,6 +2804,7 @@ namespace DOL.GS
                 log.Warn($"RVR_DUNGEON_CROSSING_REFUSED bot={Name} id={DatabaseID} level={Level} " +
                          $"from={CurrentRegionID}:{X},{Y},{Z} target_region={regionID}:{x},{y},{z} " +
                          $"activity=\"{PersistentRecord?.Activity}\"");
+                AutonomousRvrDungeonGuard.NoteRefusal(this, regionID, GameLoop.GameLoopTime);
                 return false;
             }
 
