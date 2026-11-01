@@ -126,6 +126,13 @@ public static partial class AutonomousBotGroupCoordinator
         public long NextRecoveryReadinessTick { get; set; }
         public int LockedSize { get; set; }
         public ushort RendezvousRegion { get; set; }
+        // Owner 2026-11-01: "se il gruppo si separa devono raggrupparsi all'ultimo punto di raduno utilizzato." Snapshot
+        // taken whenever an assembly completes, so a casualty later takes the party back to the last place it actually
+        // met - not to the border keep it started from and not to wherever the survivor happens to stand.
+        public Vector3 LastRendezvous { get; set; }
+        public ushort LastRendezvousRegion { get; set; }
+        public string LastRendezvousName { get; set; } = string.Empty;
+        public bool HasLastRendezvous { get; set; }
         public AutonomousRendezvousAttendance Attendance { get; init; } = new();
         public Dictionary<long, Vector3> RendezvousSlots { get; } = new();
         public HashSet<long> HeldUnreachableMembers { get; } = new();
@@ -649,6 +656,16 @@ public static partial class AutonomousBotGroupCoordinator
     /// members follow him. Unknown phases count as assembled, so a phase added later never reopens the solo crossing.
     /// </summary>
     public static bool MemberMayCrossAlone(string phase) => phase is "Leader staging" or "Meeting up";
+
+    /// <summary>Freezes the rendezvous the party is meeting at right now, so a later casualty comes back to it.</summary>
+    private static void RememberRendezvous(Session session)
+    {
+        if (session == null) return;
+        session.LastRendezvous = session.Rendezvous;
+        session.LastRendezvousRegion = session.RendezvousRegion;
+        session.LastRendezvousName = session.RendezvousName;
+        session.HasLastRendezvous = true;
+    }
 
     /// <summary>How close two rendezvous must be to count as the same one, when the party re-anchors its frontier.</summary>
     public const int RendezvousReanchorRadius = 600;
@@ -2330,6 +2347,7 @@ public static partial class AutonomousBotGroupCoordinator
                 session.Recovery.TryComplete(RecoveryMembers(session, members, true), GameLoop.GameLoopTime))
             {
                 session.Phase = "Choosing group target";
+                RememberRendezvous(session);
                 Log.Info($"AUTONOMOUS_GROUP_REGROUP_READY group={session.Id} size={members.Length} " +
                     $"remainingSeconds={session.TaskClock.RemainingMilliseconds(GameLoop.GameLoopTime) / 1000}");
             }
@@ -2338,6 +2356,7 @@ public static partial class AutonomousBotGroupCoordinator
         if (session.Phase == "Meeting up" && members.All(member => AtRendezvous(session, member)))
         {
             session.Phase = "Choosing group target";
+            RememberRendezvous(session);
             // The camp planned at formation: the party met at the town nearest it and goes straight there.
             if (session.ObjectiveKind == eAutonomousObjectiveKind.GroupPve && session.PlannedCamp is { } planned)
             {
@@ -2908,10 +2927,20 @@ public static partial class AutonomousBotGroupCoordinator
     {
         if (session.RecoveryRendezvousChosen) return;
         session.RecoveryRendezvousChosen = true;
-        // RvR regrouping returns to the same validated safe border keep used
-        // for initial assembly. It must never drift to a random town or bind.
+        // RvR regrouping returns to the last rendezvous the party actually assembled at - a validated safe point, never a
+        // random town or bind.
         if (session.ObjectiveKind == eAutonomousObjectiveKind.RvR)
+        {
+            // Owner 2026-11-01: the party meets again where it last met. A casualty used to take it back to the border
+            // keep it started from, which for a group patrolling a foreign frontier means a trip home and back.
+            if (session.HasLastRendezvous)
+            {
+                session.Rendezvous = session.LastRendezvous;
+                session.RendezvousRegion = session.LastRendezvousRegion;
+                session.RendezvousName = session.LastRendezvousName;
+            }
             return;
+        }
         // A casualty after a long camp trip should not send the whole party
         // back across the world to its first meetup. Prefer a validated safe
         // town near the largest living cluster; keep the original town as a
