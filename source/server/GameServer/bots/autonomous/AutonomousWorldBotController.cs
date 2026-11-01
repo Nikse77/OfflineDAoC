@@ -3130,7 +3130,7 @@ namespace DOL.GS
             Vector3 destination;
             if (_soloRvrStagingPoint.HasValue)
                 destination = _soloRvrStagingPoint.Value;
-            else if (TryResolveRvrBorderStaging(keep, out destination, bot.DatabaseID))
+            else if (TryResolveRvrBorderStaging(keep, out destination, bot.DatabaseID, AutonomousRvrLogin.Pad(bot.Realm)))
                 _soloRvrStagingPoint = destination;
             else
             {
@@ -3174,10 +3174,11 @@ namespace DOL.GS
             return false;
         }
 
-        private static bool TryResolveRvrBorderStaging(AutonomousRvrStaging.BorderKeep keep, out Vector3 point, long formationKey = 0)
+        private static bool TryResolveRvrBorderStaging(AutonomousRvrStaging.BorderKeep keep, out Vector3 point,
+            long formationKey = 0, Vector3? preferred = null)
         {
             Region region = WorldMgr.GetRegion(keep.RegionId);
-            foreach (Vector3 anchor in AutonomousRvrStaging.CandidateAnchors(keep, formationKey))
+            foreach (Vector3 anchor in AutonomousRvrStaging.CandidateAnchors(keep, formationKey, preferred))
             {
                 Zone zone = region?.GetZone((int)anchor.X, (int)anchor.Y);
                 if (AutonomousRendezvousNavigation.TryChoosePoint(

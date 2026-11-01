@@ -102,14 +102,26 @@ public static class AutonomousRvrStaging
         });
     }
 
+    /// <summary>How near the passage pad must be to a mustering keep to count as that keep's pad.</summary>
+    public const int PadReach = 3_000;
+
+    /// <summary>Owner 2026-11-01: a pad within the keep's safe area is where the realm's frontier porter stands.</summary>
+    public static bool IsOnKeepPad(BorderKeep keep, Vector3 pad) =>
+        keep.RegionId != 0 &&
+        Vector2.Distance(new(pad.X, pad.Y), new(keep.Position.X, keep.Position.Y)) <= PadReach;
+
     /// <summary>
     /// Imported area centers can sit inside keep geometry rather than on a
     /// walkable courtyard polygon. Probe a deterministic set wholly inside the
     /// 3,500-unit safe-area radius; the coordinator still requires a connected
     /// floor and valid formation slots before accepting one.
     /// </summary>
-    public static IEnumerable<Vector3> CandidateAnchors(BorderKeep keep, long formationKey = 0)
+    public static IEnumerable<Vector3> CandidateAnchors(BorderKeep keep, long formationKey = 0, Vector3? preferred = null)
     {
+        // Owner 2026-11-01: the party waits on the passage pad (where the player stands and where the level-50 bots log
+        // in) when that pad belongs to this keep, before the rings around the keep centre are tried.
+        if (preferred is { } pad && IsOnKeepPad(keep, pad))
+            yield return pad;
         int offset = (int)(unchecked((ulong)formationKey) % 12);
         for (int ring = 0; ring < 4; ring++)
         for (int step = 0; step < 12; step++)

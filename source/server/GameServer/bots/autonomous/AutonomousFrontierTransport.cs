@@ -17,6 +17,34 @@ public static class AutonomousFrontierTransport
         .Where(p => p.ObjectState == GameObject.eObjectState.Active && p.CurrentRegion == bot.CurrentRegion && p.Realm == bot.Realm)
         .OrderBy(bot.GetDistanceTo).FirstOrDefault();
 
+    /// <summary>
+    /// The frontier porter standing on the passage pad of its realm's home keep (Castle Sauvage's Master Visur,
+    /// Svasud Faste's stor gothi, Druim Ligen's Glasny): the circle a player stands in to take the passage, about
+    /// 1,700 units from the pad the home necklace lands on. Null when no porter of that realm is in the region.
+    /// Owner 2026-11-01: the level-50 bots enter the world on this pad and wait there.
+    /// </summary>
+    public static OFTeleporter HomePorter(eRealm realm, ushort region)
+    {
+        Passage home = Destination(realm, region);
+        if (home == null || home.Medallion != "home_necklace")
+            return null;
+        Vector2 homePoint = new(home.Location.X, home.Location.Y);
+        return Porters.Keys
+            .Where(p => p != null && p.ObjectState == GameObject.eObjectState.Active &&
+                        p.Realm == realm && p.CurrentRegionID == region &&
+                        Vector2.DistanceSquared(new(p.X, p.Y), homePoint) <= 4_000f * 4_000f)
+            .OrderBy(p => Vector2.DistanceSquared(new(p.X, p.Y), homePoint))
+            .FirstOrDefault();
+    }
+
+    /// <summary>The pad of that porter, or false when the realm's porter is not in the world.</summary>
+    public static bool TryGetHomePad(eRealm realm, ushort region, out Vector3 pad)
+    {
+        OFTeleporter porter = HomePorter(realm, region);
+        pad = porter == null ? default : new(porter.X, porter.Y, porter.Z);
+        return porter != null;
+    }
+
     public static GameBot[] BoardingParty(GameBot bot, Passage passage) =>
         HasCommittedSiegePassage(bot, passage) || passage.Medallion == "home_necklace" &&
         AutonomousObjectiveAssignments.Parse(bot.PersistentRecord?.ObjectiveKind) != eAutonomousObjectiveKind.RvR

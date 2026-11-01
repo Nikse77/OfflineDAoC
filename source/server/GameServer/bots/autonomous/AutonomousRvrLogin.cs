@@ -14,19 +14,43 @@ public static class AutonomousRvrLogin
     /// <summary>Every level-50 bot logs in at the frontier keep, whatever its objective (owner 2026-11-01).</summary>
     public static bool Applies(int level) => level == Level;
 
-    /// <summary>The login point: the realm's home frontier keep, spread around the teleporters by bot so that they do not stack.</summary>
+    /// <summary>
+    /// The login point: the realm's home frontier keep, on the passage pad itself (owner 2026-11-01), spread around the
+    /// teleporters by bot so that they do not stack.
+    /// </summary>
     public static bool TryGetPoint(eRealm realm, long botId, out ushort region, out Vector3 point)
     {
         region = 0;
         point = default;
-        AutonomousFrontierTransport.Passage passage = AutonomousFrontierTransport.Destination(realm, RealmRaidNeutralEvents.HomeRegion(realm));
+        ushort home = RealmRaidNeutralEvents.HomeRegion(realm);
+        AutonomousFrontierTransport.Passage passage = AutonomousFrontierTransport.Destination(realm, home);
         if (passage?.Location == null)
             return false;
         region = passage.Location.RegionID;
-        point = new Vector3(passage.Location.X, passage.Location.Y, passage.Location.Z);
-        Zone zone = WorldMgr.GetRegion(region)?.GetZone(passage.Location.X, passage.Location.Y);
-        if (zone != null && AutonomousFrontierTransport.TryWaitingPoint(PathfindingProvider.Instance, zone, point, realm, botId, out Vector3 spread))
-            point = spread;
+        ushort loginRegion = region;
+        // The pad the home necklace lands on, kept as the fallback when the porter's pad has no room to spread bots.
+        Vector3 necklace = new(passage.Location.X, passage.Location.Y, passage.Location.Z);
+        point = necklace;
+        // Owner 2026-11-01: on the passage pad, where the player stands next to the realm's frontier porter (Master
+        // Visur at Castle Sauvage), not on the pad the necklace lands on about 1,700 units away.
+        if (AutonomousFrontierTransport.TryGetHomePad(realm, home, out Vector3 pad))
+            point = pad;
+        Vector3 centre = point;
+        if (!TrySpread(centre, out point) && centre != necklace)
+            TrySpread(necklace, out point);
         return true;
+
+        // 220 to 410 units from the centre, on floor the navmesh accepts: the bots stand around the pad, not on one spot.
+        bool TrySpread(Vector3 around, out Vector3 spread)
+        {
+            spread = around;
+            Zone zone = WorldMgr.GetRegion(loginRegion)?.GetZone((int)around.X, (int)around.Y);
+            return zone != null &&
+                AutonomousFrontierTransport.TryWaitingPoint(PathfindingProvider.Instance, zone, around, realm, botId, out spread);
+        }
     }
+
+    /// <summary>The passage pad of the realm's frontier porter, when that porter is in the world.</summary>
+    public static Vector3? Pad(eRealm realm) =>
+        AutonomousFrontierTransport.TryGetHomePad(realm, RealmRaidNeutralEvents.HomeRegion(realm), out Vector3 pad) ? pad : null;
 }

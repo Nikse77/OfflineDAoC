@@ -2683,7 +2683,7 @@ public static partial class AutonomousBotGroupCoordinator
             AutonomousRvrStaging.TryGetNearestBorderKeep(leader, out AutonomousRvrStaging.BorderKeep borderKeep))
         {
             Region borderRegion = WorldMgr.GetRegion(borderKeep.RegionId);
-            foreach (Vector3 anchor in AutonomousRvrStaging.CandidateAnchors(borderKeep, leader.DatabaseID))
+            foreach (Vector3 anchor in AutonomousRvrStaging.CandidateAnchors(borderKeep, leader.DatabaseID, AutonomousRvrLogin.Pad(leader.Realm)))
             {
                 if (!TryPoint(borderRegion, anchor, out point) || !AutonomousRvrStaging.IsConnectedToKeep(borderKeep, point))
                     continue;
