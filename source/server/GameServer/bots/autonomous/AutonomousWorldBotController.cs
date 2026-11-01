@@ -239,6 +239,7 @@ namespace DOL.GS
         private static CampCatalogCell[] _campCatalog = [];
 
         private long _nextPocketCheckTick;
+        private long _nextDungeonGuardTick;
         private static long _nextPocketNudgeLog;
 
         /// <summary>
@@ -285,6 +286,36 @@ namespace DOL.GS
                         return true;
                     // A pocket with no real floor within reach: the normal escape handles it; do not re-search every 5 s.
                     if (stillInPocket) _nextPocketCheckTick = nowTick + 60_000;
+                }
+                // Owner 2026-11-01: a level-50 RvR bot patrols the frontiers (regions 1, 100 and 200) and has no business
+                // in a dungeon. What brought them in was a dungeon camp (the level-50 group dungeon preference), so the
+                // camp chooser no longer offers one; this is the net for anything that still ends up inside - a saved
+                // camp surviving a restart, or a route planned before the rule existed.
+                if (nowTick >= _nextDungeonGuardTick)
+                {
+                    _nextDungeonGuardTick = nowTick + 2_000 + bot.ObjectID % 500;
+                    if (AutonomousRvrDungeonGuard.ShouldReturnToFrontier(AutonomousObjectiveAssignments.KindFor(bot),
+                            AutonomousRvrEventLayer.OnRelicDuty(AutonomousBotGroupCoordinator.RvrForceId(bot)),
+                            bot.CurrentRegion?.IsDungeon == true, bot.CurrentRegionID) &&
+                        AutonomousRvrLogin.TryGetPoint(bot.Realm, bot.PersistentRecord?.BotId ?? 0,
+                            out ushort homeRegion, out Vector3 homePoint))
+                    {
+                        Log.Warn($"RVR_DUNGEON_DIVERSION bot={bot.Name} id={bot.DatabaseID} level={bot.Level} " +
+                                 $"realm={GlobalConstants.RealmToName(bot.Realm)} from={bot.CurrentRegionID}:{bot.X},{bot.Y},{bot.Z} " +
+                                 $"to={homeRegion}:{(int)homePoint.X},{(int)homePoint.Y},{(int)homePoint.Z} " +
+                                 $"activity=\"{bot.PersistentRecord?.Activity}\" zone=\"{bot.CurrentZone?.Description}\"");
+                        bot.CurrentRegionID = homeRegion;
+                        bot.X = (int)homePoint.X;
+                        bot.Y = (int)homePoint.Y;
+                        bot.Z = (int)homePoint.Z;
+                        _camp = null;
+                        _rvrDestination = null;
+                        _rvrApproachDestination = null;
+                        _patrolDestination = null;
+                        _pendingStableChoice = null;
+                        ReleaseOwnedSiegeRams(bot);
+                        return true;
+                    }
                 }
                 // A solo siege force is released at most a couple of seconds
                 // after its event ends; no need to take the event lock each turn.
@@ -3544,6 +3575,12 @@ namespace DOL.GS
             // population into one nearby camp.
             IEnumerable<AutonomousBotDecisionEngine.Camp> legal = camps.Where(camp =>
                 camp.Reachable && camp.Realm == bot.Realm && camp.LiveMobCount > 0);
+            // Owner 2026-11-01: a level-50 RvR party fights in the frontier, never in a dungeon; a dungeon camp is
+            // what put ten of them inside Marfach Caverns and the Hall of the Corrupt, dying to the dungeon monsters
+            // and pulling Aidon the Archwizard at level 75. Only a force on relic duty may take one.
+            if (AutonomousRvrDungeonGuard.ShouldStayOutOfDungeons(AutonomousObjectiveAssignments.KindFor(bot),
+                    AutonomousRvrEventLayer.OnRelicDuty(AutonomousBotGroupCoordinator.RvrForceId(bot))))
+                legal = legal.Where(camp => !camp.IsDungeon);
             AutonomousBotDecisionEngine.PveEnvironment environment;
             if (sharedGroup)
             {

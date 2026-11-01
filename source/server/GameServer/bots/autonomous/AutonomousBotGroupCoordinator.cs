@@ -777,6 +777,15 @@ public static partial class AutonomousBotGroupCoordinator
             crossing.SourceRegion == crossing.TargetRegion)
             return true;
 
+        // Owner 2026-11-01: the crossing itself is refused when the party is not on relic duty, so a stale
+        // directive cannot walk a frontier party into a dungeon even if the camp survived a restart.
+        if (AutonomousRvrDungeonGuard.ShouldReturnToFrontier(AutonomousObjectiveAssignments.KindFor(bot),
+                AutonomousRvrEventLayer.OnRelicDuty(RvrForceId(bot)), true, crossing.TargetRegion))
+        {
+            reason = "Relic duty required: this party fights in the frontier, not in a dungeon";
+            return false;
+        }
+
         lock (Sync)
         {
             if (!TryGetSession(bot.Group, out Session session) || session.Id != directive.GroupId)

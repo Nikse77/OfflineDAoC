@@ -1620,6 +1620,20 @@ public static partial class AutonomousRvrEventLayer
                        active.Participants.Values.Any(realm => realm.ContainsKey(forceId)));
     }
 
+    /// <summary>Owner 2026-11-01: true when the force is on a relic operation - an assault on a relic keep, or the escort
+    /// of a relic carrier. Those are the only RvR groups allowed inside the frontier dungeons that lead to Summoner's
+    /// Hall; any other group that ends up in one is sent home by AutonomousRvrDungeonGuard.</summary>
+    public static bool OnRelicDuty(string forceId)
+    {
+        if (string.IsNullOrWhiteSpace(forceId))
+            return false;
+        lock (Sync)
+            return Events.Values.Any(active => active.RelicKeep &&
+                       (active.Attackers.ContainsKey(forceId) || active.Defenders.ContainsKey(forceId) ||
+                        active.ThirdRealm.ContainsKey(forceId))) ||
+                   CarrierEvents.Values.Any(active => active.Participants.Values.Any(realm => realm.ContainsKey(forceId)));
+    }
+
     public static bool IsPlayerDefenseResponse(string targetId, long nowTick)
     {
         if (string.IsNullOrWhiteSpace(targetId)) return false;
