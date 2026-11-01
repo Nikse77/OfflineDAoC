@@ -27,8 +27,9 @@ public static class AutonomousBotGoalPolicy
     }
 
     // Owner 2026-10-27: gamebots of levels 1-6 never group, whatever the Bot
-    // Goals Setting says. They take solo PvE instead of group PvE.
-    public const int SoloOnlyMaximumLevel = 6;
+    // Goals Setting says. Owner 2026-11-01: they may group again (0 = no level is solo-only);
+    // the Bot Goals Setting decides, as for every other level.
+    public const int SoloOnlyMaximumLevel = 0;
 
     public static bool GroupsAllowed(int level) => level > SoloOnlyMaximumLevel;
 
