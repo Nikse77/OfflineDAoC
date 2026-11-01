@@ -1144,6 +1144,8 @@ namespace DOL.GS
                 return;
             }
 
+            // Owner 2026-11-01: RvR duty decides the whole release path below - it never sends the bot to its capital.
+            bool rvrDuty = AutonomousObjectiveAssignments.Is(this, eAutonomousObjectiveKind.RvR);
             Point3D release = FindNearestBindPoint();
             ushort releaseRegion = _deathRegionId;
             if (IsAutonomousWorldBot && release != null)
@@ -1161,7 +1163,11 @@ namespace DOL.GS
                 _lastBindRelease = release;
                 _lastBindReleaseRegion = releaseRegion;
                 _lastBindReleaseTick = now;
-                if (BotReleaseBindPoints.SendsToCapital(_bindQuickReturns))
+                // Owner 2026-11-01: in RvR dying twice within six minutes at the same frontier bind is ordinary - the party
+                // fights in one frontier for hours - so the quick-return rule never sends an RvR bot to its capital. It
+                // releases at the frontier bind and walks back to its party; otherwise the leader and the group end up in
+                // two realms' lands with no route between them.
+                if (!rvrDuty && BotReleaseBindPoints.SendsToCapital(_bindQuickReturns))
                 {
                     log.Warn($"AUTONOMOUS_BIND_DEATH_LOOP bot={Name} id={DatabaseID} level={Level} region={releaseRegion} " +
                              $"bind={release.X},{release.Y},{release.Z} action=\"release at the safe capital\"");
@@ -1183,6 +1189,13 @@ namespace DOL.GS
             {
                 releaseRegion = musterRegion;
                 release = muster;
+            }
+            // Owner 2026-11-01: an RvR bot never falls back to its capital - it goes to the border keep of its own realm,
+            // where the party assembles and where it can start again in one frontier.
+            if (release == null && rvrDuty && AutonomousRvrStaging.TryGetNearestBorderKeep(this, out AutonomousRvrStaging.BorderKeep rvrKeep))
+            {
+                releaseRegion = rvrKeep.RegionId;
+                release = new Point3D((int)rvrKeep.Position.X, (int)rvrKeep.Position.Y, (int)rvrKeep.Position.Z);
             }
             if (release == null && IsAutonomousWorldBot)
             {
