@@ -2069,9 +2069,23 @@ namespace DOL.AI.Brain
             AutonomousStuckWatchdog.MarkProgress(bot, eAutonomousProgressKind.Objective);
         }
 
+        /// <summary>
+        /// Owner 2026-11-01 (/cpbuff): cast every buff the group is missing, one after another, instead of waiting out the
+        /// routine eight-second rescan. The batch ends after twenty seconds or as soon as nothing is missing.
+        /// </summary>
+        public void RequestCompanionBuffBatch()
+        {
+            _companionBuffBatchUntil = GameLoop.GameLoopTime + 20_000;
+            _nextMaintenanceBuffTick = 0;
+        }
+
+        private long _companionBuffBatchUntil;
+        private bool CompanionBuffBatchActive() => GameLoop.GameLoopTime < _companionBuffBatchUntil;
+
         private bool TryMaintainTravelAndClassBuffs()
         {
             using var _section = NavQueryProfile.Section("Brain.TravelBuffs");
+            bool buffBatch = CompanionBuffBatchActive();
             GameBot bot = BotBody;
             bool waitingForLeader = CompanionFollowPolicy.WaitingForLeaderToStop(bot);
             if (waitingForLeader && !CompanionFollowPolicy.CanStopForNativeTravelSpeed(bot))
@@ -2166,7 +2180,7 @@ namespace DOL.AI.Brain
                     _pendingMaintenancePetBuffUntil = GameLoop.GameLoopTime + 15_000;
                 }
                 _nextMaintenanceBuffTick = GameLoop.GameLoopTime +
-                    (cast ? (isMainPetTarget ? Math.Max(1_750, spell.CastTime + 500) : 1_750) : 5_000);
+                    (buffBatch ? 250 : (cast ? (isMainPetTarget ? Math.Max(1_750, spell.CastTime + 500) : 1_750) : 5_000));
 
                 // Persistent world bots must keep their route/goal scheduler
                 // alive after a non-combat pet upkeep cast. The native cast
@@ -2191,7 +2205,7 @@ namespace DOL.AI.Brain
 
             // A complete scan found nothing missing. Avoid rescanning the whole
             // spellbook on every lightweight AI tick.
-            _nextMaintenanceBuffTick = GameLoop.GameLoopTime + 8_000;
+            _nextMaintenanceBuffTick = GameLoop.GameLoopTime + (buffBatch ? 250 : 8_000);
             CompleteCompanionPerformerBuffBatch(bot);
             return false;
         }

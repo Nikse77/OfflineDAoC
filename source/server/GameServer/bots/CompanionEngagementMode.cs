@@ -6,35 +6,61 @@ namespace DOL.GS
     public static class CompanionEngagementMode
     {
         public const int DefensiveRadius = 350;
-        private sealed class Mode { public bool Defensive; public GameLiving Pull; }
+
+        /// <summary>Owner 2026-11-01: /cpstop, the retreat. For this long the companions follow and engage nothing.</summary>
+        public const int RetreatMilliseconds = 15_000;
+
+        /// <summary>True while a retreat ordered at <paramref name="until"/> still runs at <paramref name="now"/>.</summary>
+        public static bool RetreatActive(long until, long now) => until > now;
+
+        private sealed class Mode { public bool Defensive; public GameLiving Pull; public long RetreatUntil; }
         private static readonly ConditionalWeakTable<GamePlayer, Mode> Modes = new();
         public static void Set(GamePlayer player, bool defensive)
         {
             Mode mode = Modes.GetOrCreateValue(player);
             mode.Defensive = defensive;
             mode.Pull = null;
+            mode.RetreatUntil = 0;
             CompanionPvpEngagement.Reset(player);
         }
-        public static GamePlayer DefensiveLeader(GameLiving actor)
+
+        /// <summary>The retreat of /cpstop: companions follow their leader and take no target until it runs out.</summary>
+        public static void Retreat(GamePlayer player)
         {
-            // Include companion pets, never human pets or autonomous bots.
+            if (player == null) return;
+            Modes.GetOrCreateValue(player).RetreatUntil = GameLoop.GameLoopTime + RetreatMilliseconds;
+            CompanionPvpEngagement.Reset(player);
+        }
+
+        /// <summary>The player who leads this companion, or its pet; never an autonomous world bot.</summary>
+        public static GamePlayer LeaderOf(GameLiving actor)
+        {
             for (int depth = 0; depth < 8 && actor != null; depth++)
             {
                 if (actor is GameBot bot)
                 {
                     GamePlayer leader = bot.PlayerGroupLeader ?? bot.Owner;
                     return bot.IsTemporaryGroupHelper && !bot.IsAutonomousWorldBot &&
-                        leader != null && bot.Group != null && bot.Group == leader.Group &&
-                        Modes.TryGetValue(leader, out Mode mode) && mode.Defensive ? leader : null;
+                        leader != null && bot.Group != null && bot.Group == leader.Group ? leader : null;
                 }
                 actor = (actor as GameNPC)?.Brain is IControlledBrain controlled ? controlled.Owner : null;
             }
             return null;
         }
+
+        public static GamePlayer DefensiveLeader(GameLiving actor)
+        {
+            GamePlayer leader = LeaderOf(actor);
+            return leader != null && Modes.TryGetValue(leader, out Mode mode) && mode.Defensive ? leader : null;
+        }
+
         public static bool Allows(GameLiving actor, GameLiving target)
         {
-            GamePlayer leader = DefensiveLeader(actor);
-            return leader == null || target != null && target.CurrentRegionID == leader.CurrentRegionID &&
+            GamePlayer leader = LeaderOf(actor);
+            if (leader == null || !Modes.TryGetValue(leader, out Mode mode)) return true;
+            // Owner 2026-11-01: a retreat (/cpstop) engages nothing until it runs out: the companions only follow.
+            if (RetreatActive(mode.RetreatUntil, GameLoop.GameLoopTime)) return false;
+            return !mode.Defensive || target != null && target.CurrentRegionID == leader.CurrentRegionID &&
                 (leader.IsWithinRadius(target, DefensiveRadius) || CompanionPvpEngagement.Defending(actor, target) ||
                  CompanionPvpEngagement.FrontierRoamerInRange(leader, target, true));
         }

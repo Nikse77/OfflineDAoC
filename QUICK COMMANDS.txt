@@ -70,6 +70,21 @@ On the launcher, click + Lv.1 or + Lv.50 under a faction:
   Companions engage nearby threats while staying near you, letting you pull mobs
   back to the group. Useful for harder content.
 
+/cpassist
+  Your companions attack the enemy you have selected. /pull is the careful version:
+  a tank makes first contact and the party waits for it.
+
+/cpstop
+  The retreat. Companions break off, stop attacking and follow you for 15 seconds,
+  then resume their normal behaviour on their own.
+
+/cpbuff
+  Companions cast every buff the group is missing, one after another, instead of
+  waiting for their routine upkeep.
+
+/companionnames
+  Shows or hides the names over your companions' heads.
+
 These controls apply to your companions, not autonomous gamebots.
 /spawn 40 and /spawn 80 are not raid-size commands; use /raid 40 or /raid 80.
 See docs/PLAY.md for setup and docs/LLM-QUICKSTART.md for modifying your own version.
