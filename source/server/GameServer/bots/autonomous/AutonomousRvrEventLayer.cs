@@ -670,7 +670,14 @@ public static partial class AutonomousRvrEventLayer
     // or 85% of the attackers assigned when fewer). Run 14: marching at 64 sent half an army against
     // full-strength defenders; it lost the field before the battle could start (34 present, then 8).
     public static int MarchThreshold(bool relic, int assigned) =>
-        Math.Max(8, Math.Min(relic ? 170 : 108, assigned * 85 / 100));
+        Math.Max(MinimumArmy, Math.Min(relic ? 170 : 108, assigned * 85 / 100));
+
+    /// <summary>
+    /// Owner 2026-11-01: an army never marches with fewer than this many (two full groups). The night run sent armies of 8, 5 and
+    /// even 2 against keeps with guards and a lord. A rally that has not gathered this many by its deadline fails; its forces go
+    /// back to patrol. A siege forced by a player and a retake are not held to it.
+    /// </summary>
+    public const int MinimumArmy = 16;
 
     /// <summary>Attackers at their posts that open a marched siege without the leader: 60% of the army that marched, at least 8.</summary>
     public static int ArrivalQuorum(int marchedAttackers) => Math.Max(8, marchedAttackers * 6 / 10);
@@ -1330,6 +1337,11 @@ public static partial class AutonomousRvrEventLayer
                 var log = DOL.Logging.LoggerManager.Create(typeof(AutonomousRvrEventLayer));
                 if (log.IsInfoEnabled) log.Info($"RVR_MUSTER_EXTENDED target={active.TargetId} mustered={gathered} " +
                     $"needed={RealmEventPolicy.DynamicStartThreshold(active.RelicKeep, true)} minutes={(active.RelicKeep ? RelicMusterExtensionMilliseconds : MusterExtensionMilliseconds) / 60_000}");
+                continue;
+            }
+            if (!active.Retake && !active.Forced && gathered < MinimumArmy)
+            {
+                EndEvent(active, nowTick, $"Rally failed: only {gathered} attackers gathered, fewer than {MinimumArmy}");
                 continue;
             }
             GiveMarchOrder(active, nowTick, "muster deadline reached; marching with the attackers gathered");
