@@ -163,7 +163,8 @@ namespace DOL.GS.Spells
                 isImmune = true;
             else
             {
-                if (target is GamePlayer)
+                // Owner 2026-11-01: a bot is immune exactly like a player - no second mez while the first still holds.
+                if (target is GamePlayer or GameBot)
                     isImmune = target.effectListComponent.ContainsEffectForEffectType(eEffect.Mez);
                 else if (EffectListService.GetEffectOnTarget(target, eEffect.NPCMezImmunity) is NpcMezImmunityEffect immunityEffect)
                     isImmune = !immunityEffect.CanApplyNewEffect(base.CalculateEffectDuration(target));
@@ -171,7 +172,8 @@ namespace DOL.GS.Spells
 
             if (isImmune)
                 message = "Your target is immune to this effect!";
-            else if (target is GameNPC && target.HealthPercent < 75)
+            // The enraged rule belongs to wild NPCs; a bot fights like a player and stays mezzable while wounded.
+            else if (target is GameNPC and not GameBot && target.HealthPercent < 75)
             {
                 message = "Your target is enraged and resists the spell!";
                 isImmune = true;
@@ -277,7 +279,7 @@ namespace DOL.GS.Spells
                 isImmune = true;
             else
             {
-                if (target is GamePlayer)
+                if (target is GamePlayer or GameBot)
                     isImmune = target.effectListComponent.ContainsEffectForEffectType(eEffect.Stun);
                 else if (EffectListService.GetEffectOnTarget(target, eEffect.NPCStunImmunity) is NpcStunImmunityEffect immunityEffect)
                     isImmune = !immunityEffect.CanApplyNewEffect(base.CalculateEffectDuration(target));

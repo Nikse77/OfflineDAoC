@@ -30,9 +30,12 @@ namespace DOL.GS
         public virtual string Name => "Default Effect Name";
         public virtual string OwnerName => Owner != null ? Owner.Name : string.Empty;
         public virtual bool HasPositiveEffect => false;
-        public ImmunityType AppliedImmunityType => !TriggersImmunity ? ImmunityType.None : (Owner is GamePlayer ? ImmunityType.Player : ImmunityType.Npc);
+        // Owner 2026-11-01: bots and companions take the player immunity, not the NPC diminishing returns - a bot must be
+        // immune after a crowd control exactly like the player fighting it. Real NPCs keep the NPC branch.
+        public ImmunityType AppliedImmunityType => !TriggersImmunity ? ImmunityType.None :
+            (Owner is GamePlayer or GameBot ? ImmunityType.Player : ImmunityType.Npc);
         public bool TriggersImmunity { get; set; }
-        public int ImmunityDuration { get; protected set; } = 60000;
+        public int ImmunityDuration { get; protected set; } = 90000;
         public bool IsBeingReplaced { get; set; } // Used externally to force an effect to be silent (no message, no immunity) when being refreshed.
         public ServiceObjectId ServiceObjectId { get; } = new(ServiceObjectType.Effect);
 

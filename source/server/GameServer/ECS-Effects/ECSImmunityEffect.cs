@@ -32,7 +32,9 @@ namespace DOL.GS
         protected NpcImmunityEffect(in ECSGameEffectInitParams initParams) : base(initParams)
         {
             Owner = initParams.Target;
-            Duration = 60000;
+            // Owner 2026-11-01: ninety seconds for everyone, NPCs included. The window used to be hardcoded at 60 s, so the
+            // immunity setting never reached the mobs; now one number rules players, bots, companions and NPCs alike.
+            Duration = ServerProperties.Properties.IMMUNITY_TIMER_FLAT_LENGTH * 1000;
         }
 
         public bool CanApplyNewEffect(long duration)
