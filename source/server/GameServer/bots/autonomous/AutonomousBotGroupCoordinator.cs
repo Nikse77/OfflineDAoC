@@ -94,8 +94,6 @@ public static partial class AutonomousBotGroupCoordinator
         // value split dungeon parties and could deadlock them on opposite sides
         // of an aggressive corridor blocker.
         public required GameBot Leader { get; set; }
-        /// <summary>A leader that lost the role to a casualty; it does not take it back while it is still returning.</summary>
-        public GameBot DeposedLeader { get; set; }
         public required string Id { get; init; }
         public required Vector3 Rendezvous { get; set; }
         public required AutonomousGroupTaskClock TaskClock { get; init; }
@@ -3342,9 +3340,6 @@ public static partial class AutonomousBotGroupCoordinator
             return session.Leader;
 
         GameBot replacement = ChooseLeader(session?.Group, members);
-        if (session?.DeposedLeader != null && replacement == session.DeposedLeader &&
-            (!session.DeposedLeader.IsAlive || session.DeposedLeader.IsReturningAfterRelease))
-            replacement = session.Leader;
         if (session != null)
         {
             // Owner 2026-11-02: "nel caso il bot leader muoia e faccia release allora deve essere nominato un nuovo bot
@@ -3355,10 +3350,8 @@ public static partial class AutonomousBotGroupCoordinator
             {
                 Log.Info($"RVR_GROUP_LEADER_SUCCEEDED group={session.Id} from={session.Leader.Name} " +
                          $"to={replacement.Name} objective={session.ObjectiveKind} phase={session.Phase}");
-                if (!session.Leader.IsAlive || session.Leader.IsReturningAfterRelease)
-                    session.DeposedLeader = session.Leader;
-                else if (session.DeposedLeader != null && replacement == session.Leader)
-                    session.DeposedLeader = null;
+                // Owner 2026-11-02: "il nuovo capo rimane capo, il cambio di capo avviene solo quando un capo muore".
+                // A member that once led never takes the role back; only the death of the leader opens an election.
                 // The orders of the lost leader go with the role: the warband intent and the keep it was defending.
                 int intent = session.Leader.TempProperties.GetProperty<int>("RvrWarbandIntent", -1);
                 if (intent >= 0)
