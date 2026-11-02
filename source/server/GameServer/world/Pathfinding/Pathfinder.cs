@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Buffers;
 using System.Collections.Generic;
 using System.Numerics;
@@ -121,6 +121,8 @@ namespace DOL.GS
                 }
 
                 int nodeCount = Math.Min(pathfindingResult.NodeCount, MAX_PATH_NODES);
+                bool rvrPartyRoute = Owner is GameBot { IsAutonomousWorldBot: true } rvrParty &&
+                    AutonomousObjectiveAssignments.Is(rvrParty, eAutonomousObjectiveKind.RvR);
 
                 if (nodeCount > 0)
                 {
@@ -133,6 +135,14 @@ namespace DOL.GS
 
                         if (i == 0 && !isDoor)
                             continue;
+
+                        // Owner 2026-11-02: only an RvR party keeps its route off the map border; every other
+                        // walker (PvE, companions, NPCs) keeps the plain mesh result. See AutonomousMapEdgeMargin.
+                        // The destination itself is never moved: a target that sits near the border is where the party was
+                        // sent, and stopping 600 units short of it would leave the order unfinished.
+                        if (!isDoor && i != nodeCount - 1 && rvrPartyRoute &&
+                            AutonomousMapEdgeMargin.TryKeepInside(zone, PathfindingProvider.Instance, node.Position, out Vector3 keptInside))
+                            node = new WrappedPathfindingNode(keptInside, node.Flags);
 
                         pathBuffer.Nodes.Enqueue(node);
 
