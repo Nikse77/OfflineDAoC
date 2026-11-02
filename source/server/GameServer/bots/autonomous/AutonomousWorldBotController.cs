@@ -413,7 +413,13 @@ namespace DOL.GS
 
                 // Every autonomous return uses the same navmesh controller,
                 // even before a casualty has propagated into group metadata.
-                if (!bot.IsPlayerLedGroup)
+                // Owner 2026-11-02: "chi fa release resta SEMPRE al portale! SEMPRE! finché il capo non va a
+                // riprenderlo". A frontier casualty keeps its return until the leader is inside the pickup radius:
+                // handing it over sends it marching the whole frontier to the objective on its own, which is how a
+                // released member was found alone on the road between the border keep and the sieged keep.
+                bool frontierCasualty = _groupDirective?.ObjectiveKind == eAutonomousObjectiveKind.RvR &&
+                                        bot.IsReturningAfterRelease && !ReleasedMemberInReach(bot);
+                if (!bot.IsPlayerLedGroup && !frontierCasualty)
                     bot.HandOverReleaseReturnToGroup();
                 if (_groupDirective?.Phase != "Regrouping")
                     _regroupRouteCleared = false;
@@ -428,7 +434,13 @@ namespace DOL.GS
                     if (bot.IsReturningAfterRelease && ReleasedMemberInReach(bot))
                         bot.HandOverReleaseReturnToGroup();
                     else
+                    {
+                        if (frontierCasualty)
+                            SetStatus(bot, "Waiting at the frontier keep for the leader",
+                                _groupDirective?.SharedGoal,
+                                "Released at the portal; waiting for the leader to come for it");
                         return false;
+                    }
                 }
 
                 AcceptSavageMeleePullHandoff(brain, bot);
