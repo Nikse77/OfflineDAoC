@@ -93,6 +93,26 @@ namespace DOL.GS
 
         private readonly record struct GateSpot(int X, int Y, int Z, double Dx, double Dy);
 
+        /// <summary>
+        /// Owner 2026-11-02: "dopo il salto a volte vedo che i gruppi si radunano dentro al mure del keep ... anche il
+        /// release cade dentro al muro o tra le porte". The three home keeps are not Keep rows, so they had no gate point
+        /// and both the release and the home passage used their pad - Castle Sauvage's sits 856 units from the keep
+        /// centre, inside the walled area. Their own pad still marks the right approach: the gate front is that same
+        /// direction carried out to 2.500 units from the keep centre, past the walls, on the road that leads in.
+        /// </summary>
+        private static GateSpot HomeGateFront(int centreX, int centreY, int centreZ, int padX, int padY)
+        {
+            double dx = padX - centreX, dy = padY - centreY;
+            double length = Math.Sqrt(dx * dx + dy * dy);
+            if (length < 1)
+                return new GateSpot(centreX, centreY, centreZ, 0, 1);
+            double ux = dx / length, uy = dy / length;
+            return new GateSpot((int)(centreX + ux * HomeGateReach), (int)(centreY + uy * HomeGateReach), centreZ, ux, uy);
+        }
+
+        /// <summary>How far from the keep centre the home gate front stands: past the walls, on the approach road.</summary>
+        private const int HomeGateReach = 2_500;
+
         private static GateSpot? Spot(eRealm realm, ushort region) => (realm, region) switch
         {
             (eRealm.Albion, 200) => new GateSpot(474_803, 343_226, 4146, -0.9112, -0.4114),
@@ -101,6 +121,10 @@ namespace DOL.GS
             (eRealm.Midgard, 200) => new GateSpot(473_466, 296_048, 3848, -0.6191, 0.7853),
             (eRealm.Hibernia, 1) => new GateSpot(606_409, 294_333, 4816, 0.8332, 0.5528),
             (eRealm.Hibernia, 100) => new GateSpot(596_723, 582_126, 6008, 0.7389, 0.6739),
+            // The home frontier of each realm, in front of its own keep: Castle Sauvage, Svasud Faste, Druim Ligen.
+            (eRealm.Albion, 1) => HomeGateFront(585_085, 477_504, 2600, 584_285, 477_200),
+            (eRealm.Midgard, 100) => HomeGateFront(766_235, 669_173, 5736, 766_811, 669_605),
+            (eRealm.Hibernia, 200) => HomeGateFront(333_229, 419_539, 5184, 334_386, 420_071),
             _ => null,
         };
     }

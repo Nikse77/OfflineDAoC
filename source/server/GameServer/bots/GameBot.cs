@@ -1248,9 +1248,20 @@ namespace DOL.GS
 
             if (PersistentRecord != null)
             {
-                PersistentRecord.Activity = returnToParty ? "Released and returning on foot" : "Released after party disbanded";
+                PersistentRecord.Activity = !returnToParty ? "Released after party disbanded"
+                    : WaitingAtFrontierKeep ? "Waiting at the border keep for the leader"
+                    : "Released and returning on foot";
                 if (returnToParty)
-                    PersistentRecord.CurrentGoal = $"Return to the party near {_deathLocation.X}, {_deathLocation.Y}";
+                {
+                    // Owner 2026-11-02: this line used to print _deathLocation - the spot where the bot fell - and call it
+                    // the party's position, so the database read "Return to the party near 433707,318809" while the group
+                    // stood 48.000 units away. A casualty waiting at the border keep says so; anyone else names the leader.
+                    PersistentRecord.CurrentGoal = WaitingAtFrontierKeep
+                        ? "Waiting at the border keep for the leader to fetch it"
+                        : Group?.LivingLeader is GameBot partyLeader
+                            ? $"Return to the party near {partyLeader.X}, {partyLeader.Y}"
+                            : "Return to the party";
+                }
                 PersistentRecord.TravelDestination = CurrentZone?.Description ?? string.Empty;
                 MarkAutonomousStateDirty();
             }
@@ -1377,10 +1388,25 @@ namespace DOL.GS
         /// </summary>
         public void CompleteFrontierPickup() => WaitingAtFrontierKeep = false;
 
+        /// <summary>
+        /// Owner 2026-11-02: a frontier casualty that is waiting at the portal keep must not walk anywhere on its own -
+        /// "sì, chi fa release resta SEMPRE al portale! SEMPRE! finchè il capo non va a riprenderlo". The wait was already
+        /// honoured by HandOverReleaseReturnToGroup, but this journey drives the feet and ignored it, so the casualty left
+        /// the keep by itself on the next brain tick. Only CompleteFrontierPickup clears the wait.
+        /// </summary>
+        public static bool MayContinueReturnJourney(bool returningAfterRelease, bool alive, bool waitingAtFrontierKeep) =>
+            returningAfterRelease && alive && !waitingAtFrontierKeep;
+
         public bool ContinueReturnJourney()
         {
-            if (!IsReturningAfterRelease || !IsAlive)
+            if (!IsAlive || !IsReturningAfterRelease)
                 return false;
+            if (!MayContinueReturnJourney(IsReturningAfterRelease, IsAlive, WaitingAtFrontierKeep))
+            {
+                StopMovingOnPath();
+                StopMoving();
+                return false;
+            }
 
             if (IsTemporaryGroupHelper)
             {

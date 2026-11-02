@@ -41,4 +41,16 @@ public sealed class UT_RvrPartyRules
         Assert.That(AutonomousWorldBotController.MayComputeRvrDestination(true, true), Is.True, "the living leader");
         Assert.That(AutonomousWorldBotController.MayComputeRvrDestination(true, false), Is.False, "a member inherits");
     }
+
+    // Owner 2026-11-02: "sì, chi fa release resta SEMPRE al portale! SEMPRE! finchè il capo non va a riprenderlo".
+    // The wait was set at release but the return journey, which actually drives the feet, never checked it and walked
+    // the casualty off the keep by itself.
+    [Test]
+    public void AFrontierCasualtyWaitingAtTheKeepDoesNotWalkBackOnItsOwn()
+    {
+        Assert.That(GameBot.MayContinueReturnJourney(true, true, false), Is.True, "released and heading back");
+        Assert.That(GameBot.MayContinueReturnJourney(true, true, true), Is.False, "waiting for the leader at the portal");
+        Assert.That(GameBot.MayContinueReturnJourney(true, false, false), Is.False, "dead");
+        Assert.That(GameBot.MayContinueReturnJourney(false, true, false), Is.False, "not returning at all");
+    }
 }
