@@ -2425,6 +2425,19 @@ namespace DOL.GS
             if (TryFrontierTransport(bot, destination)) return true;
             if (bot.CurrentRegionID != destination.RegionId)
             {
+                // Owner 2026-11-02: "se ad un gruppo viene assegnato un altro compito ... in una frontiera o reame
+                // diversi allora il gruppo deve andarci usando OBBLIGATORIAMENTE il portale". No walkable edge joins
+                // two frontiers, so a party that cannot board yet holds at the teleporter instead of running a
+                // region-crossing search that can only fail and abandon the objective.
+                if (AutonomousRvrPatrolRegion.IsPatrolRegion(bot.CurrentRegionID) &&
+                    AutonomousRvrPatrolRegion.IsPatrolRegion(destination.RegionId))
+                {
+                    bot.StopMovingOnPath();
+                    bot.StopMoving();
+                    SetStatus(bot, "Waiting at the frontier teleporter", _groupDirective?.SharedGoal ?? "Roam the frontier",
+                        $"The objective at {destination.MonsterName} is in another frontier; every crossing goes through the teleporter");
+                    return true;
+                }
                 CampDestination previous = _camp;
                 _camp = destination;
                 try { return TravelAcrossRegions(bot); }
