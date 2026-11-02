@@ -2489,11 +2489,22 @@ namespace DOL.GS
         private CampDestination ChooseRvrDestination(GameBot bot)
         {
             HashSet<ushort> reachable = ReachableRegions(bot.Realm, bot.CurrentRegionID);
-            // A warband that chose a frontier stays on it for a while. Re-planning every minute across all
-            // three frontiers sent bots home and out again through the portal keeps over and over
-            // (run 16: 6,500 departures an hour, one Nightshade ported 11 times in 30 minutes). Relic
-            // carriers anywhere and shared siege or defense calls (handled before this) still override.
-            HashSet<ushort> local = GameLoop.GameLoopTime < _rvrFrontierCommittedUntil && reachable.Contains(_rvrFrontierRegion)
+            // Owner 2026-11-02: "quando il gruppo inizia il pattugliamento tutto il pattugliamento deve svolgersi
+            // nella regione assegnata". The frontier is chosen together with the objective and then holds for the
+            // whole task. The old twenty-minute window expired mid-patrol and let the planner reach for keeps in
+            // the other two frontiers: it chose "frontier near Bledmeer Faste" from Emain, could not route there,
+            // abandoned it and chose again, moving the party rendezvous to another frontier on every attempt while
+            // seven members stood waiting. Relic carriers and shared siege or defense calls still override, because
+            // the event layer picks their target before this choice is travelled.
+            // Owner 2026-11-02: when the patrolling leader dies the duty passes to a living member, which has never
+            // chosen a frontier for itself: it adopts the one the party is standing in, or it would drag the group
+            // out of the region the patrol belongs to.
+            if (!AutonomousRvrPatrolRegion.IsPatrolRegion(_rvrFrontierRegion) &&
+                AutonomousRvrPatrolRegion.IsPatrolRegion(bot.CurrentRegionID))
+                _rvrFrontierRegion = bot.CurrentRegionID;
+            bool choosingTask = _groupDirective == null || _groupDirective.Phase == AutonomousRvrPatrolRegion.ChoosingTaskPhase;
+            HashSet<ushort> local = AutonomousRvrPatrolRegion.PinsToAssignedRegion(_rvrFrontierRegion,
+                    reachable.Contains(_rvrFrontierRegion), choosingTask)
                 ? [_rvrFrontierRegion] : reachable;
             var choices = new List<CampDestination>();
             var objectives = new List<AutonomousRvrEventLayer.LiveObjective>();
@@ -2627,19 +2638,16 @@ namespace DOL.GS
             CampDestination chosen = choices.FirstOrDefault(destination => destination.Id == plan?.TargetId) ??
                 (plan == null ? null : new CampDestination(plan.TargetId, plan.Name, plan.Name,
                     plan.RegionId, plan.X, plan.Y, plan.Z, 1, false, true));
-            if (chosen != null && chosen.RegionId is 1 or 100 or 200 &&
-                (chosen.RegionId != _rvrFrontierRegion || GameLoop.GameLoopTime >= _rvrFrontierCommittedUntil))
-            {
+            // Owner 2026-11-02: the assigned frontier lasts as long as the task; a new patrol in another frontier is
+            // a new objective, and only then may the region change - and the party crosses to it through the
+            // teleporter (TravelRvrObjective never walks between two frontiers).
+            if (chosen != null && AutonomousRvrPatrolRegion.IsPatrolRegion(chosen.RegionId))
                 _rvrFrontierRegion = chosen.RegionId;
-                _rvrFrontierCommittedUntil = GameLoop.GameLoopTime + FrontierCommitMilliseconds + bot.DatabaseID % 300_000;
-            }
             return chosen;
         }
 
-        /// <summary>How long an ordinary warband keeps to the frontier it chose (plus up to five minutes per bot).</summary>
-        internal const long FrontierCommitMilliseconds = 20 * 60_000;
+        /// <summary>The frontier the current patrol is assigned to; see AutonomousRvrPatrolRegion.</summary>
         private ushort _rvrFrontierRegion;
-        private long _rvrFrontierCommittedUntil;
 
         private AutonomousRvrEventLayer.Intent _rvrIntent;
         private long _nextRvrPlanReview;
