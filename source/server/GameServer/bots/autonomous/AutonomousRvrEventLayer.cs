@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
@@ -458,7 +458,12 @@ public static partial class AutonomousRvrEventLayer
                     continue;
                 if (force.Realm == active.AttackerRealm)
                 {
-                    if (force.AverageLevel >= 50 && (!active.BattleStarted || active.Attackers.ContainsKey(force.GroupId) ||
+                    // Owner 2026-11-02: an assault is never assigned to a force still inside its thirty-minute patrol
+                    // window: it would be counted at the rally and never walk there, which is what kept the night musters at
+                    // 0-14 against 64 needed. A player-forced siege and a defense still interrupt the patrol.
+                    bool patrolFree = !SiegeScheduling || active.Forced || active.DefenseReaction ||
+                        !AutonomousRvrPatrolLock.Holds(force.GroupId, nowTick);
+                    if (patrolFree && force.AverageLevel >= 50 && (!active.BattleStarted || active.Attackers.ContainsKey(force.GroupId) ||
                         ShouldJoinActiveEvent(force, active.Attackers.Values.Sum(), Capacity(active), active.RelicKeep, false, roll)) &&
                         TryJoin(active.Attackers, force, Capacity(active)))
                         return ToPlan(Intent: active.RelicKeep ? Intent.AssaultRelicKeep : Intent.AssaultKeep, target, true,
