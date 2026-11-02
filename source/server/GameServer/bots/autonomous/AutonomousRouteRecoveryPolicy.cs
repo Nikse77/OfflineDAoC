@@ -19,6 +19,24 @@ public static class AutonomousRouteRecoveryPolicy
     public const int FailuresBeforeSafeRelocation = 3;
     public const long ImmediateRouteFailureCooldownMilliseconds = 30_000;
 
+    // Owner 2026-11-02: an order whose destination is already underfoot needs no path. Two hundred and twenty-six
+    // of 247 emergency relocations in one hour were RvR bots failing a ~200-unit move from where they stood - most
+    // of them parked at a border keep or at the portal outpost - and each one threw the bot to its capital, losing
+    // its group and its siege assignment. A partial path to a point this close is a hole in the navmesh, not an
+    // obstacle: only the absence of a wall between the two points is required, since a wall is the one case where
+    // stopping short is the honest answer.
+    public const float InPlaceArrivalRadius = 256f;
+
+    public static bool IsInPlaceArrival(Vector3 current, Vector3 destination, bool clearLineOfSight) =>
+        clearLineOfSight &&
+        Vector2.Distance(new(current.X, current.Y), new(destination.X, destination.Y)) <= InPlaceArrivalRadius;
+
+    // Owner 2026-11-02: a fight is never interrupted by a relocation. The pocket step and the floor correction already
+    // refused to touch a bot in combat; the ladder that ends in a teleport did not, so a bot could vanish from the
+    // melee and reappear at a muster. Held bots keep fighting and the route is retried when the fight ends.
+    public static bool MayRelocate(bool alive, bool inCombat, bool attacking, bool casting, bool hasAggro) =>
+        alive && !inCombat && !attacking && !casting && !hasAggro;
+
     public static bool HasMeaningfulForwardProgress(float baselineDistance, float currentDistance) =>
         baselineDistance >= 0 && baselineDistance - currentDistance >= ForwardProgressRequired;
 

@@ -4850,6 +4850,27 @@ namespace DOL.GS
         {
             bot.GoalDiagnosticAttempt?.RouteFailed(failureStatus.ToString());
 
+            // Owner 2026-11-02: a destination already underfoot is satisfied by standing there. Without this the
+            // failed move counts as the first of three terminal route failures and the bot is relocated out of its
+            // group; with it the order simply ends and the brain picks the next task from where it is.
+            Zone orderZone = bot.CurrentRegion?.GetZone((int)destination.X, (int)destination.Y);
+            if (AutonomousRouteRecoveryPolicy.IsInPlaceArrival(current, destination,
+                    bot.CurrentZone != null && orderZone == bot.CurrentZone &&
+                    PathfindingProvider.Instance.HasLineOfSight(bot.CurrentZone, current, destination,
+                        PathfindingProvider.Instance.DefaultFilters)))
+            {
+                Log.Info($"AUTONOMOUS_ROUTE_ARRIVED_IN_PLACE bot={bot.Name} id={bot.DatabaseID} " +
+                         $"realm={GlobalConstants.RealmToName(bot.Realm)} region={bot.CurrentRegionID} " +
+                         $"position={(int)current.X},{(int)current.Y},{(int)current.Z} " +
+                         $"destination={(int)destination.X},{(int)destination.Y},{(int)destination.Z} " +
+                         $"distance={(int)Vector2.Distance(new(current.X, current.Y), new(destination.X, destination.Y))} " +
+                         $"pathStatus={failureStatus} activity=\"{bot.PersistentRecord?.Activity}\"");
+                bot.StopMovingOnPath();
+                bot.StopMoving();
+                ResetRouteOrderState();
+                return true;
+            }
+
             // Standing just off the walkable mesh, no route can start (several bots at once beside Vindsaul Faste and
             // Caer Diogel, 2026-10-13): step onto the nearest real floor, then plan again from there.
             if (AutonomousNavigationSurface.TryNearestWalkableFloor(PathfindingProvider.Instance, bot.CurrentZone, current, 300,
