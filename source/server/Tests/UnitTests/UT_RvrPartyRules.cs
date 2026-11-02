@@ -30,4 +30,17 @@ public sealed class UT_RvrPartyRules
         Assert.That(AutonomousBotGroupCoordinator.ExpelsUnreachableMember(eAutonomousObjectiveKind.GroupPve, false, grace * 10), Is.False,
             "PvE keeps its own partial-roster path");
     }
+
+    // Owner 2026-11-02, test aid: "solo la prima assegnazione di incarico dopo l'avvio del server manda tutte le
+    // pattuglie ad emain".
+    [Test]
+    public void OnlyTheFirstPatrolAfterABootIsPinnedToEmain()
+    {
+        int party = 7_117_331;
+        Assert.That(AutonomousRvrPatrolRegion.TakeFirstAssignmentAfterBoot(party, out ushort region), Is.True);
+        Assert.That(region, Is.EqualTo(AutonomousRvrPatrolRegion.EmainRegion));
+        Assert.That(AutonomousRvrPatrolRegion.TakeFirstAssignmentAfterBoot(party, out _), Is.False, "second assignment is free");
+        Assert.That(AutonomousRvrPatrolRegion.TakeFirstAssignmentAfterBoot(party + 1, out region), Is.True, "another party");
+        Assert.That(region, Is.EqualTo(200));
+    }
 }
