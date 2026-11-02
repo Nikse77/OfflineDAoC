@@ -41,9 +41,17 @@ public static class AutonomousFrontierTransport
     public static bool TryGetHomePad(eRealm realm, ushort region, out Vector3 pad)
     {
         OFTeleporter porter = HomePorter(realm, region);
-        pad = porter == null ? default : new(porter.X, porter.Y, porter.Z);
-        return porter != null;
+        // Owner 2026-11-02: a porter that is registered but not placed in the world yet reports 0,0,0, and the level-50
+        // login landed there - "keep=1:0,0,0" 110 times in the 19:51 boot and 33 in the 21:21 one, every one followed by
+        // "login position invalid" and a repair somewhere else. No frontier coordinate is this close to the origin, so an
+        // unplaced porter counts as no pad and the caller falls back to the necklace's fixed landing.
+        bool placed = porter != null && porter.X > HomePadMinimum && porter.Y > HomePadMinimum;
+        pad = placed ? new(porter.X, porter.Y, porter.Z) : default;
+        return placed;
     }
+
+    /// <summary>Below this an X or Y is the origin, not a frontier keep: real values run from about 300,000 to 800,000.</summary>
+    private const int HomePadMinimum = 100_000;
 
     public static GameBot[] BoardingParty(GameBot bot, Passage passage) =>
         HasCommittedSiegePassage(bot, passage) || passage.Medallion == "home_necklace" &&

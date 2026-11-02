@@ -3376,7 +3376,14 @@ public static partial class AutonomousBotGroupCoordinator
         GameBot replacement = session?.ObjectiveKind == eAutonomousObjectiveKind.RvR
             ? ChooseRvrSuccessor(session, members)
             : null;
-        if (replacement == null && session?.ObjectiveKind != eAutonomousObjectiveKind.RvR)
+        // Owner 2026-11-02: "quel choose leader non deve essere chiamato, semplicemente non si cerca un nuovo leader".
+        // For an RvR task the picker above is the only law: when no living comrade stands in the zone where the leader
+        // fell, nobody is promoted and the dead leader keeps the role to walk his own release - the DOL group election
+        // would hand the task to a corpse or to a bot waiting at the keep, which is what happened to Linaallyn when she
+        // died last at 21:40:03 and was named leader sixteen seconds later.
+        if (session?.ObjectiveKind == eAutonomousObjectiveKind.RvR)
+            return replacement ?? session?.Leader;
+        if (replacement == null)
             replacement = ChooseLeader(session?.Group, members);
         if (replacement == null)
             return session?.Leader ?? ChooseLeader(session?.Group, members);

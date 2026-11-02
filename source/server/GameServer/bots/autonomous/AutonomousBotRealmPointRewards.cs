@@ -66,12 +66,47 @@ public static class AutonomousBotRealmPointRewards
         if (victim?.IsAutonomousWorldBot != true || killer is not GameLiving living || !RvrLog.IsInfoEnabled) return;
         GameLiving owner = ResolveRootRewardOwner(living) ?? living;
         if (owner.Realm == eRealm.None || owner.Realm == victim.Realm) return;
+        BroadcastRvrDeath(victim, living, owner);
         string force = victim.TempProperties.GetProperty<string>("RvrEventForce") ?? "";
         RvrLog.Info($"RVR_BOT_KILLED victim={victim.Name} id={victim.DatabaseID} realm={GlobalConstants.RealmToName(victim.Realm)} " +
                     $"goal={AutonomousObjectiveAssignments.KindFor(victim)} force={force} killer=\"{owner.Name}\" killerRealm={GlobalConstants.RealmToName(owner.Realm)} " +
                     $"killerType={owner.GetType().Name} region={victim.CurrentRegionID} zone=\"{victim.CurrentZone?.Description}\" " +
                     $"at={victim.X},{victim.Y},{victim.Z}");
     }
+
+    /// <summary>
+    /// Owner 2026-11-02: "possibile mettere in broadcast un messaggio tipo nomebot(alb) killed by nomebot(mid)?" on the
+    /// broadcast channel. It goes to everyone in the region where the bot fell, the scope /broadcast uses when the
+    /// server is set to Region, because a kill in the open field has no broadcast area to carry it.
+    /// </summary>
+    private static void BroadcastRvrDeath(GameBot victim, GameLiving killer, GameLiving owner)
+    {
+        // Owner 2026-11-02: "se a uccidere è un pet di un bot o di un giocatore voglio il messaggio, se a uccidere è una
+        // guardia non lo voglio". The root owner decides: a pet belongs to its bot or player and is reported, a keep
+        // guard and any other NPC are not, so a guard's kill stays in the log.
+        if (owner is not (GameBot or GamePlayer))
+            return;
+        // Owner 2026-11-02: "se un pet viene ucciso non voglio nessun messaggio". The victim parameter is a GameBot, so a
+        // pet cannot reach this method at all - the rule holds by the signature.
+        string zone = victim.CurrentZone?.Description;
+        // Owner 2026-11-02: "se uccide un pet voglio il nome del padrone" - a pet reports its owner, so the message names
+        // a person, never a summoned creature.
+        string credited = killer == owner ? killer.Name : owner.Name;
+        string slayer = $"{credited}({ShortRealm(owner.Realm)})";
+        string text = zone == null
+            ? $"{victim.Name}({ShortRealm(victim.Realm)}) killed by {slayer}"
+            : $"{victim.Name}({ShortRealm(victim.Realm)}) killed by {slayer} — {zone}";
+        foreach (GamePlayer player in ClientService.Instance.GetPlayersOfRegion(victim.CurrentRegion))
+            player.Out.SendMessage(text, eChatType.CT_Broadcast, eChatLoc.CL_ChatWindow);
+    }
+
+    private static string ShortRealm(eRealm realm) => realm switch
+    {
+        eRealm.Albion => "Alb",
+        eRealm.Midgard => "Mid",
+        eRealm.Hibernia => "Hib",
+        _ => "None",
+    };
 
     public static void Award(GameBot killedBot, GameObject killer)
     {
