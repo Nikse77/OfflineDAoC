@@ -32,6 +32,15 @@ public static partial class AutonomousBotGroupCoordinator
     public const long UnreachableRouteRetryMilliseconds = 60_000;
     public const long UnreachableRouteGraceMilliseconds = 2 * 60_000L;
     public const long LeaderStagingTimeoutMilliseconds = 20 * 60_000L;
+
+    /// <summary>
+    /// Owner 2026-11-02: "ok ma deve essere espulso dal gruppo". A member that cannot reach the rendezvous gets
+    /// UnreachableRouteGraceMilliseconds of retries; past that it is removed from the party (never the leader, which is
+    /// the anchor the rest read). Leaving it out of the count only left it trailing the warband for ever.
+    /// </summary>
+    public static bool ExpelsUnreachableMember(eAutonomousObjectiveKind objective, bool isLeader, long waitedMilliseconds) =>
+        objective == eAutonomousObjectiveKind.RvR && !isLeader && waitedMilliseconds >= UnreachableRouteGraceMilliseconds;
+
     private static readonly object Sync = new();
     private static readonly Dictionary<Group, Session> Sessions = new();
     // Callers hold Sync; the membership property is evaluated just once here.
@@ -1535,6 +1544,21 @@ public static partial class AutonomousBotGroupCoordinator
                 return true;
             long now = GameLoop.GameLoopTime;
             session.UnreachableSince.TryAdd(key, now);
+            // Owner 2026-11-02: "ok ma deve essere espulso dal gruppo". Being left out of the count was not enough: after
+            // the grace the member leaves the party, so the roster, the leader election and the leash only ever see the
+            // people who are actually there. The leader is never expelled - it is the anchor the rest read.
+            if (ExpelsUnreachableMember(session.ObjectiveKind, bot == session.Leader,
+                    now - session.UnreachableSince[key]))
+            {
+                long waited = now - session.UnreachableSince[key];
+                session.HeldUnreachableMembers.Remove(key);
+                session.UnreachableSince.Remove(key);
+                session.UnreachableRetried.Remove(key);
+                Log.Warn($"RVR_GROUP_EXPELS_UNREACHABLE_MEMBER group={session.Id} bot=\"{bot.Name}\" id={bot.DatabaseID} " +
+                         $"region={bot.CurrentRegionID} waited={waited}ms reason=\"{reason}\"");
+                bot.Group?.RemoveMember(bot);
+                return true;
+            }
             if (session.UnreachableRetried.Contains(key))
             {
                 if (session.Phase == "Meeting up")
@@ -3333,13 +3357,47 @@ public static partial class AutonomousBotGroupCoordinator
         members.FirstOrDefault(member => member == group?.LivingLeader && member.IsAlive) ??
         members.FirstOrDefault(member => member.IsAlive) ?? members.FirstOrDefault();
 
+    /// <summary>
+    /// Owner 2026-11-02: "se il capo muore il nuovo capo deve essere nella zona dove il capo muore, non al keep ad
+    /// aspettare il recupero o da qualche altra parte". So the election reads the leader's death region: a candidate has
+    /// to be alive, standing in that region, and not parked at a keep waiting for a pickup. When nobody qualifies the
+    /// leader was the last alive of its zone - "se il capo è l'ultimo a morire rimane capo e fa release" - and it keeps
+    /// the role through its own release.
+    /// </summary>
+    public static bool MaySucceedInZone(ushort deathRegion, ushort memberRegion, bool alive, bool waitingAtKeep) =>
+        alive && !waitingAtKeep && (deathRegion == 0 || memberRegion == deathRegion);
+
+    private static GameBot ChooseRvrSuccessor(Session session, GameBot[] members)
+    {
+        GameBot lost = session?.Leader;
+        if (lost == null) return null;
+        ushort region = lost.DeathRegionId;
+        Point3D death = lost.DeathLocation;
+        GameBot[] candidates = members
+            .Where(member => member != lost && MaySucceedInZone(region, member.CurrentRegionID, member.IsAlive,
+                member.WaitingAtFrontierKeep))
+            .ToArray();
+        if (candidates.Length == 0) return null;
+        return candidates
+            .OrderBy(member => Vector3.DistanceSquared(new Vector3(member.X, member.Y, member.Z),
+                new Vector3(death.X, death.Y, death.Z)))
+            .ThenBy(MemberKey)
+            .First();
+    }
+
     private static GameBot ChooseLeader(Session session, GameBot[] members)
     {
         if (session?.Leader != null && session.Leader.IsAlive && session.Leader.Group == session.Group &&
             members.Contains(session.Leader))
             return session.Leader;
 
-        GameBot replacement = ChooseLeader(session?.Group, members);
+        GameBot replacement = session?.ObjectiveKind == eAutonomousObjectiveKind.RvR
+            ? ChooseRvrSuccessor(session, members)
+            : null;
+        if (replacement == null && session?.ObjectiveKind != eAutonomousObjectiveKind.RvR)
+            replacement = ChooseLeader(session?.Group, members);
+        if (replacement == null)
+            return session?.Leader ?? ChooseLeader(session?.Group, members);
         if (session != null)
         {
             // Owner 2026-11-02: "nel caso il bot leader muoia e faccia release allora deve essere nominato un nuovo bot

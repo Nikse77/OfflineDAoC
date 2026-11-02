@@ -164,6 +164,12 @@ public static class AutonomousStuckWatchdog
         return RelocateToSafeCapital(bot, DateTime.UtcNow, $"login position invalid: {reason}", false);
     }
 
+    /// <summary>
+    /// Owner 2026-11-02: "il watchdog non deve mai toccare gente in rvr". False for RvR duty, which is never a freeze:
+    /// the party's own state (keep wait, regroup, post, pad) decides when it ends.
+    /// </summary>
+    public static bool CoversObjective(eAutonomousObjectiveKind objective) => objective != eAutonomousObjectiveKind.RvR;
+
     public static bool ShouldRecoverMovement(
         DateTime lastMovementUtc,
         DateTime nowUtc,
@@ -308,6 +314,17 @@ public static class AutonomousStuckWatchdog
             return false;
 
         DateTime now = nowUtc ?? DateTime.UtcNow;
+        // Owner 2026-11-02: "il watchdog non deve mai toccare gente in rvr". An RvR bot is in a state its party controls -
+        // waiting at the frontier keep for the leader, regrouping around a wipe, holding a post, standing at the pad -
+        // and the time-based recoveries read all of them as a freeze: the 15-minute clock sent 28 of them in seventeen
+        // minutes to their capital (Ingaenrun to Jordheim), where an RvR bot has no route back to any frontier. So the
+        // watchdog keeps its clocks fresh and touches nothing. RvR leaves this state through its own task clock.
+        if (!CoversObjective(AutonomousObjectiveAssignments.KindFor(bot)))
+        {
+            MarkProgress(bot, eAutonomousProgressKind.Movement, now);
+            return false;
+        }
+
         // The stable route is the authoritative mover. Do not mesh-snap or
         // relocate a rider while the horse is traversing route geometry.
         if (bot.IsProtectedStableMasterTravel(now))

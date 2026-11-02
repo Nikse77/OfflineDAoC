@@ -100,6 +100,11 @@ namespace DOL.GS
         private long _deathTick;
         private ushort _deathRegionId;
         private Point3D _deathLocation;
+
+        /// <summary>The region this bot last died in, and the spot: the RvR successor must come from that zone.</summary>
+        public ushort DeathRegionId => _deathRegionId;
+
+        public Point3D DeathLocation => _deathLocation;
         private Point3D _lastBindRelease;
         private ushort _lastBindReleaseRegion;
         private long _lastBindReleaseTick;

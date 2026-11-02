@@ -54,6 +54,16 @@ public sealed class UT_AutonomousStuckWatchdog
     }
 
     [Test]
+    public void TheWatchdogNeverTouchesRvrDuty()
+    {
+        // Owner 2026-11-02: "il watchdog non deve mai toccare gente in rvr".
+        Assert.That(AutonomousStuckWatchdog.CoversObjective(eAutonomousObjectiveKind.RvR), Is.False);
+        Assert.That(AutonomousStuckWatchdog.CoversObjective(eAutonomousObjectiveKind.GroupPve), Is.True);
+        Assert.That(AutonomousStuckWatchdog.CoversObjective(eAutonomousObjectiveKind.SoloPve), Is.True);
+        Assert.That(AutonomousStuckWatchdog.CoversObjective(eAutonomousObjectiveKind.Battleground), Is.True);
+    }
+
+    [Test]
     public void RvrRoamingIsExcludedFromThePveGoalStallClock()
     {
         DateTime now = new(2026, 8, 28, 12, 0, 0, DateTimeKind.Utc);
