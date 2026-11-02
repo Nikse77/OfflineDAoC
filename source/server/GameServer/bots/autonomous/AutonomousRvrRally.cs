@@ -42,6 +42,16 @@ public static class AutonomousRvrRally
         Vector3 center = new(keep.X, keep.Y, keep.Z);
         // Choose a shared pair of separated wings; both armies agree on it.
         int orientation = Orientations.GetOrAdd((keep.KeepID,order.Attacker,order.Defender), _ => ChooseOrientation(keep,order.Attacker));
+        // Owner 2026-11-02: an army still at home reaches this keep through the frontier teleporter, so its post
+        // has to be proven from that landing pad. The check used to run only when the bot already stood in the
+        // keep's region, so a post was validated from a point the bot would never occupy: one on the wrong side
+        // of a wall from the landing looked perfect, and the rally starved at the muster instead of marching
+        // (eight members assigned to Dun Crimthain, not one present). No teleporter into that region keeps the
+        // old acceptance rather than refusing every post.
+        var passage = AutonomousFrontierTransport.Destination(bot.Realm, keep.Region);
+        Vector3? routeStart = RouteOriginFor(bot.CurrentRegionID, new(bot.X, bot.Y, bot.Z), keep.Region,
+            passage == null ? null : new Vector3(passage.Location.X, passage.Location.Y, passage.Location.Z),
+            (ushort)(passage?.Region ?? 0));
         for (int variation = 0; variation < PostVariations; variation++)
         {
             bool primary = bot.Realm == order.Attacker;
@@ -53,13 +63,24 @@ public static class AutonomousRvrRally
             if (!floor.HasValue || Vector2.Distance(new(floor.Value.X, floor.Value.Y), new(center.X, center.Y)) < MinimumKeepDistance)
                 continue;
             if (!AutonomousRendezvousNavigation.HasLocalExit(nav, zone, floor.Value)) continue;
-            if (bot.CurrentRegionID == keep.Region && !HasRoute(bot.CurrentRegion, nav, bot.Realm,
-                    new(bot.X, bot.Y, bot.Z), floor.Value)) continue;
+            if (routeStart.HasValue && !HasRoute(WorldMgr.GetRegion(keep.Region), nav, bot.Realm,
+                    routeStart.Value, floor.Value)) continue;
             point = floor.Value;
             return true;
         }
         return false;
     }
+
+    /// <summary>
+    /// Where the route to a rally post is proven from: the bot itself when it already stands in the keep's region,
+    /// otherwise the frontier teleporter's landing pad - the point it will really occupy. Null means no teleporter
+    /// joins the two regions, so there is nothing to prove and the post is accepted as before.
+    /// </summary>
+    public static Vector3? RouteOriginFor(ushort botRegionId, Vector3 botPosition, ushort keepRegionId,
+        Vector3? landing, ushort landingRegionId) =>
+        botRegionId == keepRegionId ? botPosition
+        : landing.HasValue && landingRegionId == keepRegionId ? landing
+        : null;
 
     public static bool HasRoute(Region region, IPathfindingMgr nav, eRealm realm, Vector3 start, Vector3 goal)
     {
