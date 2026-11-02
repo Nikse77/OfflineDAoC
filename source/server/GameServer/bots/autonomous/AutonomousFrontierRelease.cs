@@ -95,18 +95,18 @@ namespace DOL.GS
 
         private static GateSpot? Spot(eRealm realm, ushort region) => (realm, region) switch
         {
-            (eRealm.Albion, 200) => new GateSpot(475359, 343228, 4080, 0.6561, 0.7547),
-            (eRealm.Albion, 100) => new GateSpot(597355, 629931, 5968, 0.6481, -0.7615),
-            (eRealm.Midgard, 1) => new GateSpot(654034, 294139, 4864, -0.7570, 0.6534),
-            (eRealm.Midgard, 200) => new GateSpot(473118, 296379, 3848, -0.4756, 0.8796),
-            (eRealm.Hibernia, 1) => new GateSpot(606838, 294937, 4864, 0.8838, 0.4679),
-            (eRealm.Hibernia, 100) => new GateSpot(597046, 582770, 6016, 0.7955, 0.6060),
-            // Owner 2026-11-02: "dovresti calcolare come punto di raduno la posizione dell'hastener più 500 punti nella
-            // direzione in cui guarda l'hastener", and the three home keeps get the same treatment - Castle Sauvage's
-            // speed caster is the Minstrel of Albion, Svasud's and Druim Ligen's are plain Hasteners.
-            (eRealm.Albion, 1) => new GateSpot(585970, 477168, 2600, -0.0262, 0.9997),
-            (eRealm.Midgard, 100) => new GateSpot(766846, 667832, 5736, 1.0000, 0.0052),
-            (eRealm.Hibernia, 200) => new GateSpot(332891, 418632, 5184, -0.6769, -0.7361),
+            (eRealm.Albion, 200) => new GateSpot(474679, 342496, 4080, -0.7045, -0.7097),
+            (eRealm.Albion, 100) => new GateSpot(597274, 629875, 5971, 0.4868, -0.8735),
+            (eRealm.Midgard, 1) => new GateSpot(654013, 294113, 4879, -0.7981, 0.6026),
+            (eRealm.Midgard, 200) => new GateSpot(473000, 296290, 3871, -0.7123, 0.7019),
+            (eRealm.Hibernia, 1) => new GateSpot(606664, 295125, 4839, 0.5366, 0.8439),
+            (eRealm.Hibernia, 100) => new GateSpot(596891, 582904, 6031, 0.4858, 0.8741),
+            // Owner 2026-11-02: "tiri una linea dal centro del pad all'hastener e siccome l'hastener sta davanti al keep
+            // sai in quale direzione devi aggiungere i 500 punti". The pad-to-hastener line is the outward direction, so
+            // the five hundred are added past the hastener along it, home keeps included.
+            (eRealm.Albion, 1) => new GateSpot(586460, 476519, 2600, 0.9543, -0.2990),
+            (eRealm.Midgard, 100) => new GateSpot(766219, 667345, 5736, -0.2533, -0.9674),
+            (eRealm.Hibernia, 200) => new GateSpot(332862, 418660, 5184, -0.7339, -0.6793),
             _ => null,
         };
     }
