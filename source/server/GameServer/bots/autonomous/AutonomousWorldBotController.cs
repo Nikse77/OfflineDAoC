@@ -5050,6 +5050,22 @@ namespace DOL.GS
 
         private bool TryEscapeTerminalRoutePocket(GameBot bot, Vector3 current)
         {
+            // Owner 2026-11-02: never take a bot out of a fight. The pocket step and the floor correction already
+            // refused to move a bot in combat; this ladder ended in a teleport and did not. A held bot keeps
+            // fighting, no failure is counted while the fight lasts, and the route is retried when it ends.
+            BotBrain holdBrain = bot.Brain as BotBrain;
+            if (!AutonomousRouteRecoveryPolicy.MayRelocate(bot.IsAlive, bot.InCombat, bot.IsAttacking,
+                    bot.IsCasting, holdBrain?.HasAggro == true))
+            {
+                Log.Info($"AUTONOMOUS_ROUTE_RELOCATION_HELD bot={bot.Name} id={bot.DatabaseID} " +
+                         $"realm={GlobalConstants.RealmToName(bot.Realm)} region={bot.CurrentRegionID} " +
+                         $"position={(int)current.X},{(int)current.Y},{(int)current.Z} alive={bot.IsAlive} " +
+                         $"combat={bot.InCombat} attacking={bot.IsAttacking} casting={bot.IsCasting} " +
+                         $"aggro={holdBrain?.HasAggro == true} kind={bot.PersistentRecord?.ObjectiveKind} " +
+                         $"activity=\"{bot.PersistentRecord?.Activity}\"");
+                return true;
+            }
+
             long now = GameLoop.GameLoopTime;
             bool repeated = AutonomousRouteRecoveryPolicy.IsSameRepeatedFailurePocket(
                 _lastTerminalRouteFailureRegion, bot.CurrentRegionID,
@@ -5110,12 +5126,27 @@ namespace DOL.GS
                 if (_terminalRouteFailuresInPocket < AutonomousRouteRecoveryPolicy.FailuresBeforeSafeRelocation &&
                     !(bot.CurrentZone is Zone pocketZone && AutonomousZonePockets.Contains(pocketZone.ID, current.X, current.Y, current.Z)))
                     return false;
-                AutonomousStuckWatchdog.CapitalLocation capital = AutonomousStuckWatchdog.SafeCapitalFor(bot.Realm);
-                if (capital.RegionId == 0)
-                    return false;
-                escapeRegion = capital.RegionId;
-                escape = new(capital.X, capital.Y, capital.Z);
-                escapeName = capital.Name;
+                // Owner 2026-11-02: an RvR bot is never relocated to its capital. The capital is where its group
+                // is not, so a failed hundred units at the muster cost it the whole siege: it walked back instead
+                // of standing with the army. It goes to its army's muster in this frontier, else to the border keep
+                // of its own realm in this region - both places its group can reach.
+                if (AutonomousObjectiveAssignments.Is(bot, eAutonomousObjectiveKind.RvR) &&
+                    AutonomousRvrRecovery.TryPick(true, current, AutonomousRvrRecovery.Candidates(bot, current),
+                        out AutonomousRvrRecovery.RecoveryPoint rally))
+                {
+                    escapeRegion = rally.RegionId;
+                    escape = rally.Position;
+                    escapeName = rally.Name;
+                }
+                else
+                {
+                    AutonomousStuckWatchdog.CapitalLocation capital = AutonomousStuckWatchdog.SafeCapitalFor(bot.Realm);
+                    if (capital.RegionId == 0)
+                        return false;
+                    escapeRegion = capital.RegionId;
+                    escape = new(capital.X, capital.Y, capital.Z);
+                    escapeName = capital.Name;
+                }
             }
 
             ushort failedSourceRegion = bot.CurrentRegionID;
@@ -5134,7 +5165,9 @@ namespace DOL.GS
             Log.Warn($"AUTONOMOUS_ROUTE_POCKET_ESCAPE bot={bot.Name} id={bot.DatabaseID} " +
                      $"from={_lastTerminalRouteFailureRegion}:{(int)current.X},{(int)current.Y},{(int)current.Z} " +
                      $"to={escapeRegion}:{(int)escape.X},{(int)escape.Y},{(int)escape.Z} " +
-                     $"terminalFailures={_terminalRouteFailuresInPocket}");
+                     $"terminalFailures={_terminalRouteFailuresInPocket} combat={bot.InCombat} " +
+                     $"attacking={bot.IsAttacking} kind={bot.PersistentRecord?.ObjectiveKind} " +
+                     $"activity=\"{bot.PersistentRecord?.Activity}\"");
             ResetRouteOrderState();
             // A short hop keeps the pocket's failure count (the bot comes back to the same spot); a real relocation clears it.
             if (!localHopsLeft || escapeRegion != failedSourceRegion ||
