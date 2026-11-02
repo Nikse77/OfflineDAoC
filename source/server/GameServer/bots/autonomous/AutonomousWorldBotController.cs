@@ -2729,20 +2729,8 @@ namespace DOL.GS
             // of the party marches behind the leader until the member can walk the last stretch itself.
             if (TryFetchReleasedMember(bot, out CampDestination fetch))
                 return fetch;
-            // Owner 2026-11-02, test aid: "solo la prima assegnazione di incarico dopo l'avvio del server manda tutte le
-            // pattuglie ad emain". The first patrol this party is given after a boot is looked for in Emain only, so
-            // every patrol starts in the same frontier and the three realms meet there; from the second assignment the
-            // party is free again (the ordinary pin below takes over).
-            bool pinnedFirstPatrol = AutonomousRvrPatrolRegion.TakeFirstAssignmentAfterBoot(bot.Group, out ushort pinnedRegion);
-            if (pinnedFirstPatrol)
-            {
-                _rvrFrontierRegion = pinnedRegion;
-                Log.Warn($"RVR_FIRST_PATROL_PINNED_TO_EMAIN leader=\"{bot.Name}\" region={pinnedRegion} " +
-                         $"members={bot.Group?.MemberCount}");
-            }
             bool choosingTask = _groupDirective == null || _groupDirective.Phase == AutonomousRvrPatrolRegion.ChoosingTaskPhase;
-            HashSet<ushort> local = pinnedFirstPatrol ? [pinnedRegion] :
-                AutonomousRvrPatrolRegion.PinsToAssignedRegion(_rvrFrontierRegion,
+            HashSet<ushort> local = AutonomousRvrPatrolRegion.PinsToAssignedRegion(_rvrFrontierRegion,
                     reachable.Contains(_rvrFrontierRegion), choosingTask)
                 ? [_rvrFrontierRegion] : reachable;
             var choices = new List<CampDestination>();

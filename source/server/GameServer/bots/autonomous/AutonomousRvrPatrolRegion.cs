@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 
 namespace DOL.GS
 {
@@ -26,31 +25,5 @@ namespace DOL.GS
         /// </summary>
         public static bool PinsToAssignedRegion(ushort assigned, bool reachable, bool choosingTask) =>
             IsPatrolRegion(assigned) && reachable && !choosingTask;
-
-        /// <summary>Emain Macha, the frontier every realm reaches from its own portal keep.</summary>
-        public const ushort EmainRegion = 200;
-
-        private static readonly HashSet<int> FirstAssignmentTaken = new();
-        private static readonly object AssignmentLock = new();
-
-        /// <summary>
-        /// Owner 2026-11-02, test aid: "solo la prima assegnazione di incarico dopo l'avvio del server manda tutte le
-        /// pattuglie ad emain". Each party gets Emain for the first patrol it is given after a boot - so every patrol
-        /// starts in the same frontier and the three realms meet - and is free again from the second assignment on.
-        /// The set is process-wide, so it empties exactly when the server restarts.
-        /// </summary>
-        public static bool TakeFirstAssignmentAfterBoot(int partyKey, out ushort region)
-        {
-            region = EmainRegion;
-            lock (AssignmentLock)
-                return FirstAssignmentTaken.Add(partyKey);
-        }
-
-        public static bool TakeFirstAssignmentAfterBoot(Group party, out ushort region)
-        {
-            region = EmainRegion;
-            if (party == null) return false;
-            return TakeFirstAssignmentAfterBoot(System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(party), out region);
-        }
     }
 }
