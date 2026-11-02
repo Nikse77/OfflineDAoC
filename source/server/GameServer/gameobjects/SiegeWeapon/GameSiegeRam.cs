@@ -1,4 +1,4 @@
-using DOL.GS.Keeps;
+﻿using DOL.GS.Keeps;
 using DOL.GS.PacketHandler;
 
 namespace DOL.GS
@@ -237,64 +237,12 @@ namespace DOL.GS
 		}
 
 		/// <summary>
-		/// Riders, plus - for a bot-operated ram - the operator's group members standing at the ram (bots cannot mount;
-		/// owner 2026-10-07: players crewed rams and bot crews must break doors in a sensible time). Up to the ram's places.
+		/// Owner 2026-11-02: every deployed ram fights as if fully crewed. The virtual crew count - riders plus the
+		/// friendly bots standing within 300 units - never filled: a night of sieges ran at 0-3 of 12 places, a third of
+		/// the damage and twice the reload. The count is gone; the ram's full places are the number, and the marker
+		/// SIEGE_RAM_CREW now reports the damage that number produces.
 		/// </summary>
-		public int Crew
-		{
-			get
-			{
-				int riders = CurrentRiders.Length;
-				// Owner 2026-11-01: a player's companions crew the ram by standing at it, the same way a bot ram is
-				// crewed by the bots around it. They cannot be riders - only player characters can mount a siege
-				// weapon - but while the player is on the ram they stay at it and count, and when the player steps
-				// off there is no operator left, so the ram stops firing and they follow again.
-				// The companions are added without an owner-type test: the log showed a property that returned the
-				// riders alone while the probe beside it counted seven, so nothing here can depend on which branch the
-				// operator's type takes.
-				int companions = CompanionsAtRam(Owner as GamePlayer);
-				// A gamebot ram is crewed by any friendly gamebot at it, not only the operator's own group (run 2026-10-07:
-				// Midgard's ram at Caer Erasleigh ran on one bot while its army fought beside it).
-				if (Owner is GameBot op && (op.Group != null || op.IsAutonomousWorldBot))
-					foreach (GameNPC npc in GetNPCsInRadius(300))
-						if (npc is GameBot member && member != op && member.IsAlive && member.Realm == Realm &&
-							(op.Group?.IsInTheGroup(member) == true || op.IsAutonomousWorldBot && member.IsAutonomousWorldBot))
-							companions++;
-				int total = CrewTotal(Level, riders + companions);
-				LogCrewCalculation(riders, companions, total);
-				return total;
-			}
-		}
-
-		private int _loggedRiders = -1, _loggedCompanions = -1, _loggedTotal = -1;
-		private string _loggedOwnerType;
-
-		/// <summary>
-		/// Diagnostics only: the three numbers the property actually used, written when they change. The shot marker
-		/// beside it already prints the probe, and the two disagreed once.
-		/// </summary>
-		private void LogCrewCalculation(int riders, int companions, int total)
-		{
-			string ownerType = Owner?.GetType().Name ?? "null";
-			if (riders == _loggedRiders && companions == _loggedCompanions && total == _loggedTotal &&
-				ownerType == _loggedOwnerType)
-				return;
-			_loggedRiders = riders;
-			_loggedCompanions = companions;
-			_loggedTotal = total;
-			_loggedOwnerType = ownerType;
-			try
-			{
-				Log.Warn($"SIEGE_RAM_CREW_CALC level={Level} owner_type={ownerType} riders={riders} " +
-				         $"companions={companions} total={total} max_passengers={MaxPassengersFor(Level)} " +
-				         $"group={(Owner is GamePlayer gp && gp.Group != null)} " +
-				         $"region={CurrentRegionID} realm={(int)Realm}");
-			}
-			catch (System.Exception)
-			{
-				// A shot is worth more than a log line.
-			}
-		}
+		public int Crew => MAX_PASSENGERS;
 
 		/// <summary>Sanity distance for a companion crewing a player's ram; generous because a party of companions spreads out.</summary>
 		private const int CompanionCrewRadius = 600;
@@ -386,46 +334,30 @@ namespace DOL.GS
 
 		private int GetReloadDelay
 		{
-			get
-			{
-				//custom formula
-				return 10000 + ((Level + 1) * 2000) - (int)(10000 * ((double)Crew / (double)MAX_PASSENGERS));
-			}
+			get => ReloadDelay(Level, Crew);
 		}
 
-		public override int CalcDamageToTarget(GameLiving target)
+		// Owner 2026-11-02: every ram is crewed to its full places (see Crew), so the numbers below are the ram's intended
+		// damage and cadence. They are static so a test can pin them without a loaded world.
+		private static int BaseFor(int level) => level switch
 		{
-			//return BaseDamage + (int)(((double)BaseDamage / 2.0) * (double)((double)CurrentRiders.Length / (double)MAX_PASSENGERS));
-			return BaseDamage + (BaseDamage/2 * Crew);
-		}
+			0 => 100,
+			1 => 125,
+			2 => 150,
+			3 => 200,
+			_ => 0,
+		};
 
-		public override int BaseDamage
-		{
-			get
-			{
-				int damageAmount = 0;
-				switch (Level)
-				{
-					case 0:
-						//damageAmount = 200;
-						damageAmount = 100;
-						break;
-					case 1:
-						//damageAmount = 300;
-						damageAmount = 125;
-						break;
-					case 2:
-						//damageAmount = 450;
-						damageAmount = 150;
-						break;
-					case 3:
-						//damageAmount = 750;
-						damageAmount = 200;
-						break;
-				}
-				return damageAmount;
-			}
-		}
+		/// <summary>Damage of one hit: the ram's base plus half of it for every crew place.</summary>
+		public static int DamageFor(int level, int crew) => BaseFor(level) + (BaseFor(level) / 2 * crew);
+
+		/// <summary>Reload in milliseconds: slower for a heavier ram, faster with every crew place filled.</summary>
+		public static int ReloadDelay(int level, int crew) =>
+			10000 + ((level + 1) * 2000) - (int)(10000 * ((double)crew / (double)MaxPassengersFor(level)));
+
+		public override int BaseDamage => BaseFor(Level);
+
+		public override int CalcDamageToTarget(GameLiving target) => DamageFor(Level, Crew);
 
 		public override int MeleeAttackRange
 		{
