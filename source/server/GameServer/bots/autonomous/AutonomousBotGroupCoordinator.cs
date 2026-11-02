@@ -94,6 +94,8 @@ public static partial class AutonomousBotGroupCoordinator
         // value split dungeon parties and could deadlock them on opposite sides
         // of an aggressive corridor blocker.
         public required GameBot Leader { get; set; }
+        /// <summary>A leader that lost the role to a casualty; it does not take it back while it is still returning.</summary>
+        public GameBot DeposedLeader { get; set; }
         public required string Id { get; init; }
         public required Vector3 Rendezvous { get; set; }
         public required AutonomousGroupTaskClock TaskClock { get; init; }
@@ -129,10 +131,6 @@ public static partial class AutonomousBotGroupCoordinator
         // Owner 2026-11-01: "se il gruppo si separa devono raggrupparsi all'ultimo punto di raduno utilizzato." Snapshot
         // taken whenever an assembly completes, so a casualty later takes the party back to the last place it actually
         // met - not to the border keep it started from and not to wherever the survivor happens to stand.
-        public Vector3 LastRendezvous { get; set; }
-        public ushort LastRendezvousRegion { get; set; }
-        public string LastRendezvousName { get; set; } = string.Empty;
-        public bool HasLastRendezvous { get; set; }
         public AutonomousRendezvousAttendance Attendance { get; init; } = new();
         public Dictionary<long, Vector3> RendezvousSlots { get; } = new();
         public HashSet<long> HeldUnreachableMembers { get; } = new();
@@ -656,16 +654,6 @@ public static partial class AutonomousBotGroupCoordinator
     /// members follow him. Unknown phases count as assembled, so a phase added later never reopens the solo crossing.
     /// </summary>
     public static bool MemberMayCrossAlone(string phase) => phase is "Leader staging" or "Meeting up";
-
-    /// <summary>Freezes the rendezvous the party is meeting at right now, so a later casualty comes back to it.</summary>
-    private static void RememberRendezvous(Session session)
-    {
-        if (session == null) return;
-        session.LastRendezvous = session.Rendezvous;
-        session.LastRendezvousRegion = session.RendezvousRegion;
-        session.LastRendezvousName = session.RendezvousName;
-        session.HasLastRendezvous = true;
-    }
 
     /// <summary>How close two rendezvous must be to count as the same one, when the party re-anchors its frontier.</summary>
     public const int RendezvousReanchorRadius = 600;
@@ -2278,8 +2266,8 @@ public static partial class AutonomousBotGroupCoordinator
             session.UnreachableSince.Clear();
             session.UnreachableRetried.Clear();
             session.RendezvousReselectionAttempted = false;
-            if (session.ObjectiveKind == eAutonomousObjectiveKind.GroupPve)
-                session.RecoveryRendezvousChosen = false;
+            // Owner 2026-11-02: every regroup converges on the leader again, so the point is chosen each time.
+            session.RecoveryRendezvousChosen = false;
             ChooseRecoveryRendezvous(session, members[0].Realm);
             Log.Info($"AUTONOMOUS_GROUP_REGROUP_STARTED group={session.Id} objective={session.ObjectiveKind} " +
                 $"members=\"{string.Join(",", members.Select(member => $"{member.Name}:L{member.Level}:deaths={member.PersistentRecord?.DeathCount}:alive={member.IsAlive}"))}\" " +
@@ -2343,11 +2331,16 @@ public static partial class AutonomousBotGroupCoordinator
                              $"region={session.RendezvousRegion} rendezvous={(int)session.Rendezvous.X},{(int)session.Rendezvous.Y},{(int)session.Rendezvous.Z}");
                 }
             }
+            // Owner 2026-11-02: "...tranne quelli che hanno fatto release", which wait at their keep until the leader
+            // comes within reach; a party of two that loses one still waits for it, as it always did.
+            AutonomousGroupRecoveryState.Member[] present = RecoveryMembers(session, members, true)
+                .Where(member => member.Alive && !member.Returning).ToArray();
+            if (present.Length < 2)
+                present = RecoveryMembers(session, members, true);
             if (session.LeaderReadyForAssembly &&
-                session.Recovery.TryComplete(RecoveryMembers(session, members, true), GameLoop.GameLoopTime))
+                session.Recovery.TryComplete(present, GameLoop.GameLoopTime))
             {
                 session.Phase = "Choosing group target";
-                RememberRendezvous(session);
                 Log.Info($"AUTONOMOUS_GROUP_REGROUP_READY group={session.Id} size={members.Length} " +
                     $"remainingSeconds={session.TaskClock.RemainingMilliseconds(GameLoop.GameLoopTime) / 1000}");
             }
@@ -2356,7 +2349,6 @@ public static partial class AutonomousBotGroupCoordinator
         if (session.Phase == "Meeting up" && members.All(member => AtRendezvous(session, member)))
         {
             session.Phase = "Choosing group target";
-            RememberRendezvous(session);
             // The camp planned at formation: the party met at the town nearest it and goes straight there.
             if (session.ObjectiveKind == eAutonomousObjectiveKind.GroupPve && session.PlannedCamp is { } planned)
             {
@@ -2931,38 +2923,22 @@ public static partial class AutonomousBotGroupCoordinator
         // random town or bind.
         if (session.ObjectiveKind == eAutonomousObjectiveKind.RvR)
         {
-            // Owner 2026-11-02: "durante la pattuglia: se un gruppo sta pattugliando e un membro fa release il membro rinasce
-            // al border keep di quella frontiera e aspetta li che il leader vada a prenderlo, se è il leader ad essere
-            // morto il gruppo deve tornare a prendere il leader". "Durante un assedio o una difesa ... il gruppo e/o il
-            // leader però rimangono all'assedio fino a quando l'assedio non finisce, solo a quel punto tornano al keep".
-            // A raise happens on the spot (AutonomousGroupRecoveryState.TryResumeLocally); otherwise the member waits at
-            // its frontier keep (AutonomousFrontierRelease) and the party goes there - unless a siege or a defense is
-            // still running for this force, in which case it stays and this choice happens when the event ends.
+            // Owner 2026-11-02: "per i membri di un gruppo il punto di raduno è sempre il leader"; "il leader
+            // sceglie dove andare dopo che tutti i suoi membri sono in formazione (tranne quelli che hanno fatto
+            // release)"; "ovviamente se qualcuno ha fatto release il leader lo va a prendere ... con tutto il gruppo
+            // rimasto al seguito". So the regroup converges on the leader's own position - never on a keep and never
+            // on the last meeting point, which is what sent a party that had just raised its casualties marching forty
+            // thousand units to a teleporter pad while six members stood still. A casualty that really released is
+            // fetched afterwards, by the leader, with the party behind it (ChooseRvrDestination).
             GameBot[] roster = BotMembers(session.Group);
-            GameBot casualty = roster.Where(member => !member.IsAlive || member.IsReturningAfterRelease)
-                .OrderBy(member => member.IsAlive ? 1 : 0)
-                .ThenBy(member => member.DatabaseID)
-                .FirstOrDefault();
-            bool siegeOrDefense = AutonomousRvrEventLayer.KeepPlan(session.Id, realm, GameLoop.GameLoopTime) != null;
-            if (casualty != null && !siegeOrDefense &&
-                AutonomousFrontierRelease.TryPoint(realm, casualty.CurrentRegionID,
-                    out ushort releasedRegion, out Point3D releasedPoint))
+            GameBot regroupLeader = ChooseLeader(session, roster);
+            if (regroupLeader != null)
             {
-                session.Rendezvous = new Vector3(releasedPoint.X, releasedPoint.Y, releasedPoint.Z);
-                session.RendezvousRegion = releasedRegion;
-                session.RendezvousName = $"the border keep where {casualty.Name} releases";
-                Log.Info($"RVR_GROUP_MEETS_RELEASED_MEMBER group={session.Id} member=\"{casualty.Name}\" " +
-                         $"region={releasedRegion} keep={releasedPoint.X},{releasedPoint.Y},{releasedPoint.Z}");
+                session.Rendezvous = new Vector3(regroupLeader.X, regroupLeader.Y, regroupLeader.Z);
+                session.RendezvousRegion = regroupLeader.CurrentRegionID;
+                session.RendezvousName = $"its leader {regroupLeader.Name}";
                 TryBuildRendezvousSlots(session, roster);
                 return;
-            }
-            // Owner 2026-11-01: the party meets again where it last met. A casualty used to take it back to the border
-            // keep it started from, which for a group patrolling a foreign frontier means a trip home and back.
-            if (session.HasLastRendezvous)
-            {
-                session.Rendezvous = session.LastRendezvous;
-                session.RendezvousRegion = session.LastRendezvousRegion;
-                session.RendezvousName = session.LastRendezvousName;
             }
             return;
         }
@@ -3366,8 +3342,33 @@ public static partial class AutonomousBotGroupCoordinator
             return session.Leader;
 
         GameBot replacement = ChooseLeader(session?.Group, members);
+        if (session?.DeposedLeader != null && replacement == session.DeposedLeader &&
+            (!session.DeposedLeader.IsAlive || session.DeposedLeader.IsReturningAfterRelease))
+            replacement = session.Leader;
         if (session != null)
+        {
+            // Owner 2026-11-02: "nel caso il bot leader muoia e faccia release allora deve essere nominato un nuovo bot
+            // leader nel gruppo che eredita tutte le direttive del leader deceduto". The session carries the directives -
+            // objective, camp and phase - so the successor takes them over with the pointer, and the frontier pin it
+            // inherits in ChooseRvrDestination keeps it in the region the task was assigned to.
+            if (session.Leader != null && replacement != null && session.Leader != replacement)
+            {
+                Log.Info($"RVR_GROUP_LEADER_SUCCEEDED group={session.Id} from={session.Leader.Name} " +
+                         $"to={replacement.Name} objective={session.ObjectiveKind} phase={session.Phase}");
+                if (!session.Leader.IsAlive || session.Leader.IsReturningAfterRelease)
+                    session.DeposedLeader = session.Leader;
+                else if (session.DeposedLeader != null && replacement == session.Leader)
+                    session.DeposedLeader = null;
+                // The orders of the lost leader go with the role: the warband intent and the keep it was defending.
+                int intent = session.Leader.TempProperties.GetProperty<int>("RvrWarbandIntent", -1);
+                if (intent >= 0)
+                    replacement.TempProperties.SetProperty("RvrWarbandIntent", intent);
+                int defended = session.Leader.TempProperties.GetProperty<int>("RvrDefendingKeep", -1);
+                if (defended >= 0)
+                    replacement.TempProperties.SetProperty("RvrDefendingKeep", defended);
+            }
             session.Leader = replacement;
+        }
         return replacement;
     }
 

@@ -56,6 +56,22 @@ namespace DOL.GS
         public static bool AnyHoldsGroup(IEnumerable<GameBot> members, GameBot leader, long now) =>
             members.Any(member => HoldsGroup(member, leader, now));
 
+        /// <summary>The radius a member uses to support a comrade. Owner 2026-11-02: inside a crowded siege the full help
+        /// radius pulled members away from the formation for fights five thousand units off.</summary>
+        public const int CompanionSupportRadius = 2_000;
+
+        /// <summary>
+        /// Owner 2026-11-02: during a regroup the free members stood still while the rest of the party fought a
+        /// few thousand units away, and a regroup cannot close until everyone is free anyway. This finds the nearest
+        /// comrade in a fight, whether it is inside the assist radius or beyond it.
+        /// </summary>
+        public static GameBot ComradeInCombat(GameBot bot, long now, int radius = HelpRadius) =>
+            bot?.Group?.GetMembersInTheGroup().OfType<GameBot>()
+                .Where(member => member != bot && member.IsAlive && member.CurrentRegionID == bot.CurrentRegionID &&
+                                 bot.IsWithinRadius(member, radius) && IsFighting(member, now))
+                .OrderBy(member => bot.GetDistanceTo(member))
+                .FirstOrDefault();
+
         /// <summary>
         /// The nearest fighting member beyond this bot's assist range but within help range,
         /// so a member standing idle in "Defending traveling group" walks over to help.

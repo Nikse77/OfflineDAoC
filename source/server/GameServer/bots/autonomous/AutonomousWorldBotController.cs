@@ -422,7 +422,13 @@ namespace DOL.GS
                 {
                     ClearSavageMeleePull();
                     bot.TempProperties.RemoveProperty(PendingSavageMeleePullHandoffKey);
-                    return false;
+                    // Owner 2026-11-02: "un membro che fa release aspetta dove sta che il leader sia a tiro (2000
+                    // unità?) e lo raggiunge per rientrare in formazione". Until then it waits where it reappeared;
+                    // once the leader is inside the radius it hands the journey back and follows in formation.
+                    if (bot.IsReturningAfterRelease && ReleasedMemberInReach(bot))
+                        bot.HandOverReleaseReturnToGroup();
+                    else
+                        return false;
                 }
 
                 AcceptSavageMeleePullHandoff(brain, bot);
@@ -1497,9 +1503,17 @@ namespace DOL.GS
         private bool HandleGroupRendezvous(GameBot bot, AutonomousBotGroupCoordinator.Directive directive)
         {
             GameBot leader = directive.Leader;
+            // Owner 2026-11-02: "i membri del gruppo devono comportarsi come companion del bot leader". A member of a
+            // frontier party holds the same continuous formation order a companion holds on its player, so there is
+            // no staging point to wait for and nothing to park for: the leader is the formation, and the only pause
+            // left is the leader's own (600 to stop, 300 to move on). Sieges never reach this handler.
+            if (directive.ObjectiveKind == eAutonomousObjectiveKind.RvR && leader != null && bot != leader)
+                return FollowDynamicGroupLeader(bot, directive);
             bool leaderStaging = directive.Phase == "Leader staging";
             if ((leaderStaging || directive.Phase == "Regrouping" && !directive.LeaderReadyForAssembly) && bot != leader)
             {
+                // Owner 2026-11-02: an RvR member leaves this branch before it (it holds its leader like a companion), so
+                // this parking belongs to the PvE meetup; the frontier support rule lives in ExecuteRvr.
                 bot.WakeRecoveryRest();
                 bot.StopMovingOnPath();
                 bot.StopMoving();
@@ -1595,6 +1609,8 @@ namespace DOL.GS
             {
                 // A member fighting beyond assist range used to leave everyone else
                 // standing here until its fight ended; walk over and help instead.
+                // RvR combat never reaches this method (it is distributed member by member); the support rule for a
+                // frontier party lives in ExecuteRvr. This stays the PvE pull-recovery path it always was.
                 GameBot fightingMember = !brain.HasAggro && !bot.IsAttacking
                     ? AutonomousGroupCombat.MemberToHelp(bot, GameLoop.GameLoopTime)
                     : null;
@@ -1654,6 +1670,12 @@ namespace DOL.GS
                 bot.TargetObject = null;
                 if (bot.PersistentRecord != null) bot.PersistentRecord.CurrentCampId = string.Empty;
             }
+            // Owner 2026-11-02: an RvR member holds its leader like a companion. This method belongs to the PvE
+            // meetup and used to overwrite the follow order with "Formed up at rendezvous" and a rest, so a frontier
+            // member stopped following the leader that was still walking.
+            if (_groupDirective != null && _groupDirective.ObjectiveKind == eAutonomousObjectiveKind.RvR &&
+                _groupDirective.Leader != null && _groupDirective.Leader != bot)
+                return FollowDynamicGroupLeader(bot, _groupDirective);
             // Normal resurrection/healing and reactive combat remain enabled.
             // No teleport, resource refill, or forced stable dismount occurs.
             if (brain.CheckHeals()) return true;
@@ -1908,7 +1930,10 @@ namespace DOL.GS
                     passage.Passage.Region,passage.Passage.Location.X,passage.Passage.Location.Y,passage.Passage.Location.Z,50,false,true)))
                 return true;
 
-            if (directive.Camp != null && bot.CurrentRegionID != directive.Camp.RegionId)
+            // Owner 2026-11-02: a frontier member changes region through the passage, never by walking: a warband camp
+            // must not send it into TravelAcrossRegions for a border it cannot cross on foot.
+            if (directive.ObjectiveKind != eAutonomousObjectiveKind.RvR &&
+                directive.Camp != null && bot.CurrentRegionID != directive.Camp.RegionId)
             {
                 DbZonePoint crossing = FindNextCrossing(bot, directive.Camp.RegionId,
                     directive.Camp.X, directive.Camp.Y);
@@ -1921,7 +1946,8 @@ namespace DOL.GS
             }
             // Warbands have no PvE camp. Follow the leader through a legal
             // region edge instead of issuing its coordinates in the wrong region.
-            if (directive.Camp == null && bot.CurrentRegionID != leader.CurrentRegionID)
+            if ((directive.Camp == null || directive.ObjectiveKind == eAutonomousObjectiveKind.RvR) &&
+                bot.CurrentRegionID != leader.CurrentRegionID)
                 return TravelToGroupRegion(bot, directive, leader.CurrentRegionID,
                     leader.X, leader.Y, "warband leader");
 
@@ -2054,6 +2080,36 @@ namespace DOL.GS
             // RvR has no PvE puller. Every cohesive member can acquire a local
             // target, with pressure spread over the closest visible enemies.
             if (TryRunSiegeJob(bot)) return true;
+            // Owner 2026-11-02: the formation is the leash as well. A member that chases a target past the pickup radius
+            // drops it, clears the aggro and walks back to the leader instead of dragging the party apart.
+            if (dynamicWarband && _groupDirective != null && _groupDirective.Leader != null &&
+                _groupDirective.Leader != bot &&
+                _groupDirective.Leader.CurrentRegionID == bot.CurrentRegionID &&
+                AutonomousRvrPickup.MemberReturnsToFormation(bot.GetDistanceTo(_groupDirective.Leader)) &&
+                (bot.InCombat || bot.IsAttacking || brain.HasAggro))
+            {
+                bot.StopAttack();
+                bot.TargetObject = null;
+                brain.ClearAggroList();
+                brain.FSM.SetCurrentState(eFSMStateType.IDLE);
+                return FollowDynamicGroupLeader(bot, _groupDirective);
+            }
+            // Owner 2026-11-02: the leader has the same leash - chasing must never cost it the party, so past the radius
+            // from its nearest living member it drops the target and walks back to them.
+            if (dynamicWarband && _groupDirective != null && _groupDirective.Leader == bot &&
+                (bot.InCombat || bot.IsAttacking || brain.HasAggro) &&
+                NearestLivingMember(bot) is { } closest &&
+                AutonomousRvrPickup.LeaderMustReturn(bot.GetDistanceTo(closest)))
+            {
+                bot.StopAttack();
+                bot.TargetObject = null;
+                brain.ClearAggroList();
+                brain.FSM.SetCurrentState(eFSMStateType.IDLE);
+                IssuePath(bot, new Vector3(closest.X, closest.Y, closest.Z), retargetWhileMoving: true);
+                SetStatus(bot, "Returning to the party", _groupDirective.SharedGoal,
+                    $"The chase was taking the leader away from {closest.Name}; walking back to the party");
+                return true;
+            }
             GameLiving enemy = FindRvrTarget(bot);
             if (enemy != null && battleActive && HoldSiegeBackLine(bot, enemy))
                 return true;
@@ -2070,6 +2126,31 @@ namespace DOL.GS
                 eAutonomousRvrPhase phase = AutonomousRvrObjectiveState.ForTarget(enemy);
                 SetRvrStatus(bot, phase.ToString(), "Live RvR target in awareness range", enemy.Name);
                 return false;
+            }
+
+            // Owner 2026-11-02: "il leader deve dare supporto a chi è in combat". With no enemy of its own the
+            // leader used to stop and wait for the party; if a comrade is fighting it now walks to that fight.
+            if (dynamicWarband && _groupDirective?.Leader == bot &&
+                AutonomousGroupCombat.ComradeInCombat(bot, GameLoop.GameLoopTime) is { } supported)
+            {
+                IssuePath(bot, new Vector3(supported.X, supported.Y, supported.Z), retargetWhileMoving: true);
+                SetStatus(bot, $"Supporting {supported.Name} in combat", _groupDirective.SharedGoal,
+                    $"{supported.Name} is fighting; the leader goes to support it");
+                return true;
+            }
+
+            // Owner 2026-11-02: "se durante un combattimento alcuni membri del gruppo non sono in combat devono dare
+            // supporto a chi è in combat". RvR combat is distributed member by member - HandleGroupCombatAndRecovery is
+            // skipped for it on purpose - so an idle member beside a fight has to be sent there from here. This is the
+            // only RvR path that reaches a member during a normal march.
+            if (_groupDirective != null && _groupDirective.Leader != bot && !bot.InCombat && !bot.IsAttacking &&
+                AutonomousGroupCombat.ComradeInCombat(bot, GameLoop.GameLoopTime,
+                    AutonomousGroupCombat.CompanionSupportRadius) is { } ally)
+            {
+                IssuePath(bot, new Vector3(ally.X, ally.Y, ally.Z), retargetWhileMoving: true);
+                SetStatus(bot, $"Supporting {ally.Name} in combat", _groupDirective.SharedGoal,
+                    $"{ally.Name} is fighting; the member goes to support it");
+                return true;
             }
 
             // The leader owns navigation and the single siege operator role.
@@ -2142,6 +2223,13 @@ namespace DOL.GS
                 }
                 _rvrDestination = null;
             }
+
+            // Owner 2026-11-02: a member that released waits at its frontier keep, so the leader goes for it with the
+            // party behind it on the very next pulse - not at the next planning review, up to forty-five seconds later,
+            // which is how a party used to march away from a casualty that was standing at the keep.
+            if (_groupDirective?.Leader == bot && !AutonomousRvrEventLayer.IsEventForce(forceId, GameLoop.GameLoopTime) &&
+                TryFetchReleasedMember(bot, out CampDestination pickup))
+                return TravelRvrObjective(bot, pickup);
 
             if (_rvrDestination == null || _rvrDestination.RegionId == 0 ||
                 (!_rvrSharedEvent && GameLoop.GameLoopTime >= _nextRvrPlanReview && !BotSiegeRuntime.Assigned(bot)) ||
@@ -2506,6 +2594,56 @@ namespace DOL.GS
             return IssuePath(bot, _rvrTravelWaypoint.Value, continuation);
         }
 
+        /// <summary>The nearest living party member in this region, or null.</summary>
+        private static GameBot NearestLivingMember(GameBot bot) =>
+            bot.Group?.GetMembersInTheGroup().OfType<GameBot>()
+                .Where(member => member != bot && member.IsAlive && member.CurrentRegionID == bot.CurrentRegionID)
+                .OrderBy(member => bot.GetDistanceTo(member))
+                .FirstOrDefault();
+
+        /// <summary>
+        /// Owner 2026-11-02: a released member waits at its realm's frontier keep for the leader to come for it. This
+        /// is that call - the leader's next destination is the keep while it is farther than the pickup radius, and
+        /// the whole party follows the leader there. Inside the radius the member walks the last stretch itself
+        /// (ReleasedMemberInReach), so the fetch ends before the party drives onto the pad.
+        /// </summary>
+        private bool TryFetchReleasedMember(GameBot bot, out CampDestination fetch)
+        {
+            fetch = null;
+            if (bot.Group == null)
+                return false;
+            foreach (GameBot member in bot.Group.GetMembersInTheGroup().OfType<GameBot>())
+            {
+                if (member == bot || member.IsAlive && !member.IsReturningAfterRelease)
+                    continue;
+                if (!AutonomousFrontierRelease.TryPoint(member.Realm, member.CurrentRegionID,
+                        out ushort region, out Point3D keep))
+                    continue;
+                double distance = region == bot.CurrentRegionID
+                    ? Vector3.Distance(new Vector3(bot.X, bot.Y, bot.Z), new Vector3(keep.X, keep.Y, keep.Z))
+                    : double.MaxValue;
+                if (!AutonomousRvrPickup.LeaderKeepsFetching(distance))
+                    continue;
+                return SetFetch(member, region, keep, out fetch);
+            }
+            return false;
+        }
+
+        private bool SetFetch(GameBot member, ushort region, Point3D keep, out CampDestination fetch)
+        {
+            fetch = new CampDestination($"rvr-fetch-{member.DatabaseID}", member.Name, "its frontier keep",
+                region, keep.X, keep.Y, keep.Z, 1, false, true);
+            Log.Info($"RVR_LEADER_FETCHES_RELEASED_MEMBER member=\"{member.Name}\" region={region} " +
+                     $"keep={keep.X},{keep.Y},{keep.Z}");
+            return true;
+        }
+
+        /// <summary>True while this released member may walk to its leader: same region, leader alive, inside the radius.</summary>
+        private static bool ReleasedMemberInReach(GameBot bot) =>
+            bot.Group?.LivingLeader is GameBot leader && leader != bot && leader.IsAlive &&
+            leader.CurrentRegionID == bot.CurrentRegionID &&
+            AutonomousRvrPickup.MemberJoinsLeader(bot.GetDistanceTo(leader));
+
         private CampDestination ChooseRvrDestination(GameBot bot)
         {
             HashSet<ushort> reachable = ReachableRegions(bot.Realm, bot.CurrentRegionID);
@@ -2522,6 +2660,11 @@ namespace DOL.GS
             if (!AutonomousRvrPatrolRegion.IsPatrolRegion(_rvrFrontierRegion) &&
                 AutonomousRvrPatrolRegion.IsPatrolRegion(bot.CurrentRegionID))
                 _rvrFrontierRegion = bot.CurrentRegionID;
+            // Owner 2026-11-02: "ovviamente se qualcuno ha fatto release il leader lo va a prendere", "con tutto il
+            // gruppo rimasto al seguito". The keep where the member waits becomes the next destination, and the rest
+            // of the party marches behind the leader until the member can walk the last stretch itself.
+            if (TryFetchReleasedMember(bot, out CampDestination fetch))
+                return fetch;
             bool choosingTask = _groupDirective == null || _groupDirective.Phase == AutonomousRvrPatrolRegion.ChoosingTaskPhase;
             HashSet<ushort> local = AutonomousRvrPatrolRegion.PinsToAssignedRegion(_rvrFrontierRegion,
                     reachable.Contains(_rvrFrontierRegion), choosingTask)
