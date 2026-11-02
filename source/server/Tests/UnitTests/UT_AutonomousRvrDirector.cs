@@ -101,17 +101,13 @@ public sealed class UT_AutonomousRvrDirector
     }
 
     [Test]
-    public void HigherLevelLargerWarbandsHaveARealKeepAssaultChance()
+    public void AStrongForceWeighsHeavierAndFillsTheJoinGate()
     {
         Assert.Multiple(() =>
         {
             Assert.That(AutonomousRvrEventLayer.MajorAssaultWeight(8, 50), Is.EqualTo(1));
-            Assert.That(AutonomousRvrEventLayer.ChooseIntent(
-                new AutonomousRvrEventLayer.Force("high", eRealm.Albion, 8, 50, 2),
-                false, true, true, .10), Is.EqualTo(AutonomousRvrEventLayer.Intent.AssaultRelicKeep));
-            Assert.That(AutonomousRvrEventLayer.ChooseIntent(
-                new AutonomousRvrEventLayer.Force("low", eRealm.Albion, 3, 30, 1),
-                false, true, true, 0), Is.EqualTo(AutonomousRvrEventLayer.Intent.Roam));
+            // Owner 2026-11-02: ChooseIntent was deleted with the priority menu - the leader now picks one of five
+            // entries at random - so only the weight and the join gate are left to check here.
             Assert.That(AutonomousRvrEventLayer.ShouldJoinActiveEvent(
                 new AutonomousRvrEventLayer.Force("reserve", eRealm.Albion, 8, 50, 2),
                 AutonomousRvrEventLayer.OrdinaryAssaultCap - 2, AutonomousRvrEventLayer.OrdinaryAssaultCap, false, false, 0), Is.False);

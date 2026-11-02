@@ -38,6 +38,19 @@ public static partial class AutonomousRvrEventLayer
 
     public enum Intent { Roam, HuntEnemy, AssaultKeep, AssaultRelicKeep, DefendEvent }
 
+    /// <summary>
+    /// Owner 2026-11-02: the menu the coordinator offers a leader when the force has no objective - join an assault,
+    /// join a defense, join the relic, patrol (the zone is assigned by the coordinator), open a new assault. The leader
+    /// picks one at random among those available.
+    /// </summary>
+    public enum Choice { Assault, Defense, Relic, Patrol, OpenAssault }
+
+    /// <summary>
+    /// Owner 2026-11-02: "più assalti insieme, metti il numero in una costante facilmente modificabile, per ora 1".
+    /// How many assaults one realm may have running at the same time before "open an assault" leaves its menu.
+    /// </summary>
+    public const int MaximumAssaultsPerRealm = 1;
+
     public sealed record Force(string GroupId, eRealm Realm, int MemberCount, int AverageLevel, int HealerCount,
         bool CanSupplySiege = true, bool RoamingReserve = false, long[] MemberIds = null, int MinimumMemberLevel = 50);
     public sealed record LiveObjective(string Id, string Name, Intent Kind, eRealm OwningRealm, ushort RegionId,
@@ -228,15 +241,6 @@ public static partial class AutonomousRvrEventLayer
         }
     }
 
-    public static LiveObjective ChooseVariedTarget(IEnumerable<LiveObjective> candidates, ISet<string> used, Random random = null)
-    {
-        var eligible = candidates.ToArray();
-        if (eligible.Length == 0) return null;
-        var fresh = eligible.Where(candidate => !used.Contains(candidate.Id)).ToArray();
-        if (fresh.Length == 0) { used.Clear(); fresh = eligible; }
-        return fresh[(random ?? Random.Shared).Next(fresh.Length)];
-    }
-
     public static double MajorAssaultWeight(int memberCount, int averageLevel)
     {
         double size = Math.Clamp((memberCount - 2d) / 6d, 0d, 1d);
@@ -268,19 +272,13 @@ public static partial class AutonomousRvrEventLayer
         return Math.Clamp(roll, 0d, 1d) < probability;
     }
 
-    public static Intent ChooseIntent(Force force, bool hasEnemy, bool hasOrdinaryKeep, bool hasRelicKeep, double roll)
-    {
-        roll = Math.Clamp(roll, 0d, 1d);
-        if (force.MemberCount < 4 || force.AverageLevel < 50 || !force.CanSupplySiege)
-            return hasEnemy ? Intent.HuntEnemy : Intent.Roam;
-
-        double weight = MajorAssaultWeight(force.MemberCount, force.AverageLevel);
-        if (hasRelicKeep && force.MemberCount >= 6 && force.AverageLevel >= 50 && roll < weight * 0.15d)
-            return Intent.AssaultRelicKeep;
-        if (hasOrdinaryKeep && roll < weight)
-            return Intent.AssaultKeep;
-        return hasEnemy ? Intent.HuntEnemy : Intent.Roam;
-    }
+    /// <summary>
+    /// Owner 2026-11-02: the "open an assault" menu entry is only offered to a force that can carry a siege - at least
+    /// four members, average level 50 and siege supplies. Kept as a predicate so the rule is testable now that the old
+    /// ChooseIntent roll is gone.
+    /// </summary>
+    public static bool MayOpenAssault(Force force) =>
+        force != null && force.MemberCount >= 4 && force.AverageLevel >= 50 && force.CanSupplySiege;
 
     public const double RelicSiegeShare = 0.12;
 
@@ -370,32 +368,6 @@ public static partial class AutonomousRvrEventLayer
             "Choosing to converge to defend the live opposing-realm assault; participation is capped.");
     }
 
-    /// <summary>
-    /// Owner 2026-11-01: while the patrol holds, the only objective that may interrupt it is a defense of the realm's own keep
-    /// under assault. Assaults, hunts and contested relics wait for the patrol to end; a defense response already running is not
-    /// held back at all (the gate above steps aside when one exists).
-    /// </summary>
-    private static Plan PatrolDefensePlan(Force force, IReadOnlyCollection<LiveObjective> objectives, long nowTick, double roll)
-    {
-        if (force == null || objectives == null) return null;
-        foreach (ActiveEvent active in Events.Values
-                     .Where(active => !active.DefenseReaction && active.DefenderRealm == force.Realm)
-                     .OrderByDescending(active => active.Forced)
-                     .ThenBy(active => active.BattleStarted)
-                     .ThenByDescending(active => JoinPriority(active, force))
-                     .ThenBy(active => active.TargetId, StringComparer.Ordinal))
-        {
-            LiveObjective target = objectives.FirstOrDefault(objective => objective.Id == active.TargetId);
-            if (target == null) continue;
-            if (Avoided.TryGetValue((force.GroupId, active.TargetId), out long avoidUntil) && avoidUntil > nowTick) continue;
-            if (!IsLatestDefenseFocus(active)) continue;
-            if (target.UnderAttack) active.AttackObserved = true;
-            Plan defense = JoinDefense(force, active, target, nowTick, roll);
-            if (defense != null) return defense;
-        }
-        return null;
-    }
-
     private static Plan ChooseCore(Force force, IReadOnlyCollection<LiveObjective> objectives, long nowTick, double roll)
     {
         if (force == null || string.IsNullOrWhiteSpace(force.GroupId) || force.Realm == eRealm.None || objectives == null)
@@ -415,32 +387,55 @@ public static partial class AutonomousRvrEventLayer
             // Owner 2026-11-01: a group begins with thirty minutes of patrol and patrols at least thirty between one objective and
             // the next; the patrol may be broken to defend but never to attack, so an assault or a hunt waits for it to run out.
             // A player's attack or a forced siege (Forced, DefenseReaction) is not held back.
-            if (SiegeScheduling && !Events.Values.Any(entry => entry.Forced || entry.DefenseReaction) &&
-                AutonomousRvrPatrolLock.Holds(force.GroupId, nowTick))
-                return PatrolDefensePlan(force, objectives, nowTick, roll) ?? ReservePlan(force, objectives);
+            bool patrolLocked = SiegeScheduling && !Events.Values.Any(entry => entry.Forced || entry.DefenseReaction) &&
+                                AutonomousRvrPatrolLock.Holds(force.GroupId, nowTick);
 
             if (force.RoamingReserve)
                 return ReservePlan(force, objectives);
 
-            LiveObjective carrier = objectives.FirstOrDefault(objective => objective.IsRelicCarrier && !OnCooldown(objective.Id, nowTick));
-            if (carrier != null)
+            // Owner 2026-11-02: the coordinator offers the leader this menu - join an assault, join a defense, join the
+            // relic, patrol, open an assault - and the leader picks one at RANDOM among those available ("il capo sceglie
+            // liberamente (che immagino significhi casualmente)"). The attempts are therefore shuffled instead of
+            // priority-ordered: the first entry that can be granted wins. While the thirty-minute patrol holds, the menu
+            // is reduced to defense and patrol, as the owner confirmed.
+            List<Choice> menu = patrolLocked
+                ? [Choice.Defense, Choice.Patrol]
+                : [Choice.Assault, Choice.Defense, Choice.Relic, Choice.OpenAssault, Choice.Patrol];
+            foreach (int attempt in Enumerable.Range(0, menu.Count).OrderBy(_ => Random.Shared.Next()).ToArray())
             {
-                if (TryJoinCarrier(carrier, force, nowTick, roll))
-                    return ToPlan(force.Realm == carrier.OwningRealm ? Intent.DefendEvent : Intent.HuntEnemy, carrier, true,
+                Plan granted = menu[attempt] switch
+                {
+                    Choice.Assault or Choice.Defense => JoinRunningEvent(),
+                    Choice.Relic => JoinRelic(),
+                    Choice.OpenAssault => OpenAssault(),
+                    _ => ReservePlan(force, objectives),
+                };
+                if (granted != null) return granted;
+            }
+            return null;
+
+            Plan JoinRelic()
+            {
+                LiveObjective carrier = objectives.FirstOrDefault(objective =>
+                    objective.IsRelicCarrier && !OnCooldown(objective.Id, nowTick));
+                if (carrier == null) return null;
+                return TryJoinCarrier(carrier, force, nowTick, roll)
+                    ? ToPlan(force.Realm == carrier.OwningRealm ? Intent.DefendEvent : Intent.HuntEnemy, carrier, true,
                         force.Realm == carrier.OwningRealm
                             ? "Escorting the live allied relic carrier with capped support."
-                            : "Contesting the live enemy relic carrier with capped three-realm participation.");
-                return ReservePlan(force, objectives.Where(objective => objective.Id != carrier.Id).ToArray());
+                            : "Contesting the live enemy relic carrier with capped three-realm participation.")
+                    : null;
             }
 
-            // Prefer completing the best-attended compatible rally instead of
-            // spreading warbands across several nearly empty objectives.
+            Plan JoinRunningEvent()
+            {
+            // Any running event this realm may join: assault as attacker, defense as defender, contest as third realm.
+            // Owner 2026-11-02: a player-forced siege keeps its precedence, the others are shuffled because the leader
+            // picks one menu entry at random instead of following a fixed order.
             foreach (ActiveEvent active in Events.Values
                          .Where(active => !active.DefenseReaction)
                          .OrderByDescending(active => active.Forced)
-                         .ThenBy(active => active.BattleStarted)
-                         .ThenByDescending(active => JoinPriority(active, force))
-                         .ThenBy(active => active.TargetId, StringComparer.Ordinal))
+                         .ThenBy(_ => Random.Shared.Next()))
             {
                 LiveObjective target = objectives.FirstOrDefault(objective => objective.Id == active.TargetId);
                 if (target == null)
@@ -484,27 +479,22 @@ public static partial class AutonomousRvrEventLayer
                     return ToPlan(active.RelicKeep ? Intent.AssaultRelicKeep : Intent.AssaultKeep,
                         target, true, "Third-realm force contesting the siege under its own participation cap.");
             }
+            return null;
+            }
 
-            // Concentrate the available siege forces on one objective. Realms
-            // waiting for their alarm retain roaming, not a second empty rally.
-            // Several sieges can run at once, one attack per realm (Midgard on Albion while Hibernia hits
-            // Midgard). A new one starts on a once-a-minute roll: likely within minutes when none is
-            // running, occasional with one, rare with two (owner, 2026-10-07).
-            if (CarrierEvents.Count != 0 || Events.Values.Any(active => !active.DefenseReaction &&
-                    (!SiegeScheduling || active.AttackerRealm == force.Realm)))
-                return ReservePlan(force, objectives);
+            Plan OpenAssault()
+            {
+            // Owner 2026-11-02: "più assalti insieme, metti il numero in una costante facilmente modificabile, per ora 1".
+            // A realm opens no more than MaximumAssaultsPerRealm assaults at once; a running carrier also keeps its
+            // forces in patrol instead of opening a second empty rally.
+            if (CarrierEvents.Count != 0 || Events.Values.Count(active => !active.DefenseReaction &&
+                    (!SiegeScheduling || active.AttackerRealm == force.Realm)) >= MaximumAssaultsPerRealm)
+                return null;
 
-            bool hasEnemy = objectives.Any(objective => objective.Kind == Intent.HuntEnemy && objective.EnemyCount > 0);
-            LiveObjective relic = ChooseVariedTarget(objectives.Where(objective => objective.Kind == Intent.AssaultRelicKeep && objective.IsRelicKeep &&
-                                                               objective.OwningRealm != force.Realm && !Events.ContainsKey(objective.Id) && !OnCooldown(objective.Id, nowTick))
-                , SelectedRelics);
-            LiveObjective keep = ChooseVariedTarget(objectives.Where(objective => objective.Kind == Intent.AssaultKeep && !objective.IsRelicKeep &&
-                                                              objective.OwningRealm != force.Realm && !Events.ContainsKey(objective.Id) && !OnCooldown(objective.Id, nowTick))
-                , SelectedKeeps);
-            bool siegeCapable = force.MemberCount >= 4 && force.AverageLevel >= 50 && force.CanSupplySiege;
+            bool siegeCapable = MayOpenAssault(force);
             // Owner 2026-10-31 (step 4 of the RvR plan): no more roll to open a siege. A capable force first retakes a keep of its own
             // frontier that another realm holds; with all of them held, and half an hour after the realm's last conquest attempt, it
-            // goes to conquer a keep in one of the other two frontiers (AutonomousRvrCampaign). Anything else is patrol or hunt.
+            // goes to conquer a keep in one of the other two frontiers (AutonomousRvrCampaign).
             LiveObjective assault = null;
             bool conquest = false;
             if (SiegeScheduling && siegeCapable)
@@ -520,19 +510,26 @@ public static partial class AutonomousRvrEventLayer
                     AutonomousRvrCampaign.LastConquestTick(force.Realm), nowTick,
                     region => AutonomousRvrCampaign.EntryKeep(force.Realm, region), Random.Shared, out conquest);
             }
-            // Relic sieges are the larger, rarer event: about one new siege in eight, strong warbands only.
-            Intent intent = !SiegeScheduling ? ChooseIntent(force, hasEnemy, keep != null, relic != null, roll)
-                : assault != null ? (assault.IsRelicKeep ? Intent.AssaultRelicKeep : Intent.AssaultKeep)
-                : ChooseIntent(force, hasEnemy, false, false, roll);
-            LiveObjective selected = intent switch
+            else if (!SiegeScheduling)
             {
-                Intent.AssaultRelicKeep => SiegeScheduling ? assault : relic,
-                Intent.AssaultKeep => SiegeScheduling ? assault : keep,
-                Intent.HuntEnemy => objectives.Where(objective => objective.Kind == Intent.HuntEnemy && objective.EnemyCount > 0)
-                    .OrderBy(objective => Math.Abs(objective.EnemyCount - force.MemberCount)).FirstOrDefault(),
-                _ => PickPatrol(force, objectives) ??
-                     objectives.Where(objective => objective.Kind == Intent.HuntEnemy).OrderBy(_ => Random.Shared.Next()).FirstOrDefault(),
-            };
+                // Legacy scheduling: an assault is a plan on a keep without a realm-wide rally. The choice is still the
+                // coordinator's and still random among the attackable keeps, so the menu behaves the same with or
+                // without the event system.
+                LiveObjective[] attackable = objectives.Where(objective =>
+                        objective.Kind is Intent.AssaultKeep or Intent.AssaultRelicKeep &&
+                        objective.OwningRealm != force.Realm && objective.OwningRealm != eRealm.None &&
+                        !Events.ContainsKey(objective.Id) && !OnCooldown(objective.Id, nowTick) &&
+                        (!objective.IsRelicKeep || force.MemberCount >= 6)).ToArray();
+                if (attackable.Length != 0)
+                    assault = attackable[Random.Shared.Next(attackable.Length)];
+            }
+            // Owner 2026-11-02: this menu entry opens a keep assault and nothing else. Hunting an opposing force is no
+            // longer a choice of its own - the group only meets enemies inside an event - so with no keep to attack the
+            // entry is simply unavailable and another menu entry is tried.
+            if (assault == null)
+                return null;
+            Intent intent = assault.IsRelicKeep ? Intent.AssaultRelicKeep : Intent.AssaultKeep;
+            LiveObjective selected = assault;
             if (selected == null)
                 return null;
 
@@ -567,10 +564,8 @@ public static partial class AutonomousRvrEventLayer
                 return ToPlan(intent, selected, true,
                     $"Opening a time-limited {(selected.IsRelicKeep ? "relic-keep" : "keep")} assault; same-realm warbands may rally and defenders may answer.");
             }
-
-            return ToPlan(intent, selected, false,
-                intent == Intent.HuntEnemy ? "Small or lower-level warband is hunting a live opposing force." :
-                "No major assault selected; roaming a live frontier objective.");
+            return null;
+            }
         }
     }
 
@@ -1549,16 +1544,6 @@ public static partial class AutonomousRvrEventLayer
 
     private static int AssaultPressure(Force force, LiveObjective objective) =>
         objective.EnemyCount * 4 + objective.GuardStrength * 2 + objective.ClosedDoors * 3 - force.MemberCount * 2;
-
-    private static double JoinPriority(ActiveEvent active, Force force)
-    {
-        Dictionary<string, int> compatible = force.Realm == active.AttackerRealm ? active.Attackers :
-            force.Realm == active.DefenderRealm ? active.Defenders : active.ThirdRealm;
-        double compatibleFill = compatible.Values.Sum() / (double)Capacity(active);
-        double totalFill = (active.Attackers.Values.Sum() + active.Defenders.Values.Sum() + active.ThirdRealm.Values.Sum()) /
-                           (double)(Capacity(active) * 3);
-        return compatibleFill * 0.8d + totalFill * 0.2d;
-    }
 
     private static bool OnCooldown(string targetId, long nowTick) => Cooldowns.TryGetValue(targetId, out long until) && until > nowTick;
 

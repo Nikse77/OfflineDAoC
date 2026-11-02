@@ -162,10 +162,10 @@ public class UT_PhysicalSiegeRally
     }
     private sealed class FixedRoll(double value) : Random { public override double NextDouble() => value; }
     [Test]
-    public void RelicsRemainRarerAndLevelFiftyTaskSplitIsUnchanged()
+    public void LevelFiftyTaskSplitIsUnchanged()
     {
-        var force = new AutonomousRvrEventLayer.Force("weight", eRealm.Albion, 8, 50, 2);
-        Assert.That(Enumerable.Range(0, 100).Count(i => AutonomousRvrEventLayer.ChooseIntent(force, false, true, true, i / 100d) == AutonomousRvrEventLayer.Intent.AssaultRelicKeep), Is.EqualTo(15));
+        // Owner 2026-11-02: the ChooseIntent relic-share assertion went with ChooseIntent; the menu offers the five
+        // entries at random instead of rolling for an intent.
         var rolls = Enumerable.Range(0, 100).Select(i => AutonomousObjectiveAssignments.RollLevelFiftyObjective(new FixedRoll(i / 100d))).ToArray();
         Assert.That(rolls.Count(k => k == eAutonomousObjectiveKind.RvR), Is.EqualTo(40));
         Assert.That(rolls.Count(k => k == eAutonomousObjectiveKind.GroupPve), Is.EqualTo(40));

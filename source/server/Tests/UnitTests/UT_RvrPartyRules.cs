@@ -30,4 +30,15 @@ public sealed class UT_RvrPartyRules
         Assert.That(AutonomousBotGroupCoordinator.ExpelsUnreachableMember(eAutonomousObjectiveKind.GroupPve, false, grace * 10), Is.False,
             "PvE keeps its own partial-roster path");
     }
+
+    // Owner 2026-11-02: "La scelta la fa il capo. Solo lui calcola la destinazione. e i componenti del gruppo la
+    // ereditano." Nobody receives a destination before the leader's chain (candidates, event plan, choice, frontier)
+    // is finished.
+    [Test]
+    public void OnlyTheLivingLeaderComputesThePartyDestination()
+    {
+        Assert.That(AutonomousWorldBotController.MayComputeRvrDestination(false, false), Is.True, "a bot on its own");
+        Assert.That(AutonomousWorldBotController.MayComputeRvrDestination(true, true), Is.True, "the living leader");
+        Assert.That(AutonomousWorldBotController.MayComputeRvrDestination(true, false), Is.False, "a member inherits");
+    }
 }

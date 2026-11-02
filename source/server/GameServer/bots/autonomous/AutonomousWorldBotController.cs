@@ -609,10 +609,14 @@ namespace DOL.GS
                 if (AutonomousObjectiveAssignments.Is(bot, eAutonomousObjectiveKind.RvR) && bot.Level == 50)
                 {
                     string eventForce = _groupDirective?.IsDynamic == true ? _groupDirective.GroupId : $"rvr-{bot.DatabaseID}";
-                    if (_rvrDestination == null && nowTick >= _nextRvrPlanReview)
+                    // Owner 2026-11-02: "La scelta la fa il capo. Solo lui calcola la destinazione. e i componenti del
+                    // gruppo la ereditano." The whole chain - candidate list, event-layer plan, choice and frontier pin -
+                    // runs for the living leader only, and the party is told once, after all of it (PublishRvrOrder).
+                    if (LeadsRvrParty(bot) && _rvrDestination == null && nowTick >= _nextRvrPlanReview)
                     {
                         _nextRvrPlanReview = nowTick + 45_000;
                         _rvrDestination = ChooseRvrDestination(bot);
+                        PublishRvrOrder(bot, _rvrDestination);
                     }
                     if (AutonomousRvrEventLayer.IsEventForce(eventForce, nowTick))
                         return ExecuteRvr(brain, bot);
@@ -2270,11 +2274,23 @@ namespace DOL.GS
                 (_rvrIntent == AutonomousRvrEventLayer.Intent.Roam && bot.CurrentRegionID == _rvrDestination.RegionId &&
                  Distance(bot.X, bot.Y, _rvrDestination.X, _rvrDestination.Y) <= CampArrivalRadius))
             {
-                _rvrDestination = ChooseRvrDestination(bot);
-                _nextRvrPlanReview = GameLoop.GameLoopTime + 45_000 + bot.ObjectID % 15_000;
-                _campStartedTick = GameLoop.GameLoopTime;
-                _patrolDestination = null;
-                _rvrApproachDestination = null;
+                // Owner 2026-11-02: only the living leader computes; everyone else waits in formation for the published
+                // order instead of picking a frontier of its own.
+                if (LeadsRvrParty(bot))
+                {
+                    _rvrDestination = ChooseRvrDestination(bot);
+                    PublishRvrOrder(bot, _rvrDestination);
+                    _nextRvrPlanReview = GameLoop.GameLoopTime + 45_000 + bot.ObjectID % 15_000;
+                    _campStartedTick = GameLoop.GameLoopTime;
+                    _patrolDestination = null;
+                    _rvrApproachDestination = null;
+                }
+                else if ((_rvrDestination == null || _rvrDestination.RegionId == 0) && _groupDirective?.Leader != null)
+                {
+                    SetRvrStatus(bot, "Awaiting the leader's order", GoalText(),
+                        "Following the party leader until one destination is published for the group");
+                    return FollowDynamicGroupLeader(bot, _groupDirective);
+                }
                 if (_rvrDestination == null)
                 {
                     SetRvrStatus(bot, "Awaiting a frontier objective", "Roam active frontier keeps, relic routes, and enemy forces",
@@ -2708,48 +2724,55 @@ namespace DOL.GS
             return AutonomousRvrPickup.PartyMayLeaveKeep(farthest, now - _frontierKeepGatheredSince);
         }
 
+        /// <summary>
+        /// Owner 2026-11-02: "La scelta la fa il capo. Solo lui calcola la destinazione. e i componenti del gruppo la
+        /// ereditano." True only for the living leader of its party (a bot with no party leads itself). Every member
+        /// computes nothing: it follows the party leader until one complete order is published.
+        /// </summary>
+        private static bool LeadsRvrParty(GameBot bot) =>
+            MayComputeRvrDestination(bot?.Group != null, bot?.Group?.LivingLeader == bot);
+
+        /// <summary>Owner 2026-11-02: "La scelta la fa il capo... i componenti del gruppo la ereditano". Kept separate so
+        /// the rule is testable: a bot with no party leads itself, a party member never computes.</summary>
+        public static bool MayComputeRvrDestination(bool hasParty, bool isLivingLeader) => !hasParty || isLivingLeader;
+
+        /// <summary>
+        /// Owner 2026-11-02: "nessuno deve ricevere una destinazione prima che 6 7 e 8 siano complete". Called only after
+        /// the leader has finished the whole chain - candidate list, event-layer plan, choice and frontier pin - so the
+        /// party sees target and region in one write. PublishCamp itself refuses any caller that is not the party's living
+        /// leader, and refuses while the party is still assembling or regrouping.
+        /// </summary>
+        private static void PublishRvrOrder(GameBot bot, CampDestination chosen)
+        {
+            if (bot?.Group == null || chosen == null)
+                return;
+            AutonomousBotGroupCoordinator.PublishCamp(bot, new AutonomousBotGroupCoordinator.SharedCamp(
+                chosen.Id, chosen.MonsterName, chosen.ZoneName, chosen.RegionId, chosen.X, chosen.Y, chosen.Z,
+                chosen.IsDungeon, chosen.IsFrontier, chosen.TargetLevel));
+        }
+
         private CampDestination ChooseRvrDestination(GameBot bot)
         {
-            HashSet<ushort> reachable = ReachableRegions(bot.Realm, bot.CurrentRegionID);
-            // Owner 2026-11-02: "quando il gruppo inizia il pattugliamento tutto il pattugliamento deve svolgersi
-            // nella regione assegnata". The frontier is chosen together with the objective and then holds for the
-            // whole task. The old twenty-minute window expired mid-patrol and let the planner reach for keeps in
-            // the other two frontiers: it chose "frontier near Bledmeer Faste" from Emain, could not route there,
-            // abandoned it and chose again, moving the party rendezvous to another frontier on every attempt while
-            // seven members stood waiting. Relic carriers and shared siege or defense calls still override, because
-            // the event layer picks their target before this choice is travelled.
-            // Owner 2026-11-02: when the patrolling leader dies the duty passes to a living member, which has never
-            // chosen a frontier for itself: it adopts the one the party is standing in, or it would drag the group
-            // out of the region the patrol belongs to.
-            if (!AutonomousRvrPatrolRegion.IsPatrolRegion(_rvrFrontierRegion) &&
-                AutonomousRvrPatrolRegion.IsPatrolRegion(bot.CurrentRegionID))
-                _rvrFrontierRegion = bot.CurrentRegionID;
+            // Owner 2026-11-02: the coordinator assigns the frontier - "pattuglia in una delle tre zone di frontiera tra
+            // emain odin e hadrian ... il sistema gli assegna la zona" - so the leader's candidate list is gathered over
+            // all three frontiers, not only the one the party stands in. Which of the three is patrolled is decided by
+            // AutonomousRvrRoamZones inside the event layer; the assigned region is written back from the chosen plan.
+            // Travel between frontiers stays by the teleporter, never on foot.
+            HashSet<ushort> reachable = [.. AutonomousRvrRoamZones.PatrolOrder.Where(AutonomousRvrPatrolRegion.IsPatrolRegion)];
             // Owner 2026-11-02: "ovviamente se qualcuno ha fatto release il leader lo va a prendere", "con tutto il
             // gruppo rimasto al seguito". The keep where the member waits becomes the next destination, and the rest
             // of the party marches behind the leader until the member can walk the last stretch itself.
             if (TryFetchReleasedMember(bot, out CampDestination fetch))
                 return fetch;
-            bool choosingTask = _groupDirective == null || _groupDirective.Phase == AutonomousRvrPatrolRegion.ChoosingTaskPhase;
-            HashSet<ushort> local = AutonomousRvrPatrolRegion.PinsToAssignedRegion(_rvrFrontierRegion,
-                    reachable.Contains(_rvrFrontierRegion), choosingTask)
-                ? [_rvrFrontierRegion] : reachable;
+            HashSet<ushort> local = reachable;
             var choices = new List<CampDestination>();
             var objectives = new List<AutonomousRvrEventLayer.LiveObjective>();
             RvrPlanningView planning = GetRvrPlanningView();
-            foreach (GameBot enemy in planning.Candidates
-                         .Where(candidate => candidate.IsAlive && candidate.Realm != eRealm.None && candidate.Realm != bot.Realm &&
-                                             AutonomousObjectiveAssignments.Is(candidate, eAutonomousObjectiveKind.RvR) &&
-                                             local.Contains(candidate.CurrentRegionID) && IsInRvrFrontier(candidate))
-                         .OrderBy(candidate => unchecked((ulong)(candidate.DatabaseID ^ bot.DatabaseID * 397) * 11400714819323198485UL))
-                         .Take(24))
-            {
-                string id = $"rvr-enemy-{enemy.DatabaseID}";
-                CampDestination destination = new(id, enemy.Name, enemy.CurrentZone?.Description ?? "frontier",
-                    enemy.CurrentRegionID, enemy.X, enemy.Y, enemy.Z, 1, false, true);
-                choices.Add(destination);
-                objectives.Add(new(id, enemy.Name, AutonomousRvrEventLayer.Intent.HuntEnemy, enemy.Realm,
-                    enemy.CurrentRegionID, enemy.X, enemy.Y, enemy.Z, false, 1, 0, 0, 0));
-            }
+            // Owner 2026-11-02: hunting an opposing party is no longer a choice - "bisogna cambiare... sicuramente la 3",
+            // where 3 was "the group only knows enemies that are attacking a keep, carrying a relic or fighting it". The
+            // enemy positions used to be listed here straight from the bot registry, with no sight range at all; that is
+            // gone, so a group meets enemies inside an event, never because it can read their coordinates.
+            // planning.Count(region, realm) below still supplies the head-count the event caps need.
 
             // Relic ownership remains wholly native. A player or bot carrier
             // is merely a live three-realm event anchor: allies escort, while

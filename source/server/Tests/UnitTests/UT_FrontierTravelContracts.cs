@@ -250,18 +250,4 @@ public class UT_FrontierTravelContracts
             Assert.That(Math.Sqrt(dx*dx+dy*dy),Is.GreaterThan(40000));
         }
     }
-    [Test]
-    public void TargetRotationVisitsEveryEligibleKeepBeforeRepeating()
-    {
-        var choices=Enumerable.Range(0,14).Select(i=>new AutonomousRvrEventLayer.LiveObjective(i.ToString(),"Keep"+i,
-            AutonomousRvrEventLayer.Intent.AssaultKeep,eRealm.Midgard,100,0,0,0,false,0,0,i*100,2)).ToArray();
-        var used=new HashSet<string>();var random=new Random(34);
-        for(int i=0;i<choices.Length;i++)
-        {
-            var selected=AutonomousRvrEventLayer.ChooseVariedTarget(choices,used,random);
-            Assert.That(used.Add(selected.Id),Is.True);
-        }
-        Assert.That(used.Count,Is.EqualTo(14));
-        Assert.That(AutonomousRvrEventLayer.ChooseVariedTarget(choices,used,random),Is.Not.Null);
-    }
 }

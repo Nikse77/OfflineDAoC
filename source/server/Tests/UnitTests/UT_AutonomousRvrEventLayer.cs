@@ -10,13 +10,9 @@ public sealed class UT_AutonomousRvrEventLayer
     [SetUp] public void ResetEvents() => RvrEventTestState.Clear();
     [TearDown] public void ClearEvents() => RvrEventTestState.Clear();
     [Test]
-    public void SmallForcesFavorHuntOrRoamWhileLargeHighLevelForcesCanAssault()
+    public void MajorAssaultWeightGrowsWithSizeAndLevel()
     {
-        var small = new AutonomousRvrEventLayer.Force("small", eRealm.Albion, 3, 30, 1);
-        var large = new AutonomousRvrEventLayer.Force("large", eRealm.Albion, 8, 50, 2);
-
-        Assert.That(AutonomousRvrEventLayer.ChooseIntent(small, true, true, true, 0), Is.EqualTo(AutonomousRvrEventLayer.Intent.HuntEnemy));
-        Assert.That(AutonomousRvrEventLayer.ChooseIntent(large, true, true, true, 0), Is.EqualTo(AutonomousRvrEventLayer.Intent.AssaultRelicKeep));
+        // Owner 2026-11-02: ChooseIntent was deleted with the priority menu; the weight and the join gate remain.
         Assert.That(AutonomousRvrEventLayer.MajorAssaultWeight(8, 50), Is.GreaterThan(AutonomousRvrEventLayer.MajorAssaultWeight(3, 30)));
     }
 
@@ -29,9 +25,11 @@ public sealed class UT_AutonomousRvrEventLayer
 
         Assert.Multiple(() =>
         {
-            Assert.That(AutonomousRvrEventLayer.ChooseIntent(solo, false, true, true, 0), Is.EqualTo(AutonomousRvrEventLayer.Intent.Roam));
-            Assert.That(AutonomousRvrEventLayer.ChooseIntent(low, false, true, true, 0), Is.EqualTo(AutonomousRvrEventLayer.Intent.Roam));
-            Assert.That(AutonomousRvrEventLayer.ChooseIntent(unsupplied, false, true, true, 0), Is.EqualTo(AutonomousRvrEventLayer.Intent.Roam));
+            // Owner 2026-11-02: ChooseIntent is gone; the same rule now gates the "open an assault" menu entry.
+            Assert.That(AutonomousRvrEventLayer.MayOpenAssault(solo), Is.False, "one member cannot carry a siege");
+            Assert.That(AutonomousRvrEventLayer.MayOpenAssault(low), Is.False, "below level 50");
+            Assert.That(AutonomousRvrEventLayer.MayOpenAssault(unsupplied), Is.False, "no siege supplies");
+            Assert.That(AutonomousRvrEventLayer.MayOpenAssault(new AutonomousRvrEventLayer.Force("fit", eRealm.Albion, 8, 50, 2)), Is.True);
         });
     }
 
@@ -112,26 +110,35 @@ public sealed class UT_AutonomousRvrEventLayer
     }
 
     [Test]
-    public void ActiveEventAttractsForcesButKeepsAHighRollRoamingReserve()
+    public void TheMenuNeverHandsAnEventToAForceThatCannotTakeOne()
     {
         var keep = new AutonomousRvrEventLayer.LiveObjective("keep-reserve", "Dun Bolg", AutonomousRvrEventLayer.Intent.AssaultKeep,
             eRealm.Hibernia, 163, 100, 100, 0, false, 0, 0, 2, 2);
         var roam = new AutonomousRvrEventLayer.LiveObjective("roam-reserve", "Bolg frontier", AutonomousRvrEventLayer.Intent.Roam,
             eRealm.Hibernia, 163, 200, 200, 0, false, 0, 0, 0, 0);
-        var opener = new AutonomousRvrEventLayer.Force("reserve-open", eRealm.Albion, 8, 50, 2);
-        var joiner = new AutonomousRvrEventLayer.Force("reserve-join", eRealm.Albion, 8, 50, 2);
+        var capable = new AutonomousRvrEventLayer.Force("reserve-capable", eRealm.Albion, 8, 50, 2);
         var decliner = new AutonomousRvrEventLayer.Force("reserve-decline", eRealm.Albion, 2, 20, 0);
 
-        Assert.That(AutonomousRvrEventLayer.ChooseOrJoin(opener, new[] { keep, roam }, 100, 0).IsSharedEvent, Is.True);
-        Assert.That(AutonomousRvrEventLayer.ChooseOrJoin(joiner, new[] { keep, roam }, 101, 0).TargetId, Is.EqualTo("keep-reserve"));
-        AutonomousRvrEventLayer.Plan declined = AutonomousRvrEventLayer.ChooseOrJoin(decliner, new[] { keep, roam }, 102, 1);
+        // Owner 2026-11-02: the leader picks one menu entry at random, so the capable force may open the assault or
+        // patrol - never anything else - while a force that cannot carry a siege is never given an event at all.
+        for (int i = 0; i < 12; i++)
+        {
+            AutonomousRvrEventLayer.Plan opened = AutonomousRvrEventLayer.ChooseOrJoin(
+                capable with { GroupId = $"reserve-capable-{i}" }, [keep, roam], 100 + i, 0);
+            Assert.That(opened, Is.Not.Null);
+            Assert.That(opened.TargetId, Is.EqualTo("keep-reserve").Or.EqualTo("roam-reserve"));
+
+            AutonomousRvrEventLayer.Plan declined = AutonomousRvrEventLayer.ChooseOrJoin(
+                decliner with { GroupId = $"reserve-decline-{i}" }, [keep, roam], 200 + i, 1);
+            Assert.That(declined, Is.Not.Null);
+            Assert.That(declined.IsSharedEvent, Is.False);
+            Assert.That(declined.TargetId, Is.EqualTo("roam-reserve"));
+        }
 
         Assert.Multiple(() =>
         {
-            Assert.That(AutonomousRvrEventLayer.ShouldJoinActiveEvent(joiner, 8, AutonomousRvrEventLayer.OrdinaryAssaultCap, false, false, 0), Is.True);
+            Assert.That(AutonomousRvrEventLayer.ShouldJoinActiveEvent(capable, 8, AutonomousRvrEventLayer.OrdinaryAssaultCap, false, false, 0), Is.True);
             Assert.That(AutonomousRvrEventLayer.ShouldJoinActiveEvent(decliner, 16, AutonomousRvrEventLayer.OrdinaryAssaultCap, false, false, 1), Is.False);
-            Assert.That(declined.IsSharedEvent, Is.False);
-            Assert.That(declined.TargetId, Is.EqualTo("roam-reserve"));
         });
     }
 
