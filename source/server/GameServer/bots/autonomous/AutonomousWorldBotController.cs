@@ -743,8 +743,12 @@ namespace DOL.GS
                 {
                     if (!_hasCampCatalog)
                     {
-                        SetStatus(bot, "Preparing live XP camps", "Find a reachable level-appropriate XP camp",
-                            "Waiting for the first complete catalog; this is not a route or group failure");
+                        // Owner 2026-11-02: a member of an RvR party keeps an RvR goal line; these XP camp texts belong
+                        // to PvE plans and used to overwrite it after a route error, which made three fighters of an RvR
+                        // group read as PvE camp seekers in the database.
+                        if (AutonomousObjectiveAssignments.KindFor(bot) != eAutonomousObjectiveKind.RvR)
+                            SetStatus(bot, "Preparing live XP camps", "Find a reachable level-appropriate XP camp",
+                                "Waiting for the first complete catalog; this is not a route or group failure");
                         return true;
                     }
                     if (_groupDirective?.IsDynamic == true)
@@ -755,8 +759,9 @@ namespace DOL.GS
                             "The party is assembled while its leader chooses one shared target");
                         return true;
                     }
-                    SetStatus(bot, "Searching for a valid XP camp", "Find a reachable level-appropriate XP camp",
-                        "No reachable non-grey camp is currently available; retrying shortly");
+                    if (AutonomousObjectiveAssignments.KindFor(bot) != eAutonomousObjectiveKind.RvR)
+                        SetStatus(bot, "Searching for a valid XP camp", "Find a reachable level-appropriate XP camp",
+                            "No reachable non-grey camp is currently available; retrying shortly");
                     return true;
                 }
 
@@ -938,8 +943,9 @@ namespace DOL.GS
                 {
                     bot.StopMovingOnPath();
                     bot.StopMoving();
-                    SetStatus(bot, "Replanning after a route error", "Find a reachable level-appropriate XP camp",
-                        "The previous live route failed safely; trying another camp");
+                    if (AutonomousObjectiveAssignments.KindFor(bot) != eAutonomousObjectiveKind.RvR)
+                        SetStatus(bot, "Replanning after a route error", "Find a reachable level-appropriate XP camp",
+                            "The previous live route failed safely; trying another camp");
                 }
                 return true;
             }
@@ -2275,7 +2281,11 @@ namespace DOL.GS
             // Owner 2026-11-02: a member that released waits at its frontier keep, so the leader goes for it with the
             // party behind it on the very next pulse - not at the next planning review, up to forty-five seconds later,
             // which is how a party used to march away from a casualty that was standing at the keep.
-            if (_groupDirective?.Leader == bot && !AutonomousRvrEventLayer.IsEventForce(forceId, GameLoop.GameLoopTime) &&
+            // Owner 2026-11-02: "bisogna che il recupero di quelli in attesa al keep sia fatto dal capo corrente". The
+            // directive's leader can go stale - after a wipe and three deaths of the leader, albion-3fdd74-049 walked on
+            // with Maraenenlyn alive while the directive still named a corpse, so nobody ran the fetch and Alderfrey sat
+            // at the keep for eleven minutes with every comrade alive. The living leader of the party is what counts.
+            if (IsLivingLeader(bot) && !AutonomousRvrEventLayer.IsEventForce(forceId, GameLoop.GameLoopTime) &&
                 TryFetchReleasedMember(bot, out CampDestination pickup))
                 return TravelRvrObjective(bot, pickup);
 

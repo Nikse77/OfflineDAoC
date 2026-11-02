@@ -28,21 +28,23 @@ public static class AutonomousRvrLogin
             return false;
         region = passage.Location.RegionID;
         ushort loginRegion = region;
-        // The pad the home necklace lands on, kept as the fallback when the porter's pad has no room to spread bots.
         Vector3 necklace = new(passage.Location.X, passage.Location.Y, passage.Location.Z);
-        point = necklace;
+        // Owner 2026-11-02: "c'è gente dentro i muri a castel sauvage ... al posto di 0,0,0 il centro del pad dove sta
+        // master visur, con le coordinate cablate nel codice". The necklace landing sits inside the walls, so both the
+        // starting point and the floor below every spread become the frontier porter's own spot.
+        Vector3 floor = FixedHomePad(realm) ?? necklace;
+        point = floor;
         // Owner 2026-11-01: on the passage pad, where the player stands next to the realm's frontier porter (Master
         // Visur at Castle Sauvage), not on the pad the necklace lands on about 1,700 units away.
         if (AutonomousFrontierTransport.TryGetHomePad(realm, home, out Vector3 pad))
             point = pad;
         Vector3 centre = point;
         // Owner 2026-11-02: "anche stavolta alb non ha loggato a castel sauvage". An out parameter is assigned even when
-        // the call fails, so a failed spread used to wipe the good necklace and leave the point at 0,0,0 - 33 of Albion's
-        // 47 level-50 bots landed there on every boot while Midgard and Hibernia found their zone. The necklace is a
-        // hand-written coordinate, so it is the floor this can never fall below.
-        Vector3 spread = necklace;
-        if (!TrySpread(centre, out spread) && (centre == necklace || !TrySpread(necklace, out spread)))
-            spread = necklace;
+        // the call fails, so a failed spread used to wipe the good fallback and leave the point at 0,0,0 - 33 of Albion's
+        // 47 level-50 bots landed there on every boot while Midgard and Hibernia found their zone.
+        Vector3 spread = floor;
+        if (!TrySpread(centre, out spread) && (centre == floor || !TrySpread(floor, out spread)))
+            spread = floor;
         point = spread;
         return true;
 
@@ -56,7 +58,19 @@ public static class AutonomousRvrLogin
         }
     }
 
-    /// <summary>The passage pad of the realm's frontier porter, when that porter is in the world.</summary>
+    /// <summary>
+    /// Owner 2026-11-02: the three home frontier porters as read from the world database, so a login never depends on an
+    /// NPC being placed already: Master Visur at Castle Sauvage (585995,477187,2623), Stor Gothi Annark at Svasud Faste
+    /// (765329,668749,5759), Glasny at Druim Ligen (333733,420740,5207). The necklace landing sits inside the walls.
+    /// </summary>
+    private static Vector3? FixedHomePad(eRealm realm) => realm switch
+    {
+        eRealm.Albion => new Vector3(585995, 477187, 2623),
+        eRealm.Midgard => new Vector3(765329, 668749, 5759),
+        eRealm.Hibernia => new Vector3(333733, 420740, 5207),
+        _ => null,
+    };
+
     public static Vector3? Pad(eRealm realm) =>
         AutonomousFrontierTransport.TryGetHomePad(realm, RealmRaidNeutralEvents.HomeRegion(realm), out Vector3 pad) ? pad : null;
 }

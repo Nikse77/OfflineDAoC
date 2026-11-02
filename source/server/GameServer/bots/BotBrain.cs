@@ -2115,6 +2115,9 @@ namespace DOL.AI.Brain
             }
 
             bool traveling = IsMaintenanceTraveling();
+            // Owner 2026-11-02: "se il leader si sta muovendo, NO BUFF da parte di nessuno (esclusa speed)". While the
+            // column is under way nobody stops to buff, and only the speed line keeps pulsing.
+            bool leaderMoving = PartyLeaderIsMoving(bot);
 
             // Native helpful pulses replace one another. Recasting every
             // missing child alternated caster speed and bladeturn indefinitely,
@@ -2124,6 +2127,7 @@ namespace DOL.AI.Brain
             IEnumerable<Spell> candidates = known
                 .Where(spell => BotMaintenancePulsePolicy.CanMaintain(spell, maintenancePulse))
                 .Where(spell => spell.SpellType != eSpellType.SpeedEnhancement || traveling)
+                .Where(spell => !leaderMoving || spell.SpellType == eSpellType.SpeedEnhancement)
                 .OrderByDescending(spell => spell.SpellType == eSpellType.SpeedEnhancement && traveling)
                 .ThenByDescending(BotBuffRules.IsOwnDexterityBuff)
                 .ThenByDescending(spell => spell.Value)
@@ -2605,6 +2609,17 @@ namespace DOL.AI.Brain
 
         public static bool IsClassicSongClass(eCharacterClass characterClass) => characterClass is
             eCharacterClass.Bard or eCharacterClass.Minstrel or eCharacterClass.Skald;
+
+        /// <summary>
+        /// Owner 2026-11-02: "se il leader si sta muovendo, NO BUFF da parte di nessuno (esclusa speed)". True while the
+        /// party leader is under way, so every member drops its maintenance buffs until the column halts.
+        /// </summary>
+        private static bool PartyLeaderIsMoving(GameBot bot)
+        {
+            GameLiving leader = bot?.Group?.LivingLeader;
+            return leader != null && leader != bot && leader is GameNPC npc &&
+                   (npc.IsMoving || npc.IsMovingOnPath);
+        }
 
         private GameLiving FindMissingMaintenanceTarget(Spell spell)
         {

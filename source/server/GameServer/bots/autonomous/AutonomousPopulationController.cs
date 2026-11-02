@@ -251,8 +251,10 @@ public static class AutonomousPopulationController
             }
 
             record.IsOnline = true;
+            // Owner 2026-11-02: "basta che metti qualcosa di vero". At this point nothing has been decided yet, so the
+            // record must not claim an XP camp the bot may never look for.
             record.Activity = "Choosing first live goal";
-            record.CurrentGoal = "Find a reachable level-appropriate XP camp";
+            record.CurrentGoal = "Waiting for its first assignment of the session";
             record.ObjectiveProgress = "Entered world through staggered login queue";
             bot.MarkAutonomousStateDirty();
             AutonomousBotStatusPersistence.QueueLogin(bot);
