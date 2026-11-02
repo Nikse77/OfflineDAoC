@@ -2931,6 +2931,31 @@ public static partial class AutonomousBotGroupCoordinator
         // random town or bind.
         if (session.ObjectiveKind == eAutonomousObjectiveKind.RvR)
         {
+            // Owner 2026-11-02: "durante la pattuglia: se un gruppo sta pattugliando e un membro fa release il membro rinasce
+            // al border keep di quella frontiera e aspetta li che il leader vada a prenderlo, se è il leader ad essere
+            // morto il gruppo deve tornare a prendere il leader". "Durante un assedio o una difesa ... il gruppo e/o il
+            // leader però rimangono all'assedio fino a quando l'assedio non finisce, solo a quel punto tornano al keep".
+            // A raise happens on the spot (AutonomousGroupRecoveryState.TryResumeLocally); otherwise the member waits at
+            // its frontier keep (AutonomousFrontierRelease) and the party goes there - unless a siege or a defense is
+            // still running for this force, in which case it stays and this choice happens when the event ends.
+            GameBot[] roster = BotMembers(session.Group);
+            GameBot casualty = roster.Where(member => !member.IsAlive || member.IsReturningAfterRelease)
+                .OrderBy(member => member.IsAlive ? 1 : 0)
+                .ThenBy(member => member.DatabaseID)
+                .FirstOrDefault();
+            bool siegeOrDefense = AutonomousRvrEventLayer.KeepPlan(session.Id, realm, GameLoop.GameLoopTime) != null;
+            if (casualty != null && !siegeOrDefense &&
+                AutonomousFrontierRelease.TryPoint(realm, casualty.CurrentRegionID,
+                    out ushort releasedRegion, out Point3D releasedPoint))
+            {
+                session.Rendezvous = new Vector3(releasedPoint.X, releasedPoint.Y, releasedPoint.Z);
+                session.RendezvousRegion = releasedRegion;
+                session.RendezvousName = $"the border keep where {casualty.Name} releases";
+                Log.Info($"RVR_GROUP_MEETS_RELEASED_MEMBER group={session.Id} member=\"{casualty.Name}\" " +
+                         $"region={releasedRegion} keep={releasedPoint.X},{releasedPoint.Y},{releasedPoint.Z}");
+                TryBuildRendezvousSlots(session, roster);
+                return;
+            }
             // Owner 2026-11-01: the party meets again where it last met. A casualty used to take it back to the border
             // keep it started from, which for a group patrolling a foreign frontier means a trip home and back.
             if (session.HasLastRendezvous)

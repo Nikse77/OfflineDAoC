@@ -1154,7 +1154,21 @@ namespace DOL.GS
                 if (releaseZone == null || !AutonomousRealmBoundary.Allows(Realm, releaseRegion, releaseZone.ID))
                     release = null;
             }
-            if (IsAutonomousWorldBot && release != null)
+            // Owner 2026-11-02: "la release di un bot in frontiera (sia bot rvr che bot pve) deve SEMPRE seguire
+            // queste regole: se sono nella mia frontiera la release avviene al mio border keep, quello che ha il
+            // portale; se sono in una frontiera avversaria la release avviene sempre al mio border keep in quella
+            // frontiera dove c'è il portale da dove sono entrato". The bindstones cannot answer this in a frontier and
+            // the border-keep fallback below only knows the home frontier's keeps, which sent an Emain casualty home
+            // to Castle Sauvage. The landing pad of the realm's passage in that frontier is the keep in question.
+            bool frontierRelease = AutonomousFrontierRelease.TryPoint(Realm, _deathRegionId,
+                out ushort frontierRegion, out Point3D frontierPoint);
+            if (frontierRelease)
+            {
+                releaseRegion = frontierRegion;
+                release = frontierPoint;
+            }
+            // A fixed frontier keep is not a death loop: the quick-return-to-capital rule cannot move it.
+            if (IsAutonomousWorldBot && release != null && !frontierRelease)
             {
                 long now = GameLoop.GameLoopTime;
                 bool sameBind = _lastBindRelease != null && _lastBindReleaseRegion == releaseRegion &&
