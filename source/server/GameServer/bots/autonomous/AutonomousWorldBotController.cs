@@ -1983,9 +1983,16 @@ namespace DOL.GS
             {
                 IssuePath(bot, formation, retargetWhileMoving: true);
             }
-            SetStatus(bot, "Traveling in group formation", directive.SharedGoal,
-                $"Keeping formation with {leader.Name}; the party clears dungeon threats before advancing",
+            // Owner 2026-11-02: a frontier patrol walked Emain reading "the party clears dungeon threats before
+            // advancing", and its phase column still said "Boarding frontier teleporter" minutes after the crossing.
+            SetStatus(bot, AutonomousGroupStatusText.TravelingInFormation, directive.SharedGoal,
+                AutonomousGroupStatusText.Formation(leader.Name, directive.ObjectiveKind,
+                    directive.Camp?.IsDungeon == true),
                 directive.Camp?.MonsterName ?? string.Empty, directive.Camp?.ZoneName ?? string.Empty);
+            // The phase is written only where a status is written with SetRvrStatus, so once the party stopped boarding
+            // it kept the last boarding text. On the frontier the phase is the activity (same rule as SetRvrStatus).
+            if (bot.PersistentRecord != null && directive.ObjectiveKind == eAutonomousObjectiveKind.RvR)
+                bot.PersistentRecord.ObjectivePhase = AutonomousGroupStatusText.TravelingInFormation;
             return true;
         }
 
