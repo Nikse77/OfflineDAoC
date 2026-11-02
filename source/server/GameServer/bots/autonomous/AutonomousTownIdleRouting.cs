@@ -146,7 +146,27 @@ namespace DOL.GS
                 }
 
                 if (_townCandidateIndex >= Math.Min(12, _townCandidates.Length))
+                {
+                    // Owner 2026-11-02: "e se invece ... il sistema lo sposta nella città?". A break that could never
+                    // find a route ended here and was rolled again at the next boundary: Isaisbeth went through 104
+                    // stagings and this run logged 702 of these closes. The bot is moved to a level-appropriate town of
+                    // its own realm and takes the break there.
+                    foreach (IdleTown candidate in _townCandidates)
+                    {
+                        if (!TryChooseTownPoint(bot, candidate, out Vector3 spot))
+                            continue;
+                        bot.StopMoving();
+                        bot.StopMovingOnPath();
+                        bot.MoveTo(new GameLocation($"{candidate.Name} break", (ushort)candidate.RegionId,
+                            (int)spot.X, (int)spot.Y, (int)spot.Z, bot.Heading));
+                        _townIdleDestination = new(candidate, spot);
+                        Log.Info($"AUTONOMOUS_TOWN_IDLE_TELEPORT bot=\"{bot.Name}\" id={bot.DatabaseID} " +
+                            $"level={bot.Level} town=\"{candidate.Name}\" region={candidate.RegionId} " +
+                            $"destination={(int)spot.X},{(int)spot.Y},{(int)spot.Z} reason=\"no town route fits the remaining budget\"");
+                        return true;
+                    }
                     return FinishTownIdle(bot, "No fully validated town route fits the remaining budget");
+                }
 
                 // At most two candidate validations a second server-wide, and
                 // only for the 15% task-boundary roll. Never a per-tick world scan.
