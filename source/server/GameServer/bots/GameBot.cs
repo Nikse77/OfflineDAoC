@@ -117,6 +117,14 @@ namespace DOL.GS
 
         private bool EndIntentionalWorldMove() => Interlocked.Decrement(ref _intentionalWorldMoveDepth) == 0;
         public bool IsReturningAfterRelease { get; private set; }
+
+        /// <summary>
+        /// Owner 2026-11-02: "chi fa release resta SEMPRE al portale! SEMPRE! finché il capo non va a riprenderlo".
+        /// A frontier casualty that released at the border keep keeps this until it is picked up. It is a state and
+        /// not the return flag alone, because that flag is cleared by every autonomous pass that runs without a group
+        /// directive - exactly the passes right after a wipe - and the released member then marched the frontier alone.
+        /// </summary>
+        public bool WaitingAtFrontierKeep { get; private set; }
         public BotSpec BotSpec { get; private set; }
         public eBotStance Stance { get; set; } = eBotStance.Auto;
         private int m_leftOverSpecPoints;
@@ -952,6 +960,7 @@ namespace DOL.GS
             _deathRegionId = CurrentRegionID;
             _deathLocation = new Point3D(X, Y, Z);
             IsReturningAfterRelease = false;
+            WaitingAtFrontierKeep = false;
             _stableReturnPlan = null;
             CompleteStableMasterRoute();
 
@@ -1222,6 +1231,9 @@ namespace DOL.GS
                     Math.Max(1, MaxHealth / 3), Math.Max(0, MaxMana / 3), Math.Max(0, MaxEndurance / 3)))
                 return;
             IsReturningAfterRelease = returnToParty;
+            // Owner 2026-11-02: the frontier casualty waits at the portal keep until the leader comes for it. Only an
+            // RvR release in a frontier sets it; a PvE release still walks back on its own as it always did.
+            WaitingAtFrontierKeep = frontierRelease && IsAutonomousWorldBot && rvrDuty;
             if (returnToParty) AutonomousRealmRaid.RejoinAfterRelease(this);
             _nextReturnRoleplayTick = GameLoop.GameLoopTime + Util.Random(45_000, 90_000);
             Brain?.FSM?.SetCurrentState(eFSMStateType.FOLLOW);
@@ -1343,11 +1355,22 @@ namespace DOL.GS
             if (!IsAutonomousWorldBot || IsTemporaryGroupHelper || IsPlayerLedGroup ||
                 !IsAlive || !IsReturningAfterRelease || IsOnStableMasterRoute)
                 return;
+            // Owner 2026-11-02: a frontier casualty does not resume on its own. Only the pickup clears the wait, and the
+            // pickup goes through CompleteFrontierPickup, so a pass without a group directive can no longer send it off
+            // alone down the frontier.
+            if (WaitingAtFrontierKeep)
+                return;
             IsReturningAfterRelease = false;
             _stableReturnPlan = null;
             StopMovingOnPath();
             StopMoving();
         }
+
+        /// <summary>
+        /// The leader has come for this casualty (or the party is no longer on an RvR task): stop waiting at the keep and
+        /// hand the journey back to the formation follow.
+        /// </summary>
+        public void CompleteFrontierPickup() => WaitingAtFrontierKeep = false;
 
         public bool ContinueReturnJourney()
         {

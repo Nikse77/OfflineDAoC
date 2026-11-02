@@ -24,5 +24,16 @@ namespace DOL.GS
         /// <summary>Owner 2026-11-02: the leader has the same leash. Chasing a target must never cost it the party:
         /// past the radius from its nearest member it drops the chase and walks back to them.</summary>
         public static bool LeaderMustReturn(double distanceToNearestMember) => distanceToNearestMember > PickupRadius;
+
+        /// <summary>
+        /// Owner 2026-11-02, on a warband that lost the whole fight: the leader that released at the frontier keep is
+        /// the last of the group to fall, so it waits at the portal until its living comrades have gathered around it
+        /// instead of marching off while they trail after it one at a time. The wait is bounded: one comrade that
+        /// cannot reach the gate must not pin the warband there for ever.
+        /// </summary>
+        public const long KeepGatherMilliseconds = 180_000;
+
+        public static bool PartyMayLeaveKeep(double distanceToFarthestLivingComrade, long waitedMilliseconds) =>
+            distanceToFarthestLivingComrade <= PickupRadius || waitedMilliseconds >= KeepGatherMilliseconds;
     }
 }

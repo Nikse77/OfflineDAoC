@@ -48,5 +48,15 @@ namespace DOL.UnitTests
             Assert.That(AutonomousRvrPickup.LeaderMustReturn(2_001), Is.True);
             Assert.That(AutonomousRvrPickup.LeaderMustReturn(30_000), Is.True);
         }
+
+        [Test]
+        public void ALeaderThatReleasedAtTheKeepWaitsForTheWholeParty()
+        {
+            // "sono rellati al keep ma non hanno rigruppato, sono partiti uno alla volta".
+            Assert.That(AutonomousRvrPickup.PartyMayLeaveKeep(2_000, 0), Is.True);
+            Assert.That(AutonomousRvrPickup.PartyMayLeaveKeep(2_001, 0), Is.False);
+            Assert.That(AutonomousRvrPickup.PartyMayLeaveKeep(20_000, 60_000), Is.False);
+            Assert.That(AutonomousRvrPickup.PartyMayLeaveKeep(20_000, AutonomousRvrPickup.KeepGatherMilliseconds), Is.True);
+        }
     }
 }

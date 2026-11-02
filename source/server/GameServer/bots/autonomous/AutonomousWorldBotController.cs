@@ -182,6 +182,9 @@ namespace DOL.GS
         private long _nextGroupPulseTick;
         private string _activeDynamicGroupId = string.Empty;
         private bool _regroupRouteCleared;
+        // Owner 2026-11-02: a leader that released at a frontier keep holds the party there until its living comrades
+        // have gathered around it. The clock is bounded so one unreachable comrade cannot pin the warband for ever.
+        private long _frontierKeepGatheredSince;
         private GameTrainer _trainingTrainer;
         private long _nextTrainingDecisionTick;
         private string _observedObjectiveAssignmentId = string.Empty;
@@ -417,8 +420,18 @@ namespace DOL.GS
                 // riprenderlo". A frontier casualty keeps its return until the leader is inside the pickup radius:
                 // handing it over sends it marching the whole frontier to the objective on its own, which is how a
                 // released member was found alone on the road between the border keep and the sieged keep.
-                bool frontierCasualty = _groupDirective?.ObjectiveKind == eAutonomousObjectiveKind.RvR &&
-                                        bot.IsReturningAfterRelease && !ReleasedMemberInReach(bot);
+                bool frontierCasualty = false;
+                // Owner 2026-11-02: the wait at the portal keep is a state now, not the return flag alone. A pass with no
+                // group directive - exactly what happens while the session is rebuilt after a wipe - used to clear the
+                // return and send the released member off down the frontier on its own.
+                eAutonomousObjectiveKind currentDuty = _groupDirective?.ObjectiveKind ??
+                    AutonomousObjectiveAssignments.KindFor(bot);
+                if (bot.WaitingAtFrontierKeep && currentDuty != eAutonomousObjectiveKind.RvR)
+                    bot.CompleteFrontierPickup();
+                _frontierKeepGatheredSince = bot.WaitingAtFrontierKeep ? _frontierKeepGatheredSince : 0;
+                frontierCasualty = bot.WaitingAtFrontierKeep ||
+                                   currentDuty == eAutonomousObjectiveKind.RvR &&
+                                   bot.IsReturningAfterRelease && !ReleasedMemberInReach(bot);
                 if (!bot.IsPlayerLedGroup && !frontierCasualty)
                     bot.HandOverReleaseReturnToGroup();
                 if (_groupDirective?.Phase != "Regrouping")
@@ -431,8 +444,17 @@ namespace DOL.GS
                     // Owner 2026-11-02: "un membro che fa release aspetta dove sta che il leader sia a tiro (2000
                     // unità?) e lo raggiunge per rientrare in formazione". Until then it waits where it reappeared;
                     // once the leader is inside the radius it hands the journey back and follows in formation.
-                    if (bot.IsReturningAfterRelease && ReleasedMemberInReach(bot))
+                    // A leader that released at the keep is the last of its group to fall, so it holds the party there
+                    // until the living comrades have gathered around it: it does not march off and let them trail after
+                    // it one at a time ("sono partiti uno alla volta").
+                    bool pickedUp = bot.WaitingAtFrontierKeep && IsLivingLeader(bot)
+                        ? ComradesGatheredAtTheKeep(bot)
+                        : bot.IsReturningAfterRelease && ReleasedMemberInReach(bot);
+                    if (pickedUp)
+                    {
+                        bot.CompleteFrontierPickup();
                         bot.HandOverReleaseReturnToGroup();
+                    }
                     else
                     {
                         if (frontierCasualty)
@@ -2655,6 +2677,36 @@ namespace DOL.GS
             bot.Group?.LivingLeader is GameBot leader && leader != bot && leader.IsAlive &&
             leader.CurrentRegionID == bot.CurrentRegionID &&
             AutonomousRvrPickup.MemberJoinsLeader(bot.GetDistanceTo(leader));
+
+        private static bool IsLivingLeader(GameBot bot) => bot.Group?.LivingLeader == bot && bot.IsAlive;
+
+        /// <summary>
+        /// Owner 2026-11-02: "sono partiti uno alla volta". A leader that released at the frontier keep is the last of
+        /// its group to fall, so it is the natural rally point: it leaves only once every living comrade is around it
+        /// (inside the pickup radius), or once the bounded wait has run out so one unreachable comrade cannot pin the
+        /// whole warband to that gate.
+        /// </summary>
+        private bool ComradesGatheredAtTheKeep(GameBot bot)
+        {
+            long now = GameLoop.GameLoopTime;
+            if (_frontierKeepGatheredSince == 0)
+                _frontierKeepGatheredSince = now;
+
+            double farthest = 0;
+            Group group = bot.Group;
+            if (group != null)
+            {
+                foreach (GameLiving member in group.GetMembersInTheGroup())
+                {
+                    if (member == bot || !member.IsAlive)
+                        continue;
+                    farthest = member.CurrentRegionID != bot.CurrentRegionID
+                        ? double.MaxValue
+                        : Math.Max(farthest, bot.GetDistanceTo(member));
+                }
+            }
+            return AutonomousRvrPickup.PartyMayLeaveKeep(farthest, now - _frontierKeepGatheredSince);
+        }
 
         private CampDestination ChooseRvrDestination(GameBot bot)
         {
