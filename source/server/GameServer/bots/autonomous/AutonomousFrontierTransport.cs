@@ -62,6 +62,7 @@ public static class AutonomousFrontierTransport
     private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<OFTeleporter, BoardingBatch> Batches = new();
     public const string RequestKey = "RvrFrontierPassage";
     public const int BoardingRadius = 500;
+    private const int BoardingMargin = 50;
     public const int SlicePassengerLimit = 8;
     public const int SliceMilliseconds = 3;
     public const int SliceIntervalMilliseconds = 50;
@@ -84,16 +85,32 @@ public static class AutonomousFrontierTransport
     }
 
     public static bool TryWaitingPoint(GameBot bot, OFTeleporter porter, out Vector3 point)
-        => TryWaitingPoint(PathfindingProvider.Instance, porter.CurrentZone, new(porter.X, porter.Y, porter.Z),
-            bot.Realm, bot.DatabaseID, out point);
+    {
+        // Owner 2026-11-02: a bot that already holds a boarding request is a traveller, not a party waiting for its
+        // leader, so it has to stand inside the boarding radius. It used to get the gate-front fan that our own
+        // "wait in front of the gate" rule puts 963 units from the porter of the entry keeps: Wilorred stood at
+        // 474,576/342,751, Master Visur at 475,766/343,201 - 1,272 apart against a boarding radius of 500 - and never
+        // boarded, never moved, and never said why.
+        bool boarding = bot.TempProperties.GetProperty<Request>(RequestKey)?.Porter == porter;
+        return TryWaitingPoint(PathfindingProvider.Instance, porter.CurrentZone, new(porter.X, porter.Y, porter.Z),
+            bot.Realm, bot.DatabaseID, out point, boarding);
+    }
 
-    public static bool TryWaitingPoint(IPathfindingMgr nav, Zone zone, Vector3 center, eRealm realm, long botId, out Vector3 point)
+    /// <summary>Inside the boarding radius with a margin, so a step of drift cannot put a traveller out of reach.</summary>
+    public static bool InsideBoardingReach(Vector3 point, Vector3 porter) =>
+        Vector3.Distance(point, porter) <= BoardingRadius - BoardingMargin;
+
+    public static bool TryWaitingPoint(IPathfindingMgr nav, Zone zone, Vector3 center, eRealm realm, long botId,
+        out Vector3 point, bool boarding = false)
     {
         point = default;
         if (zone == null || !nav.IsAvailable || !nav.HasNavmesh(zone)) return false;
         // Owner 2026-11-02: at the entry keeps of Hadrian, Odin and Emain the waiting party stands in the open in front
         // of the gate, not in a ring around the porter and never behind the keep: the cluster is tied to that spot.
-        bool gateFront = AutonomousFrontierRelease.TryGateFront(realm, zone.ZoneRegion.ID, out Point3D gate);
+        // Owner 2026-11-02, second pass: that spot is for waiting only. Whoever has a passage request must stand within
+        // BoardingRadius of the porter, so a traveller keeps the ring and the fan stays for the party.
+        Point3D gate = default;
+        bool gateFront = !boarding && AutonomousFrontierRelease.TryGateFront(realm, zone.ZoneRegion.ID, out gate);
         Vector3 origin = gateFront ? new Vector3(gate.X, gate.Y, gate.Z) : center;
         for (int attempt = 0; attempt < 8; attempt++)
         {
@@ -102,6 +119,7 @@ public static class AutonomousFrontierTransport
                 : WaitingOffset(botId, attempt));
             Vector3? floor = nav.GetClosestPoint(zone, desired, 32, 32, 96, nav.DefaultFilters);
             if (!floor.HasValue || Vector3.Distance(origin, floor.Value) > (gateFront ? 860 : 450) ||
+                (boarding && !InsideBoardingReach(floor.Value, center)) ||
                 (!gateFront && Vector2.Distance(new(center.X, center.Y), new(floor.Value.X, floor.Value.Y)) < 200) ||
                 !AutonomousRealmBoundary.Allows(realm, zone.ZoneRegion.ID, zone.ID) ||
                 !AutonomousZoneItinerary.HasCompleteCorridor(nav, zone, center, floor.Value)) continue;

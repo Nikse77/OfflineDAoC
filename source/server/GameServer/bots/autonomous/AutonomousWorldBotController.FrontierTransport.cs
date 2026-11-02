@@ -36,10 +36,16 @@ public sealed partial class AutonomousWorldBotController
             destination.RegionId is not (1 or 100 or 200) || GameRelic.IsPlayerCarryingRelic(bot)) return false;
         var passage = AutonomousFrontierTransport.Destination(bot.Realm,destination.RegionId);
         if (passage == null) return false;
-        // Owner 2026-11-01: the party walks to the teleporter as one body and crosses one member at a time; whoever steps
+        // Owner 2026-11-02: the party walks to the teleporter as one body and crosses one member at a time; whoever steps
         // through first re-anchors the rendezvous on the arrival pad, so the rest converge there and the party reassembles
         // on the far side instead of waiting for the leader at the porter.
-        if (bot.Group != null)
+        // Owner 2026-11-02, second pass: only the leader may re-anchor it. Every member computes its own destination, so
+        // letting any of them write the shared anchor made two private intents fight over the group's region - the 043
+        // party sat in Odin while the anchor alternated between "Odin Hib" and "Home Hib" every few seconds, and each
+        // rewrite put the phase back to "Leader staging", which is the one phase where a member may cross alone: eight
+        // bots queueing at the porter one at a time and never assembling. A follower that crosses still uses the anchor;
+        // it just does not choose it.
+        if (bot.Group != null && bot.Group.LivingLeader == bot)
             AutonomousBotGroupCoordinator.MoveRvRRendezvous(bot.Group, passage.Region,
                 new Vector3(passage.Location.X, passage.Location.Y, passage.Location.Z), passage.Location.Name);
         bool returningToPve = passage.Medallion == "home_necklace" &&
@@ -115,6 +121,18 @@ public sealed partial class AutonomousWorldBotController
         }
         // Ordinary warbands retain their shared departure. Committed siege
         // responders board independently; defenders receive a bounded priority slice.
+        // Owner 2026-11-02: the waiting point is chosen once and kept while the porter lives, so a traveller parked by
+        // an older rule would stand out of the pad's reach for the rest of the run. Drop it when it cannot board from
+        // there; a party member without a request keeps its spot in front of the gate.
+        bool boardingNow = bot.TempProperties.GetProperty<AutonomousFrontierTransport.Request>(
+            AutonomousFrontierTransport.RequestKey)?.Porter == _frontierPorter;
+        if (boardingNow && _frontierWaitingPoint.HasValue &&
+            !AutonomousFrontierTransport.InsideBoardingReach(_frontierWaitingPoint.Value,
+                new(_frontierPorter.X, _frontierPorter.Y, _frontierPorter.Z)))
+        {
+            _frontierWaitingPoint = null;
+            _nextWaitingPointSearch = 0;
+        }
         if (!_frontierWaitingPoint.HasValue && GameLoop.GameLoopTime >= _nextWaitingPointSearch)
         {
             _nextWaitingPointSearch = GameLoop.GameLoopTime + 10_000;
