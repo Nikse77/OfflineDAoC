@@ -26,6 +26,26 @@ namespace DOL.GS
             _ => null
         };
 
+        /// <summary>
+        /// Owner 2026-11-02: the list a frontier medallion merchant carries, chosen by the frontier it stands in -
+        /// at its own keep both enemy frontiers, in a foreign frontier the home necklace plus the other enemy
+        /// frontier's. A warband that changes frontier always finds a medallion where it is, so the crossing stays a
+        /// single passage. The last branch is the fallback for a merchant that has not been placed in a region yet.
+        /// </summary>
+        public static string MedallionStock(eRealm realm, ushort region) => (realm, region) switch
+        {
+            (eRealm.Albion, 100) => "OFMerchant_Alb_HomeMid",
+            (eRealm.Albion, 200) => "OFMerchant_Alb_HomeHib",
+            (eRealm.Albion, _) => "OFMerchant_Alb_Home",
+            (eRealm.Midgard, 1) => "OFMerchant_Mid_HomeAlb",
+            (eRealm.Midgard, 200) => "OFMerchant_Mid_HomeHib",
+            (eRealm.Midgard, _) => "OFMerchant_Mid_Home",
+            (eRealm.Hibernia, 1) => "OFMerchant_Hib_HomeAlb",
+            (eRealm.Hibernia, 100) => "OFMerchant_Hib_HomeMid",
+            (eRealm.Hibernia, _) => "OFMerchant_Hib_Home",
+            _ => null,
+        };
+
         public static void ApplyLabel(GameMerchant merchant)
         {
             string label = Label(merchant?.TradeItems?.ItemsListID);

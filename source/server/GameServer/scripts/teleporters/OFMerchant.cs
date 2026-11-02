@@ -72,11 +72,33 @@ namespace DOL.GS.Scripts
 
         #endregion Constructor
 
+        /// <summary>
+        /// Owner 2026-11-02: the stock used to be chosen inside AddToWorld from CurrentRegionID, which is still 0 on
+        /// the spawn path that adds the NPC before its region is assigned - four of the nine medallion merchants fell
+        /// into the home-only fallback, so a warband standing in a foreign frontier could not buy the necklace of the
+        /// frontier it needed. Selecting on every region assignment makes the region the merchant really stands in the
+        /// last word, whatever order the spawner used.
+        /// </summary>
+        public override Region CurrentRegion
+        {
+            get => base.CurrentRegion;
+            set
+            {
+                base.CurrentRegion = value;
+                SelectStock();
+            }
+        }
+
+        private void SelectStock()
+        {
+            string list = FrontierSupplyMerchantPolicy.MedallionStock(Realm, CurrentRegionID);
+            if (list != null) TradeItems = new MerchantTradeItems(list);
+        }
+
         #region AddToWorld
 
         public override bool AddToWorld()
         {
-
             GuildName = "Medallion Merchant";
             Level = 75;
             Flags |= eFlags.PEACE;
@@ -86,35 +108,18 @@ namespace DOL.GS.Scripts
                 case eRealm.Albion:
                     Name = "Sall Fadri";
                     Model = 61;
-                    if(CurrentRegionID == 200)
-                        TradeItems = new MerchantTradeItems("OFMerchant_Alb_HomeHib");
-                    else if(CurrentRegionID == 100)
-                        TradeItems = new MerchantTradeItems("OFMerchant_Alb_HomeMid");
-                    else 
-                        TradeItems = new MerchantTradeItems("OFMerchant_Alb_Home");
                     break;
                 case eRealm.Midgard:
                     Name = "Gwulla";
                     Model = 215;
-                    if(CurrentRegionID == 200)
-                        TradeItems = new MerchantTradeItems("OFMerchant_Mid_HomeHib");
-                    else if(CurrentRegionID == 1)
-                        TradeItems = new MerchantTradeItems("OFMerchant_Mid_HomeAlb");
-                    else 
-                        TradeItems = new MerchantTradeItems("OFMerchant_Mid_Home");
                     break;
                 case eRealm.Hibernia:
                     Name = "Araisa";
                     Model = 342;
-                    if(CurrentRegionID == 100)
-                        TradeItems = new MerchantTradeItems("OFMerchant_Hib_HomeMid");
-                    else if(CurrentRegionID == 1)
-                        TradeItems = new MerchantTradeItems("OFMerchant_Hib_HomeAlb");
-                    else 
-                        TradeItems = new MerchantTradeItems("OFMerchant_Hib_Home");
                     break;
             }
-         
+
+            SelectStock();
             MaxSpeedBase = 0;
             return base.AddToWorld();
         }
