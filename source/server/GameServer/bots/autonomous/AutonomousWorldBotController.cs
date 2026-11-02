@@ -426,12 +426,22 @@ namespace DOL.GS
                 // return and send the released member off down the frontier on its own.
                 eAutonomousObjectiveKind currentDuty = _groupDirective?.ObjectiveKind ??
                     AutonomousObjectiveAssignments.KindFor(bot);
-                if (bot.WaitingAtFrontierKeep && currentDuty != eAutonomousObjectiveKind.RvR)
+                // Owner 2026-11-02: "i controlli vanno fatti sul fatto che è un bot rvr in un gruppo rvr". The duty read
+                // from the transient directive alone is not enough: right after a wipe the session is rebuilt, the
+                // directive is empty for a tick and a released leader walks off the keep talking about the bindstone
+                // ("i woke at the bindstone. Hold the road; I will return on foot"). So an RvR bot, or the member of an
+                // RvR party, keeps the frontier wait.
+                bool rvrPartyMember = currentDuty == eAutonomousObjectiveKind.RvR ||
+                                      AutonomousObjectiveAssignments.KindFor(bot) == eAutonomousObjectiveKind.RvR ||
+                                      bot.Group?.LivingLeader is GameBot partyLeader &&
+                                      AutonomousObjectiveAssignments.KindFor(partyLeader) == eAutonomousObjectiveKind.RvR;
+                if (bot.WaitingAtFrontierKeep && !rvrPartyMember)
                     bot.CompleteFrontierPickup();
                 _frontierKeepGatheredSince = bot.WaitingAtFrontierKeep ? _frontierKeepGatheredSince : 0;
+                // Owner 2026-11-02: "IsReturningAfterRelease non c'entra con le dinamiche rvr". An RvR casualty is decided
+                // by the frontier wait and the distance from the leader, never by that generic return flag.
                 frontierCasualty = bot.WaitingAtFrontierKeep ||
-                                   currentDuty == eAutonomousObjectiveKind.RvR &&
-                                   bot.IsReturningAfterRelease && !ReleasedMemberInReach(bot);
+                                   rvrPartyMember && !ReleasedMemberInReach(bot);
                 if (!bot.IsPlayerLedGroup && !frontierCasualty)
                     bot.HandOverReleaseReturnToGroup();
                 if (_groupDirective?.Phase != "Regrouping")
@@ -2664,7 +2674,12 @@ namespace DOL.GS
                 return false;
             foreach (GameBot member in bot.Group.GetMembersInTheGroup().OfType<GameBot>())
             {
-                if (member == bot || member.IsAlive && !member.IsReturningAfterRelease)
+                // Owner 2026-11-02: "IsReturningAfterRelease non c'entra con le dinamiche rvr". In an RvR party a comrade is
+                // fetched when it waits at the frontier keep, and a dead one always is; that generic return flag has no
+                // say here. Earlier it also skipped a living comrade waiting at the keep, which left seven of Gisoenbeth's
+                // members piled on the keep point while the leader reported itself formed up twenty-eight thousand units
+                // away.
+                if (member == bot || member.IsAlive && !member.WaitingAtFrontierKeep)
                     continue;
                 if (!AutonomousFrontierRelease.TryPoint(member.Realm, member.CurrentRegionID,
                         out ushort region, out Point3D keep))

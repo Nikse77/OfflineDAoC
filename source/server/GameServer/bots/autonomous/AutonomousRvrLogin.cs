@@ -36,8 +36,14 @@ public static class AutonomousRvrLogin
         if (AutonomousFrontierTransport.TryGetHomePad(realm, home, out Vector3 pad))
             point = pad;
         Vector3 centre = point;
-        if (!TrySpread(centre, out point) && centre != necklace)
-            TrySpread(necklace, out point);
+        // Owner 2026-11-02: "anche stavolta alb non ha loggato a castel sauvage". An out parameter is assigned even when
+        // the call fails, so a failed spread used to wipe the good necklace and leave the point at 0,0,0 - 33 of Albion's
+        // 47 level-50 bots landed there on every boot while Midgard and Hibernia found their zone. The necklace is a
+        // hand-written coordinate, so it is the floor this can never fall below.
+        Vector3 spread = necklace;
+        if (!TrySpread(centre, out spread) && (centre == necklace || !TrySpread(necklace, out spread)))
+            spread = necklace;
+        point = spread;
         return true;
 
         // 220 to 410 units from the centre, on floor the navmesh accepts: the bots stand around the pad, not on one spot.

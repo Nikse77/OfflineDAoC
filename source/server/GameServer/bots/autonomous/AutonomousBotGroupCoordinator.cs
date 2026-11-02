@@ -1911,6 +1911,42 @@ public static partial class AutonomousBotGroupCoordinator
                     compatible = compatiblePool.Take(rolledSize - 1).ToArray();
             }
 
+            // Owner 2026-11-02: "aggiungi una regola per la formazione dei gruppi mid, 1 solo bonedancer per gruppo" and
+            // "sostituisci il bd con un altro membro disponibile". The leader counts, so a Bonedancer leader leaves no
+            // place for a second one, and the empty place is filled from the same pool rather than left vacant.
+            if (leader.Realm == eRealm.Midgard)
+                compatible = AtMostOneBonedancer(leader, compatible, compatiblePool, rolledSize - 1);
+
+            static GameBot[] AtMostOneBonedancer(GameBot leader, GameBot[] candidates, GameBot[] pool, int wanted)
+            {
+                bool taken = IsBonedancer(leader);
+                var kept = new List<GameBot>(Math.Max(wanted, candidates.Length));
+                void Take(GameBot candidate)
+                {
+                    if (IsBonedancer(candidate))
+                    {
+                        if (taken)
+                            return;
+                        taken = true;
+                    }
+                    kept.Add(candidate);
+                }
+
+                foreach (GameBot candidate in candidates)
+                    Take(candidate);
+                foreach (GameBot candidate in pool)
+                {
+                    if (kept.Count >= wanted)
+                        break;
+                    if (candidate != leader && !kept.Contains(candidate))
+                        Take(candidate);
+                }
+                return kept.ToArray();
+            }
+
+            static bool IsBonedancer(GameBot bot) =>
+                bot?.CharacterClass != null && (eCharacterClass)bot.CharacterClass.ID == eCharacterClass.Bonedancer;
+
             var group = new Group(leader);
             GroupMgr.AddGroup(group);
             if (!group.AddMember(leader))
