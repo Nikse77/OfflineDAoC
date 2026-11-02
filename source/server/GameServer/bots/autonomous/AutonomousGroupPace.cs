@@ -31,8 +31,14 @@ namespace DOL.GS
         /// at every step.</summary>
         public const int CompactResumeRadius = 300;
 
-        public static Decision Decide(float farthestMember, bool waiting, bool compact = false)
+        /// <summary>
+        /// Owner 2026-11-02: "se un membro del gruppo entra in combat tutto il gruppo si ferma, il leader riparte
+        /// solo quando tutto il gruppo è fuori combat". Combat outranks distance: while any member is fighting the
+        /// party holds, and the resume radius keeps it from leaving before the freed members are back in formation.
+        /// </summary>
+        public static Decision Decide(float farthestMember, bool waiting, bool compact = false, bool partyFighting = false)
         {
+            if (partyFighting) return Decision.Wait;
             int trail = compact ? CompactTrailRadius : TrailRadius;
             int resume = compact ? CompactResumeRadius : ResumeRadius;
             return farthestMember <= (waiting ? resume : trail) ? Decision.FullSpeed : Decision.Wait;
