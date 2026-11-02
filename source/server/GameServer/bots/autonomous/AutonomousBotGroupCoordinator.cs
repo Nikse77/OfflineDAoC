@@ -145,7 +145,13 @@ public static partial class AutonomousBotGroupCoordinator
         public HashSet<long> UnreachableRetried { get; } = new();
         public Dictionary<long, long> ExpeditionRouteRetry { get; } = new();
         public Dictionary<long, int> ExpeditionRouteFailures { get; } = new();
-        public bool RendezvousReselectionAttempted { get; set; }
+        /// <summary>
+        /// Owner 2026-11-02: "i membri che hanno problemi del tipo 'non trovo la strada' vengono teletrasportati al punto
+        /// di raduno". One teleport each, per rendezvous - not one per party: the first arrangement let only the first
+        /// stranded member through, and albion-4b989f-030's leader was left holding at the Emain pad (20:54:41) while its
+        /// neighbour had already been moved, so the party ended up split between Emain and Albion.
+        /// </summary>
+        public HashSet<long> TeleportedToRendezvous { get; } = new();
         public long NextAttendanceTick { get; set; }
         public long LeaderStagingDeadlineTick { get; set; }
         public DateTime LeaderStagingDeadlineUtc { get; set; }
@@ -687,7 +693,7 @@ public static partial class AutonomousBotGroupCoordinator
             session.RendezvousRegion = region;
             session.Phase = "Leader staging";
             session.LeaderReadyForAssembly = false;
-            session.RendezvousReselectionAttempted = false;
+            session.TeleportedToRendezvous.Clear();
             session.Attendance.Reset();
             session.LeaderStagingDeadlineTick = GameLoop.GameLoopTime + LeaderStagingTimeoutMilliseconds;
             session.LeaderStagingDeadlineUtc = DateTime.UtcNow.AddMilliseconds(LeaderStagingTimeoutMilliseconds);
@@ -1495,9 +1501,8 @@ public static partial class AutonomousBotGroupCoordinator
             // the reporter's own ground dragged whole parties back over the keeper - albion-d73f04-028 crossed to Emain at
             // 20:36:35 and was ordered home three seconds later, and albion-d73f04-023 bounced Odin/Home four times. The
             // stuck member is put on the rendezvous instead, once, and walks on with the rest.
-            if (!session.RendezvousReselectionAttempted)
+            if (session.TeleportedToRendezvous.Add(MemberKey(bot)))
             {
-                session.RendezvousReselectionAttempted = true;
                 Vector3 rally = session.Rendezvous;
                 ushort rallyRegion = session.RendezvousRegion;
                 if (bot.MoveTo(new GameLocation($"{session.RendezvousName} rally", rallyRegion,
@@ -1512,6 +1517,8 @@ public static partial class AutonomousBotGroupCoordinator
                              $"town=\"{session.RendezvousName}\" reason=\"{reason}\"");
                     return true;
                 }
+                // The move did not take: let this member ask again rather than leave it stuck with no second chance.
+                session.TeleportedToRendezvous.Remove(MemberKey(bot));
             }
 
             long key = MemberKey(bot);
@@ -2262,7 +2269,7 @@ public static partial class AutonomousBotGroupCoordinator
             session.HeldUnreachableMembers.Clear();
             session.UnreachableSince.Clear();
             session.UnreachableRetried.Clear();
-            session.RendezvousReselectionAttempted = false;
+            session.TeleportedToRendezvous.Clear();
             // Owner 2026-11-02: every regroup converges on the leader again, so the point is chosen each time.
             session.RecoveryRendezvousChosen = false;
             ChooseRecoveryRendezvous(session, members[0].Realm);
@@ -2657,7 +2664,7 @@ public static partial class AutonomousBotGroupCoordinator
             session.RendezvousRegion = region;
             session.Phase = "Leader staging";
             session.LeaderReadyForAssembly = false;
-            session.RendezvousReselectionAttempted = false;
+            session.TeleportedToRendezvous.Clear();
             session.Attendance.Reset();
             session.LeaderStagingDeadlineTick = now + LeaderStagingTimeoutMilliseconds;
             session.LeaderStagingDeadlineUtc = DateTime.UtcNow.AddMilliseconds(LeaderStagingTimeoutMilliseconds);

@@ -57,10 +57,10 @@ namespace DOL.GS
         /// Owner 2026-11-02: "ai border keep nelle frontiere nemiche, quindi hadrian, odin e emain, i pg fermi in attesa
         /// devono stare nella zona fuori di fronte al portone del keep, no intorno o dietro".
         ///
-        /// The six entry keeps of Hadrian, Odin and Emain are real Keep rows with doors modelled next to them, so the
-        /// spot in front of the gate is the nearest door taken from the keep centre and continued three hundred and
-        /// fifty units further out. The three home keeps - Castle Sauvage, Svasud Faste, Druim Ligen - are not Keep
-        /// rows and the owner asked to leave them on the porter's pad, so they keep the passage point above.
+        /// The rally point of every keep, home or enemy, is the frontier hastener standing outside it: its own spot
+        /// plus five hundred units along the direction it faces. Owner 2026-11-02: "la posizione dell'hastener più 500
+        /// punti nella direzione in cui guarda l'hastener"; for Emain Albion the direction he read in game (319°) is the
+        /// one used, since the stored heading pointed the other way.
         /// </summary>
         public static bool TryGateFront(eRealm realm, ushort region, out Point3D point)
         {
@@ -95,16 +95,18 @@ namespace DOL.GS
 
         private static GateSpot? Spot(eRealm realm, ushort region) => (realm, region) switch
         {
-            (eRealm.Albion, 200) => new GateSpot(474_803, 343_226, 4146, -0.9112, -0.4114),
-            (eRealm.Albion, 100) => new GateSpot(596_596, 630_190, 6038, 0.1860, -0.9825),
-            (eRealm.Midgard, 1) => new GateSpot(654_516, 293_941, 4858, -0.6859, 0.7278),
-            (eRealm.Midgard, 200) => new GateSpot(473_466, 296_048, 3848, -0.6191, 0.7853),
-            (eRealm.Hibernia, 1) => new GateSpot(606_409, 294_333, 4816, 0.8332, 0.5528),
-            (eRealm.Hibernia, 100) => new GateSpot(596_723, 582_126, 6008, 0.7389, 0.6739),
-            // Owner 2026-11-02: the three home keeps - Castle Sauvage, Svasud Faste, Druim Ligen - keep their pad. A gate
-            // front computed at 2.500 units from the keep centre was not walkable: nobody reached it, every member
-            // reported an unreachable rendezvous and the party bounced between frontiers (327 crossings, 53 reselects in
-            // 27 minutes against 37 and 1 before). The pad is where the bots land, so it is walkable by definition.
+            (eRealm.Albion, 200) => new GateSpot(475359, 343228, 4080, 0.6561, 0.7547),
+            (eRealm.Albion, 100) => new GateSpot(597355, 629931, 5968, 0.6481, -0.7615),
+            (eRealm.Midgard, 1) => new GateSpot(654034, 294139, 4864, -0.7570, 0.6534),
+            (eRealm.Midgard, 200) => new GateSpot(473118, 296379, 3848, -0.4756, 0.8796),
+            (eRealm.Hibernia, 1) => new GateSpot(606838, 294937, 4864, 0.8838, 0.4679),
+            (eRealm.Hibernia, 100) => new GateSpot(597046, 582770, 6016, 0.7955, 0.6060),
+            // Owner 2026-11-02: "dovresti calcolare come punto di raduno la posizione dell'hastener più 500 punti nella
+            // direzione in cui guarda l'hastener", and the three home keeps get the same treatment - Castle Sauvage's
+            // speed caster is the Minstrel of Albion, Svasud's and Druim Ligen's are plain Hasteners.
+            (eRealm.Albion, 1) => new GateSpot(585970, 477168, 2600, -0.0262, 0.9997),
+            (eRealm.Midgard, 100) => new GateSpot(766846, 667832, 5736, 1.0000, 0.0052),
+            (eRealm.Hibernia, 200) => new GateSpot(332891, 418632, 5184, -0.6769, -0.7361),
             _ => null,
         };
     }
