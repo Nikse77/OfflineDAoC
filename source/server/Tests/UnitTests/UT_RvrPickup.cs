@@ -11,13 +11,15 @@ namespace DOL.UnitTests
     public class UT_RvrPickup
     {
         [Test]
-        public void ThePickupRadiusIsTheOwnersTwoThousand()
+        public void TheMeetingDistanceIsTheOwnersTwoThousand()
         {
             Assert.That(AutonomousRvrPickup.PickupRadius, Is.EqualTo(2_000));
+            Assert.That(AutonomousRvrPickup.FetchRadius, Is.EqualTo(600));
+            Assert.That(AutonomousRvrPickup.LeashRadius, Is.EqualTo(2_000));
         }
 
         [Test]
-        public void AReleasedMemberJoinsOnlyInsideTheRadius()
+        public void AReleasedMemberJoinsOnlyInsideTheMeetingDistance()
         {
             Assert.That(AutonomousRvrPickup.MemberJoinsLeader(1_999), Is.True);
             Assert.That(AutonomousRvrPickup.MemberJoinsLeader(2_000), Is.True);
@@ -25,11 +27,14 @@ namespace DOL.UnitTests
         }
 
         [Test]
-        public void TheLeaderKeepsMarchingToTheKeepUntilItIsInsideTheRadius()
+        public void TheLeaderWalksOnToTheComradeAndOnlyGivesUpClose()
         {
             Assert.That(AutonomousRvrPickup.LeaderKeepsFetching(40_000), Is.True);
             Assert.That(AutonomousRvrPickup.LeaderKeepsFetching(2_001), Is.True);
-            Assert.That(AutonomousRvrPickup.LeaderKeepsFetching(2_000), Is.False);
+            Assert.That(AutonomousRvrPickup.LeaderKeepsFetching(2_000), Is.True,
+                "the leader does not stop at the meeting distance - the comrade joins it there, the leader walks on");
+            Assert.That(AutonomousRvrPickup.LeaderKeepsFetching(601), Is.True);
+            Assert.That(AutonomousRvrPickup.LeaderKeepsFetching(600), Is.False);
             Assert.That(AutonomousRvrPickup.LeaderKeepsFetching(0), Is.False);
         }
 

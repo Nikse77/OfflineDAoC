@@ -5542,8 +5542,11 @@ namespace DOL.GS
             if (!changed && !forceSave)
                 return;
 
-            record.Activity = activity;
-            record.CurrentGoal = goal;
+            record.Activity = activity ?? string.Empty;
+            // Owner 2026-11-02: the column is NOT NULL, and this line used to copy a null goal straight through, so one
+            // bot failed every save with "NOT NULL constraint failed: offline_world_bots.CurrentGoal" (Ingaenrun, 147
+            // attempts in a row) and its state stopped being persisted at all. Coerced like its neighbours.
+            record.CurrentGoal = goal ?? string.Empty;
             record.ObjectiveProgress = progress;
             record.TargetName = target ?? string.Empty;
             record.TravelDestination = destination ?? string.Empty;
