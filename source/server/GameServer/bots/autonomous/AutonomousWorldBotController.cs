@@ -4524,7 +4524,7 @@ namespace DOL.GS
             // the march are taken out of the group (see AutonomousGroupMarchRoster).
             AutonomousGroupMarchRoster.Note(bot, rvr, GameLoop.GameLoopTime);
             // Owner 2026-11-02: "se un membro del gruppo entra in combat tutto il gruppo si ferma, il leader riparte
-            // solo quando tutto il gruppo Ã¨ fuori combat". The party used to march on whatever its members were
+            // solo quando tutto il gruppo è fuori combat". The party used to march on whatever its members were
             // fighting, because the pace only measured distance. A fight that no longer has a blow behind it stops
             // counting after sixty seconds (AutonomousGroupCombat), so an unreachable monster cannot pin the party.
             bool partyFighting = rvr && bot.Group != null &&
