@@ -141,6 +141,30 @@ public static class AutonomousFrontierTransport
         _ => null,
     };
 
+    /// <summary>The frontier whose keep sells this realm's medallions: Castle Sauvage, Svasud Faste, Druim Ligen.</summary>
+    public static ushort HomeFrontier(eRealm realm) => realm switch
+    {
+        eRealm.Albion => 1,
+        eRealm.Midgard => 100,
+        eRealm.Hibernia => 200,
+        _ => 0,
+    };
+
+    /// <summary>
+    /// Owner 2026-11-02: "i raduni in altre frontiere devono SEMPRE passare dai portali". A frontier vendor stocks
+    /// the necklaces of its own realm's frontier plus the home one, so a bot standing in a foreign frontier can only
+    /// buy the home medallion - Gwulla in Emain sells home_necklace and nothing else - and a third frontier is two
+    /// passages, home first. The predicate is the medallion arithmetic, not a preference: it may only be true when
+    /// the target is neither the frontier the bot is in nor its own home one.
+    /// </summary>
+    public static bool NeedsHomeHop(eRealm realm, ushort currentRegion, ushort targetRegion)
+    {
+        ushort home = HomeFrontier(realm);
+        return home != 0 && currentRegion != targetRegion &&
+               currentRegion is 1 or 100 or 200 && targetRegion is 1 or 100 or 200 &&
+               currentRegion != home && targetRegion != home;
+    }
+
     public static DbInventoryItem Ticket(GameBot bot, Passage passage) => bot.Inventory.AllItems
         .FirstOrDefault(item => item.SlotPosition >= (int)eInventorySlot.FirstBackpack &&
             item.SlotPosition <= (int)eInventorySlot.LastBackpack && item.Count > 0 && item.Id_nb == passage.Medallion);

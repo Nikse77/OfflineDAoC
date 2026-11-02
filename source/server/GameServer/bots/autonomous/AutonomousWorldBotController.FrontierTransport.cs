@@ -74,12 +74,12 @@ public sealed partial class AutonomousWorldBotController
                 _medallionMerchant = _frontierPorter.GetNPCsInRadius(3000).OfType<GameMerchant>()
                     .Where(npc => (npc.Realm==bot.Realm || npc.Realm==eRealm.None) && npc.TradeItems?.GetAllItems().Values.OfType<DbItemTemplate>().Any(item=>item.Id_nb==passage.Medallion)==true)
                     .OrderBy(_frontierPorter.GetDistanceTo).FirstOrDefault();
-            if (_medallionMerchant == null) return false;
+            if (_medallionMerchant == null) return TryHomeFrontierDetour(bot, destination);
             // Each realm sells frontier medallions only at its first border keep (Druim Ligen, Castle Sauvage, Svasud
             // Faste). A bot staged at the other border keep walks into the frontier through that keep's gate, as players
             // do, instead of crossing the realm for a medallion (run 24: Hibernians at Druim Cain stood still for 15
             // minutes "collecting a frontier medallion" 110,000 units from Araisa).
-            if (bot.GetDistanceTo(_medallionMerchant) > FrontierMedallionReach) return false;
+            if (bot.GetDistanceTo(_medallionMerchant) > FrontierMedallionReach) return TryHomeFrontierDetour(bot, destination);
             // A ride (town teleporter or horse route) when clearly faster than walking to the merchant.
             if (TryBeginFasterStableRoute(bot, new(_medallionMerchant.X, _medallionMerchant.Y, _medallionMerchant.Z), _medallionMerchant.Name))
                 return true;
@@ -138,5 +138,22 @@ public sealed partial class AutonomousWorldBotController
                     ? $"At {_frontierPorter.Name}; boarding independently for the siege at the next departure to {passage.Location.Name}"
                     : $"At {_frontierPorter.Name}; waiting for the warband and the native departure to {passage.Location.Name}");
         return true;
+    }
+
+    /// <summary>
+    /// Owner 2026-11-02: the medallion of a third frontier is not for sale where the bot stands, so the passage it
+    /// can board now is the one leading home; the next turn boards the target from there. Two teleporters, never a
+    /// walk and never the stalled "No legal region connection" rendezvous that left a party standing in Emain with
+    /// an objective in Hadrian's Wall.
+    /// </summary>
+    private bool TryHomeFrontierDetour(GameBot bot, CampDestination destination)
+    {
+        if (!AutonomousFrontierTransport.NeedsHomeHop(bot.Realm, bot.CurrentRegionID, destination.RegionId))
+            return false;
+        AutonomousFrontierTransport.Passage home =
+            AutonomousFrontierTransport.Destination(bot.Realm, AutonomousFrontierTransport.HomeFrontier(bot.Realm));
+        if (home == null) return false;
+        return TryFrontierTransport(bot, new("frontier-passage", home.Location.Name, "frontier",
+            home.Region, home.Location.X, home.Location.Y, home.Location.Z, bot.Level, false, true));
     }
 }

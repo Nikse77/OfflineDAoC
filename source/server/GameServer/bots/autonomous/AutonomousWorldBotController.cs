@@ -1791,10 +1791,23 @@ namespace DOL.GS
             // Owner 2026-11-01: "i viaggi tra reami diversi passano sempre per il teletrasporto!" Between two frontiers
             // there is no walkable edge at all - the only region points leave a frontier for its capital or for a
             // frontier dungeon - so the crossing search could only fail and leave the party REPLANNING forever.
-            if (bot.CurrentRegionID != targetRegion && bot.CurrentRegionID is 1 or 100 or 200 && targetRegion is 1 or 100 or 200 &&
+            bool betweenFrontiers = bot.CurrentRegionID != targetRegion &&
+                bot.CurrentRegionID is 1 or 100 or 200 && targetRegion is 1 or 100 or 200;
+            if (betweenFrontiers &&
                 TryFrontierTransport(bot, new("frontier-passage", destinationLabel, "frontier",
                     targetRegion, targetX, targetY, bot.Z, 50, false, true)))
                 return true;
+            if (betweenFrontiers)
+            {
+                // Owner 2026-11-02: "i raduni in altre frontiere devono SEMPRE passare dai portali". No walkable edge
+                // exists between two frontiers, so a party that cannot board yet holds at the teleporter instead of
+                // searching a road that does not exist and reporting the rendezvous as unreachable.
+                bot.StopMovingOnPath();
+                bot.StopMoving();
+                SetStatus(bot, "Waiting at the frontier teleporter", directive.SharedGoal,
+                    $"Every crossing to {destinationLabel} goes through the teleporter; holding until the passage is boardable");
+                return true;
+            }
 
             DbZonePoint crossing = FindNextCrossing(bot, targetRegion, targetX, targetY);
             if (crossing == null)
