@@ -91,12 +91,18 @@ public static class AutonomousFrontierTransport
     {
         point = default;
         if (zone == null || !nav.IsAvailable || !nav.HasNavmesh(zone)) return false;
+        // Owner 2026-11-02: at the entry keeps of Hadrian, Odin and Emain the waiting party stands in the open in front
+        // of the gate, not in a ring around the porter and never behind the keep: the cluster is tied to that spot.
+        bool gateFront = AutonomousFrontierRelease.TryGateFront(realm, zone.ZoneRegion.ID, out Point3D gate);
+        Vector3 origin = gateFront ? new Vector3(gate.X, gate.Y, gate.Z) : center;
         for (int attempt = 0; attempt < 8; attempt++)
         {
-            Vector3 desired = center + WaitingOffset(botId, attempt);
+            Vector3 desired = origin + (gateFront
+                ? AutonomousFrontierRelease.GateOffset(realm, zone.ZoneRegion.ID, botId, attempt)
+                : WaitingOffset(botId, attempt));
             Vector3? floor = nav.GetClosestPoint(zone, desired, 32, 32, 96, nav.DefaultFilters);
-            if (!floor.HasValue || Vector3.Distance(center, floor.Value) > 450 ||
-                Vector2.Distance(new(center.X, center.Y), new(floor.Value.X, floor.Value.Y)) < 200 ||
+            if (!floor.HasValue || Vector3.Distance(origin, floor.Value) > (gateFront ? 860 : 450) ||
+                (!gateFront && Vector2.Distance(new(center.X, center.Y), new(floor.Value.X, floor.Value.Y)) < 200) ||
                 !AutonomousRealmBoundary.Allows(realm, zone.ZoneRegion.ID, zone.ID) ||
                 !AutonomousZoneItinerary.HasCompleteCorridor(nav, zone, center, floor.Value)) continue;
             point = floor.Value;

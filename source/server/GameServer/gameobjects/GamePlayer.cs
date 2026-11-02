@@ -1431,6 +1431,19 @@ namespace DOL.GS
             if (character == null)
                 return;
 
+            // Owner 2026-11-02: "la release di un player in frontiera deve portare al portal keep di casa se si tratta
+            // della frontiera di casa, deve portare al portal keep della frontiera se si tratta di una frontiera nemica".
+            // The two rules are one point: the realm's portal keep in that frontier, which is what the bots release at
+            // too, so a player and its warband always come back to the same keep.
+            bool frontierRelease = CurrentZone != null &&
+                                   AutonomousFrontierRelease.IsFrontierZone(CurrentRegionID, CurrentZone.ID);
+            bool hasFrontierPoint = false;
+            ushort frontierRegion = 0;
+            Point3D frontierPoint = null;
+            if (frontierRelease)
+                hasFrontierPoint = AutonomousFrontierRelease.TryPoint(Realm, CurrentRegionID,
+                    out frontierRegion, out frontierPoint);
+
             if (IsAlive)
             {
                 Out.SendMessage(LanguageMgr.GetTranslation(Client.Account.Language, "GamePlayer.Release.NotDead"), eChatType.CT_System, eChatLoc.CL_SystemWindow);
@@ -1497,6 +1510,7 @@ namespace DOL.GS
                             Out.SendMessage(LanguageMgr.GetTranslation(Client.Account.Language, "GamePlayer.Release.WillReleaseAutoCity", diff / 1000), eChatType.CT_System, eChatLoc.CL_SystemWindow);
                             return;
                         }
+                        case eReleaseType.Bind when hasFrontierPoint:
                         case eReleaseType.NewFrontiers:
                         case eReleaseType.Battleground:
                         {
@@ -1578,6 +1592,15 @@ namespace DOL.GS
                         }
                     }
 
+                    break;
+                }
+                case eReleaseType.Bind when hasFrontierPoint:
+                {
+                    relRegion = frontierRegion;
+                    relX = frontierPoint.X;
+                    relY = frontierPoint.Y;
+                    relZ = frontierPoint.Z;
+                    relHeading = 2048;
                     break;
                 }
                 case eReleaseType.NewFrontiers:
