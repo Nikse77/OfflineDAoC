@@ -1490,52 +1490,27 @@ public static partial class AutonomousBotGroupCoordinator
                 session.ExpeditionRouteRetry[memberKey] = GameLoop.GameLoopTime + 60_000;
                 return true;
             }
+            // Owner 2026-11-02: "una volta impostato il punto di raduno, i membri che hanno problemi del tipo 'non trovo la
+            // strada' vengono teletrasportati al punto di raduno dal sistema". The rendezvous never moves again: moving it to
+            // the reporter's own ground dragged whole parties back over the keeper - albion-d73f04-028 crossed to Emain at
+            // 20:36:35 and was ordered home three seconds later, and albion-d73f04-023 bounced Odin/Home four times. The
+            // stuck member is put on the rendezvous instead, once, and walks on with the rest.
             if (!session.RendezvousReselectionAttempted)
             {
                 session.RendezvousReselectionAttempted = true;
-                GameBot leader = ChooseLeader(session, BotMembers(group));
-                // The old retry chose from the leader's town again, commonly
-                // shifting the same blocked point by a few units. First look
-                // for a reachable town near the reporter, then near the leader.
-                // TryChooseRendezvous validates all same-region party members.
-                // A reporter may be stranded on a raised polygon while the
-                // leader's original town is also disconnected. The remaining
-                // PvE members provide a few more real, validated town anchors;
-                // this runs only after a route failure, never in the AI tick.
-                IEnumerable<GameBot> anchors = session.ObjectiveKind == eAutonomousObjectiveKind.GroupPve
-                    ? new[] { bot, leader }.Concat(BotMembers(group).Where(member => member.IsAlive))
-                    : new[] { bot, leader };
-                foreach (GameBot anchor in anchors.Where(candidate => candidate != null).Distinct())
+                Vector3 rally = session.Rendezvous;
+                ushort rallyRegion = session.RendezvousRegion;
+                if (bot.MoveTo(new GameLocation($"{session.RendezvousName} rally", rallyRegion,
+                        (int)rally.X, (int)rally.Y, (int)rally.Z)))
                 {
-                    if (!TryChooseRendezvous(anchor, session.ObjectiveKind, out Vector3 replacement,
-                            out string replacementName, out ushort replacementRegion) ||
-                        !IsMaterialRendezvousChange(session.RendezvousRegion, session.Rendezvous,
-                            replacementRegion, replacement))
-                        continue;
-                    Vector3 previous = session.Rendezvous;
-                    string previousName = session.RendezvousName;
-                    ushort previousRegion = session.RendezvousRegion;
-                    session.Rendezvous = replacement;
-                    session.RendezvousName = replacementName;
-                    session.RendezvousRegion = replacementRegion;
-                    if (TryBuildRendezvousSlots(session, BotMembers(group)))
-                    {
-                        if (session.Phase == "Meeting up")
-                            RebaseAttendance(session, BotMembers(group));
-                        else
-                            session.Attendance.Reset();
-                        session.HeldUnreachableMembers.Clear();
-                        session.UnreachableSince.Clear();
-                        session.UnreachableRetried.Clear();
-                        Log.Warn($"AUTONOMOUS_GROUP_RENDEZVOUS_RESELECTED group={session.Id} bot=\"{bot.Name}\" " +
-                                 $"from={(int)previous.X},{(int)previous.Y},{(int)previous.Z} " +
-                                 $"to={(int)replacement.X},{(int)replacement.Y},{(int)replacement.Z} reason=\"{reason}\"");
-                        return true;
-                    }
-                    session.Rendezvous = previous;
-                    session.RendezvousName = previousName;
-                    session.RendezvousRegion = previousRegion;
-                    TryBuildRendezvousSlots(session, BotMembers(group));
+                    session.HeldUnreachableMembers.Remove(MemberKey(bot));
+                    session.UnreachableSince.Remove(MemberKey(bot));
+                    session.UnreachableRetried.Remove(MemberKey(bot));
+                    session.Attendance.Reset();
+                    Log.Warn($"RVR_MEMBER_TELEPORTED_TO_RENDEZVOUS group={session.Id} bot=\"{bot.Name}\" " +
+                             $"to={(int)rally.X},{(int)rally.Y},{(int)rally.Z} region={rallyRegion} " +
+                             $"town=\"{session.RendezvousName}\" reason=\"{reason}\"");
+                    return true;
                 }
             }
 
