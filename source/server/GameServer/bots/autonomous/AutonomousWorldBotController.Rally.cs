@@ -391,6 +391,27 @@ public sealed partial class AutonomousWorldBotController
             return true;
         }
 
+        // Siege rework phase 3: a member follows its own group leader; only the leaders of the groups follow the march leader.
+        GameBot ownLeader = bot.Group?.LivingLeader as GameBot;
+        if (ownLeader != null && ownLeader != bot && ownLeader != leader && ownLeader.IsAlive &&
+            ownLeader.CurrentRegionID == bot.CurrentRegionID && army.Contains(ownLeader))
+        {
+            if (!bot.IsWithinRadius(ownLeader, ArmyKeepUpDistance) || leader.TempProperties.GetProperty<bool>(ArmyDetourProperty))
+            {
+                IssuePath(bot, new Vector3(ownLeader.X, ownLeader.Y, ownLeader.Z));
+                SetRvrStatus(bot, "Marching with the army", keep.Name, $"Following {ownLeader.Name}, its group leader");
+                return true;
+            }
+            if (!ownLeader.IsMoving)
+            {
+                bot.StopMovingOnPath(); bot.StopMoving();
+                SetRvrStatus(bot, "Waiting with the army", keep.Name, $"Holding with {ownLeader.Name}, its group leader");
+                return true;
+            }
+            FollowKeepTravel(bot, _rvrDestination);
+            SetRvrStatus(bot, "Marching with the army", keep.Name, $"In the column behind {ownLeader.Name}");
+            return true;
+        }
         if (!bot.IsWithinRadius(leader, ArmyKeepUpDistance))
         {
             IssuePath(bot, new Vector3(leader.X, leader.Y, leader.Z));

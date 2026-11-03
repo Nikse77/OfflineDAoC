@@ -56,6 +56,19 @@ namespace DOL.GS.Tests
             Assert.That(AutonomousRvrCoalition.IsViable(groups, bots), Is.EqualTo(viable));
 
         [Test]
+        public void TheMarchIsLedByTheLeaderOfTheOrganizingGroupThenOfTheNextInOrder()
+        {
+            var order = new[] { "a", "b", "c" };
+            var all = new (string, long, bool)[] { ("a", 1, false), ("a", 2, true), ("b", 3, true), ("c", 4, true) };
+            Assert.That(AutonomousRvrCoalition.PickMarchLeader(order, all), Is.EqualTo(2));
+            // the organizing group's leader is gone: the first group that aggregated leads
+            Assert.That(AutonomousRvrCoalition.PickMarchLeader(order, all.Where(c => c.Item2 != 2)), Is.EqualTo(3));
+            // no group leader among the candidates: the caller falls back to the main-body election
+            Assert.That(AutonomousRvrCoalition.PickMarchLeader(order, new (string, long, bool)[] { ("a", 1, false) }), Is.Null);
+            Assert.That(AutonomousRvrCoalition.PickMarchLeader(order, new (string, long, bool)[] { ("zzz", 9, true) }), Is.Null);
+        }
+
+        [Test]
         public void ReconcileReportsJoinsLeavesAndPromotionsInOrder()
         {
             var coalition = new AutonomousRvrCoalition();

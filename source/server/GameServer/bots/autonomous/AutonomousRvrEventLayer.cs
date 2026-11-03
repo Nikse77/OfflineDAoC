@@ -1024,7 +1024,14 @@ public static partial class AutonomousRvrEventLayer
             GameBot[] turning = candidates
                 .Where(bot => active.MarchTurns.TryGetValue(bot.DatabaseID, out long turn) && now - turn < MarchLeaderSilenceMilliseconds)
                 .ToArray();
-            active.MarchLeader = MainBodyLeader(turning.Length > 0 ? turning : candidates, active.Target);
+            // Siege rework phase 3: the march is led by the leader of the coalition's organizing group (else of the next
+            // group in joining order); the main-body election only decides when no group leader can lead.
+            long? coalitionLeader = AutonomousRvrCoalition.PickMarchLeader(active.Coalition.Groups,
+                active.Mustered.Values.Where(entry => candidates.Contains(entry.Bot))
+                    .Select(entry => (entry.Force, entry.Bot.DatabaseID, entry.Bot.Group?.LivingLeader == entry.Bot)));
+            active.MarchLeader = coalitionLeader is long leaderId
+                ? candidates.First(bot => bot.DatabaseID == leaderId)
+                : MainBodyLeader(turning.Length > 0 ? turning : candidates, active.Target);
             active.MarchLeaderSinceTick = now;
             return active.MarchLeader;
         }

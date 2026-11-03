@@ -46,6 +46,21 @@ namespace DOL.GS
             return true;
         }
 
+        /// <summary>
+        /// Siege rework phase 3: the id of the bot that leads the march. It is the leader of the coalition's first group (the
+        /// organizer) that has one among the candidates, else of the next group in joining order; null when no group has its
+        /// leader among them, and the caller falls back to the main-body election.
+        /// </summary>
+        public static long? PickMarchLeader(IEnumerable<string> order, IEnumerable<(string Force, long BotId, bool IsGroupLeader)> candidates)
+        {
+            var leaders = candidates.Where(candidate => candidate.IsGroupLeader).ToArray();
+            foreach (string force in order)
+                foreach (var leader in leaders)
+                    if (string.Equals(leader.Force, force, StringComparison.Ordinal))
+                        return leader.BotId;
+            return null;
+        }
+
         /// <summary>Whether the coalition is large enough to march (2 groups and 16 bots at least).</summary>
         public static bool IsViable(int groups, int bots) => groups >= MinimumGroups && bots >= MinimumBots;
 
