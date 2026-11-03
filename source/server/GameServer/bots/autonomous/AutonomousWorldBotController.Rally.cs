@@ -391,52 +391,35 @@ public sealed partial class AutonomousWorldBotController
             return true;
         }
 
-        // Siege rework phase 3: a member follows its own group leader; only the leaders of the groups follow the march leader.
+        // Siege rework phase 3 (owner 2026-11-03: "non si muovono in formazione come nelle pattuglie, si muovono in fila
+        // indiana"): the march walks in formation as a patrol does. A member follows its own group leader with the patrol
+        // formation follow; the leaders of the groups follow the march leader in formation, each group standing apart on
+        // its own side of it. Nobody holds because a leader's IsMoving flickers, and nobody is sent to the leader's exact
+        // spot along the road (the single file of the old march).
         GameBot ownLeader = bot.Group?.LivingLeader as GameBot;
         if (ownLeader != null && ownLeader != bot && ownLeader != leader && ownLeader.IsAlive &&
             ownLeader.CurrentRegionID == bot.CurrentRegionID && army.Contains(ownLeader) &&
-            AutonomousRvrEventLayer.IsMarching(targetId, ownLeader))
-        {
-            if (!bot.IsWithinRadius(ownLeader, ArmyKeepUpDistance) || leader.TempProperties.GetProperty<bool>(ArmyDetourProperty))
-            {
-                IssuePath(bot, new Vector3(ownLeader.X, ownLeader.Y, ownLeader.Z));
-                SetRvrStatus(bot, "Marching with the army", keep.Name, $"Following {ownLeader.Name}, its group leader");
-                return true;
-            }
-            if (!ownLeader.IsMoving)
-            {
-                bot.StopMovingOnPath(); bot.StopMoving();
-                SetRvrStatus(bot, "Waiting with the army", keep.Name, $"Holding with {ownLeader.Name}, its group leader");
-                return true;
-            }
-            FollowKeepTravel(bot, _rvrDestination);
-            SetRvrStatus(bot, "Marching with the army", keep.Name, $"In the column behind {ownLeader.Name}");
-            return true;
-        }
-        if (!bot.IsWithinRadius(leader, ArmyKeepUpDistance))
-        {
-            IssuePath(bot, new Vector3(leader.X, leader.Y, leader.Z));
-            SetRvrStatus(bot, "Marching with the army", keep.Name, $"Catching up with {leader.Name}");
-            return true;
-        }
-        if (!leader.IsMoving)
-        {
-            // The leader is holding (regroup or a fight behind); walking on past it splits the column.
-            bot.StopMovingOnPath(); bot.StopMoving();
-            SetRvrStatus(bot, "Waiting with the army", keep.Name, $"Holding with {leader.Name}");
-            return true;
-        }
-        // During the leader's detour around an enemy keep the column walks with the leader, not its own keep route.
-        if (leader.TempProperties.GetProperty<bool>(ArmyDetourProperty))
-        {
-            IssuePath(bot, new Vector3(leader.X, leader.Y, leader.Z));
-            SetRvrStatus(bot, "Marching with the army", keep.Name, $"Around an enemy keep with {leader.Name}");
-            return true;
-        }
-        FollowKeepTravel(bot, _rvrDestination);
-        SetRvrStatus(bot, "Marching with the army", keep.Name, $"In the column with {leader.Name}");
+            AutonomousRvrEventLayer.IsMarching(targetId, ownLeader) &&
+            _groupDirective?.IsDynamic == true && _groupDirective.Leader == ownLeader)
+            return FollowDynamicGroupLeader(bot, _groupDirective);
+
+        Vector3 center = leader.IsMoving ? AutonomousGroupMotion.PredictLeader(leader) : new(leader.X, leader.Y, leader.Z);
+        int side = (int)((uint)(bot.Group?.GetHashCode() ?? (int)bot.DatabaseID) % 6U);
+        double angle = Math.PI + side * Math.PI / 3;   // behind and around the march leader, one side per group
+        Vector3 groupCenter = bot == leader ? center
+            : center + new Vector3((float)Math.Cos(angle) * ArmyGroupSpacing, (float)Math.Sin(angle) * ArmyGroupSpacing, 0);
+        Vector3 formation = AutonomousBotGroupCoordinator.FormationPoint(bot, groupCenter, false);
+        AutonomousGroupMarchRoster.MarkMarching(bot, now);
+        if (Vector3.DistanceSquared(new(bot.X, bot.Y, bot.Z), formation) < FormationFollowReach * FormationFollowReach)
+            AutonomousGroupFormationFollow.Ensure(bot, leader, groupCenter, formation, false);
+        else
+            IssuePath(bot, formation, retargetWhileMoving: true);
+        SetRvrStatus(bot, "Marching with the army", keep.Name, $"In formation behind {leader.Name}");
         return true;
     }
+
+    /// <summary>Distance between the march leader and the formation centre of each other group of the army.</summary>
+    public const int ArmyGroupSpacing = 450;
 
     private bool TravelToDefensivePost(GameBot bot, AbstractGameKeep keep, Vector3 post)
     {
