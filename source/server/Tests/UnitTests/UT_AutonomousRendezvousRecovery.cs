@@ -8,6 +8,19 @@ namespace DOL.GS.Tests
     [TestFixture]
     public sealed class UT_AutonomousRendezvousRecovery
     {
+        // Run of 2026-11-03, hibernia-0c6753-058: an RvR member that follows its leader like a companion stood 80.02 units from a
+        // slot of radius 80 and the whole party waited twenty minutes for it.
+        [Test]
+        public void AnRvrMemberCloseToALeaderAtItsSlotHasArrivedEvenOffItsOwnSlot()
+        {
+            Assert.That(AutonomousRendezvousAttendance.IsAtSlot(Vector3.Zero, new Vector3(80.02f, 0, 0), false), Is.False);
+            Assert.That(AutonomousRendezvousAttendance.FollowsLeader(79, true), Is.True);
+            Assert.That(AutonomousRendezvousAttendance.FollowsLeader(AutonomousRendezvousAttendance.FollowArrivalRadius, true), Is.True);
+            Assert.That(AutonomousRendezvousAttendance.FollowsLeader(AutonomousRendezvousAttendance.FollowArrivalRadius + 1, true), Is.False);
+            Assert.That(AutonomousRendezvousAttendance.FollowsLeader(79, false), Is.False,
+                "A leader that has not reached its own slot does not make its followers arrived");
+        }
+
         [Test]
         public void DyingThreeTimesOnTheWayToAMeetupIsANoShow()
         {

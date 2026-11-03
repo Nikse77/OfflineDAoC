@@ -24,6 +24,16 @@ namespace DOL.GS
             int radius = Radius(tight);
             return Vector3.DistanceSquared(position, slot) <= radius * radius;
         }
+
+        /// <summary>
+        /// Owner 2026-11-03: an RvR party member follows its leader like a companion and stays where the follow order puts it,
+        /// not on its own slot. A slot sits on a ring of 88 units around the rendezvous and the arrival radius is 80, so a
+        /// member within this distance of a leader that stands at its slot has arrived.
+        /// </summary>
+        public const int FollowArrivalRadius = 200;
+
+        public static bool FollowsLeader(double distanceToLeader, bool leaderAtSlot) =>
+            leaderAtSlot && distanceToLeader <= FollowArrivalRadius;
         /// <summary>Deaths on the way that make a member a no-show at once (in-game check 2026-10-17: a
         /// level 1-3 group died about 70 times near its meetup point during the full fifteen-minute wait).</summary>
         public const int MeetupDeathLimit = 3;

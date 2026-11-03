@@ -2535,11 +2535,22 @@ public static partial class AutonomousBotGroupCoordinator
         // with distanceToSlot=1 and activity="Leader ready".
         member.IsAlive && !member.IsOnStableMasterRoute &&
         member.CurrentRegionID == session.RendezvousRegion &&
+        (AtSlot(session, member) || FollowsLeaderAtRendezvous(session, member));
+
+    private static bool AtSlot(Session session, GameBot member) =>
         AutonomousRendezvousAttendance.IsAtSlot(new(member.X, member.Y, member.Z),
             session.RendezvousSlots.TryGetValue(MemberKey(member), out Vector3 slot)
                 ? slot
                 : FormationPoint(member, session.Rendezvous,
                     RendezvousIsTight(session)), RendezvousIsTight(session));
+
+    // Owner 2026-11-03: an RvR member holds its leader like a companion (HandleGroupRendezvous), so it never walks to its own
+    // slot. Run of 16:09-16:30: Oisric stood 80.02 units from a slot whose radius is 80 and the whole party waited twenty
+    // minutes for him. Once the leader is at its slot, a member close to the leader counts as being at the rendezvous.
+    private static bool FollowsLeaderAtRendezvous(Session session, GameBot member) =>
+        session.ObjectiveKind == eAutonomousObjectiveKind.RvR && session.Leader is { IsAlive: true } leader &&
+        leader != member && leader.CurrentRegionID == member.CurrentRegionID &&
+        AutonomousRendezvousAttendance.FollowsLeader(leader.GetDistanceTo(member), AtSlot(session, leader));
 
     private static bool RendezvousIsTight(Session session)
     {
