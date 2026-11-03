@@ -380,6 +380,8 @@ public static partial class AutonomousRvrEventLayer
     /// </summary>
     private static void LogMenuDraw(Force force, bool patrolLocked, List<Choice> tried, Plan plan)
     {
+        // A bot on its own ("rvr-<id>") draws a menu of its own at every review; only real parties are worth a line.
+        if (force.GroupId.StartsWith("rvr-", StringComparison.Ordinal)) return;
         try
         {
             string drawn = string.Join(">", tried);
