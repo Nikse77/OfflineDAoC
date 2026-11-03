@@ -2758,8 +2758,16 @@ namespace DOL.GS
             {
                 foreach (GameLiving member in group.GetMembersInTheGroup())
                 {
-                    if (member == bot || !member.IsAlive)
+                    if (member == bot)
                         continue;
+                    // Owner 2026-11-03: a comrade that is still dead has not reached the keep yet. It used to be skipped, and the
+                    // leader left while the last to fall (a release takes 20 to 23 seconds, 90 with a healer) was still on the
+                    // ground: hibernia-543043-037 set off for Emain with three of its eight waiting at Druim Ligen.
+                    if (!member.IsAlive)
+                    {
+                        farthest = double.MaxValue;
+                        continue;
+                    }
                     farthest = member.CurrentRegionID != bot.CurrentRegionID
                         ? double.MaxValue
                         : Math.Max(farthest, bot.GetDistanceTo(member));
