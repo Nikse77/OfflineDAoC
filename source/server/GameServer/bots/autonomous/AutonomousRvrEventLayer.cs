@@ -532,7 +532,7 @@ public static partial class AutonomousRvrEventLayer
 
             bool siegeCapable = MayOpenAssault(force);
             // Owner 2026-10-31 (step 4 of the RvR plan): no more roll to open a siege. A capable force first retakes a keep of its own
-            // frontier that another realm holds; with all of them held, and half an hour after the realm's last conquest attempt, it
+            // frontier that another realm holds; with all of them held, and forty minutes after the end of the realm's last conquest attempt, it
             // goes to conquer a keep in one of the other two frontiers (AutonomousRvrCampaign).
             LiveObjective assault = null;
             bool conquest = false;

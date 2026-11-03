@@ -2400,7 +2400,7 @@ public static partial class AutonomousBotGroupCoordinator
             if (session.ObjectiveKind == eAutonomousObjectiveKind.RvR)
             {
                 StartTaskClock(session, members);
-                // Owner 2026-11-01: an RvR group begins with twenty minutes of patrol, counted from its assembly.
+                // Owner 2026-11-01: an RvR group begins with a patrol counted from its assembly (thirty minutes since 2026-11-01).
                 AutonomousRvrPatrolLock.Begin(session.Id, GameLoop.GameLoopTime);
             }
             Log.Info($"AUTONOMOUS_GROUP_ASSEMBLED group={session.Id} realm={members[0].Realm} size={members.Length} " +

@@ -20,7 +20,7 @@ public static class AutonomousRvrPatrolLock
         if (!string.IsNullOrEmpty(forceId)) Until[forceId] = nowTick + MinimumMilliseconds;
     }
 
-    /// <summary>True while the force must patrol; a force never seen before starts its twenty minutes now.</summary>
+    /// <summary>True while the force must patrol; a force never seen before starts its thirty minutes now.</summary>
     public static bool Holds(string forceId, long nowTick)
     {
         if (string.IsNullOrEmpty(forceId)) return false;
@@ -32,7 +32,7 @@ public static class AutonomousRvrPatrolLock
         return nowTick < until;
     }
 
-    /// <summary>The twenty minutes are over and the force is free to choose another objective.</summary>
+    /// <summary>The thirty minutes are over and the force is free to choose another objective.</summary>
     public static bool Expired(string forceId, long nowTick) =>
         !string.IsNullOrEmpty(forceId) && Until.TryGetValue(forceId, out long until) && until <= nowTick;
 
