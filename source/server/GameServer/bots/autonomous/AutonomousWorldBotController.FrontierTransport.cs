@@ -102,6 +102,9 @@ public sealed partial class AutonomousWorldBotController
             _nextWaitingPointSearch = 0;
         }
         if (_frontierPorter == null) return RefuseFrontierTransport(bot, destination, "no-porter-in-region");
+        // Owner 2026-11-03: the walk to the realm's border keep is made as a patrol is: the leader walks, the members follow
+        // it in formation, the leader waits for whoever trails and for any fight, and the party boards together.
+        if (WalkWithThePartyToThePorter(bot)) return true;
         // Declare the transport intent before approaching its merchant. A
         // returning PvE bot may need its own portal-keep door to BUY the ticket.
         // Boarding still requires the real purchased medallion and all safety checks.
@@ -116,10 +119,17 @@ public sealed partial class AutonomousWorldBotController
                     .OrderBy(_frontierPorter.GetDistanceTo).FirstOrDefault();
             if (_medallionMerchant == null) return TryHomeFrontierDetour(bot, destination, "no-medallion-merchant");
             // Each realm sells frontier medallions only at its first border keep (Druim Ligen, Castle Sauvage, Svasud
-            // Faste). A bot staged at the other border keep walks into the frontier through that keep's gate, as players
-            // do, instead of crossing the realm for a medallion (run 24: Hibernians at Druim Cain stood still for 15
-            // minutes "collecting a frontier medallion" 110,000 units from Araisa).
-            if (bot.GetDistanceTo(_medallionMerchant) > FrontierMedallionReach) return TryHomeFrontierDetour(bot, destination, "merchant-too-far");
+            // Faste). A bot staged at the other border keep walked into the frontier through that keep's gate, as players do,
+            // instead of crossing the realm for a medallion (run 24: Hibernians at Druim Cain stood still for 15 minutes
+            // "collecting a frontier medallion" 110,000 units from Araisa).
+            // Owner 2026-11-03: since every change of frontier goes through the teleporter there is no walk-in left, and a
+            // bot more than FrontierMedallionReach from the merchant simply stood at "Waiting at the frontier teleporter" for
+            // good (30 refusals in 25 minutes, merchants 40,000 to 58,000 units away). The only way is on foot to the
+            // realm's border keep, in an enemy frontier or in its own, so the limit now yields only to the home hop of a
+            // third frontier (NeedsHomeHop); otherwise the bot walks to the merchant by the porter.
+            if (bot.GetDistanceTo(_medallionMerchant) > FrontierMedallionReach &&
+                AutonomousFrontierTransport.NeedsHomeHop(bot.Realm, bot.CurrentRegionID, destination.RegionId))
+                return TryHomeFrontierDetour(bot, destination, "merchant-too-far");
             // A ride (town teleporter or horse route) when clearly faster than walking to the merchant.
             if (TryBeginFasterStableRoute(bot, new(_medallionMerchant.X, _medallionMerchant.Y, _medallionMerchant.Z), _medallionMerchant.Name))
                 return true;
@@ -198,6 +208,56 @@ public sealed partial class AutonomousWorldBotController
     /// walk and never the stalled "No legal region connection" rendezvous that left a party standing in Emain with
     /// an objective in Hadrian's Wall.
     /// </summary>
+    private bool _frontierWalkWaiting;
+
+    /// <summary>Within this distance of the porter the walk is over and the party boards (see BoardingParty).</summary>
+    private const int PartyWalkEndRadius = 2_000;
+
+    /// <summary>
+    /// Owner 2026-11-03: "vorrei che il capo andasse al raduno e che i membri lo seguissero come fanno quando pattugliano ...
+    /// devono aspettarsi, restare uniti, combattere se necessario". While the leader of an RvR party is still far from the
+    /// porter, a member follows it in formation instead of walking to the merchant on its own, and the leader stops when a
+    /// member trails (600 to stop, 300 to go on, the compact radii of the patrol) or when any member fights. Once the leader
+    /// is within PartyWalkEndRadius of the porter, or in another region, everybody boards as before.
+    /// Returns true when this bot's turn was spent walking with, or waiting for, the party.
+    /// </summary>
+    private bool WalkWithThePartyToThePorter(GameBot bot)
+    {
+        if (_groupDirective?.IsDynamic != true || _groupDirective.ObjectiveKind != eAutonomousObjectiveKind.RvR ||
+            bot.Group == null || _frontierPorter == null)
+            return false;
+        if (bot.Group.LivingLeader is not GameBot leader || !leader.IsAlive ||
+            leader.CurrentRegionID != bot.CurrentRegionID || leader.GetDistanceTo(_frontierPorter) <= PartyWalkEndRadius)
+        {
+            _frontierWalkWaiting = false;
+            return false;
+        }
+        if (leader != bot)
+            return FollowDynamicGroupLeader(bot, _groupDirective);
+
+        long now = GameLoop.GameLoopTime;
+        GameBot[] members = bot.Group.GetMembersInTheGroup().OfType<GameBot>().ToArray();
+        float farthest = 0;
+        foreach (GameBot member in members)
+        {
+            if (member == bot || !member.IsAlive || member.CurrentRegionID != bot.CurrentRegionID) continue;
+            float distance = member.GetDistanceTo(bot);
+            if (AutonomousGroupMemberStall.Release(member, bot, distance, AutonomousGroupPace.CompactTrailRadius, now)) continue;
+            farthest = Math.Max(farthest, distance);
+        }
+        bool fighting = AutonomousGroupCombat.AnyHoldsGroup(members, bot, now);
+        bool move = AutonomousGroupPace.Decide(farthest, _frontierWalkWaiting, compact: true, partyFighting: fighting) ==
+                    AutonomousGroupPace.Decision.FullSpeed;
+        _frontierWalkWaiting = !move;
+        if (move) return false;
+        bot.StopMovingOnPath();
+        bot.StopMoving();
+        SetRvrStatus(bot, "Waiting for group members", "Walking to the border keep",
+            fighting ? "A member of the party is fighting; holding the walk to the frontier teleporter"
+                     : "Holding the walk to the frontier teleporter until every living bot is back in formation");
+        return true;
+    }
+
     private bool TryHomeFrontierDetour(GameBot bot, CampDestination destination, string cause)
     {
         if (!AutonomousFrontierTransport.NeedsHomeHop(bot.Realm, bot.CurrentRegionID, destination.RegionId))
