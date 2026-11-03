@@ -2719,6 +2719,25 @@ public static partial class AutonomousBotGroupCoordinator
         WriteSessionMetadata(session, remaining);
     }
 
+    /// <summary>
+    /// Owner 2026-11-03: "quando un bot rvr esce da un gruppo ... ritorni nello stato in cui è appena dopo il login".
+    /// An expelled or released comrade kept WaitingAtFrontierKeep switched on with no party left to wait for, and the
+    /// frontier force id it still carried could send it through a portal with a dead force; both are cleared here, so
+    /// the bot goes back to the state it had the moment it entered the world.
+    /// </summary>
+    internal static void ResetRvrAfterGroupExit(GameBot member, string reason)
+    {
+        if (member == null)
+            return;
+        bool wasWaiting = member.WaitingAtFrontierKeep;
+        member.CompleteFrontierPickup();
+        member.TempProperties.RemoveProperty("RvrEventForce");
+        if (wasWaiting)
+            Log.Info($"AUTONOMOUS_RVR_STATE_RESET bot=\"{member.Name}\" id={member.DatabaseID} " +
+                     $"reason=\"{reason}\" wasWaitingAtFrontierKeep=True");
+        member.MarkAutonomousStateDirty();
+    }
+
     private static void FinishGroupTask(Session session, string reason)
     {
         if (session == null || session.Ending)

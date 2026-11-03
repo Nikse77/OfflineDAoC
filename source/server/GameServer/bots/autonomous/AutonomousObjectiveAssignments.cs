@@ -477,6 +477,11 @@ public static class AutonomousObjectiveAssignments
     {
         if (bot?.IsAutonomousWorldBot != true || bot.IsTemporaryGroupHelper || bot.Group != null || bot.PersistentRecord == null)
             return;
+        // Owner 2026-11-03: "quando un bot rvr esce da un gruppo ... ritorni nello stato in cui è appena dopo il login".
+        // The bot holds no party here, so it must not keep waiting at a frontier portal for a leader that can no longer
+        // come for it, nor carry the force id of a party that no longer exists. Every exit from a group funnels through
+        // this call, and the guard above is exactly the "no party" condition.
+        AutonomousBotGroupCoordinator.ResetRvrAfterGroupExit(bot, reason);
         // Do not acquire the allocation lock from the group coordinator: the
         // allocation pass itself can remove group members. A fresh independent
         // task resets only work, never progress/items. Every level must finish
