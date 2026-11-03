@@ -2301,7 +2301,10 @@ namespace DOL.GS
             // directive's leader can go stale - after a wipe and three deaths of the leader, albion-3fdd74-049 walked on
             // with Maraenenlyn alive while the directive still named a corpse, so nobody ran the fetch and Alderfrey sat
             // at the keep for eleven minutes with every comrade alive. The living leader of the party is what counts.
+            // Owner 2026-11-03: "se il gruppo è fuori combat e ci sono membri al keep che aspettano allora deve andare a
+            // prenderli": the pickup is a step of the leader's decision chain, taken when no member of the party fights.
             if (IsLivingLeader(bot) && !AutonomousRvrEventLayer.IsEventForce(forceId, GameLoop.GameLoopTime) &&
+                !AutonomousGroupCombat.AnyHoldsGroup(bot.Group.GetMembersInTheGroup().OfType<GameBot>(), bot, GameLoop.GameLoopTime) &&
                 TryFetchReleasedMember(bot, out CampDestination pickup))
                 return TravelRvrObjective(bot, pickup);
 
