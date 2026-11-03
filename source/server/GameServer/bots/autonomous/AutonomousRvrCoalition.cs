@@ -14,6 +14,8 @@ namespace DOL.GS
         public const int MinimumGroups = 2;
         public const int MaximumGroups = 8;
         public const int MinimumBots = 16;
+        /// <summary>Owner 2026-11-03: a group smaller than this does not count as a group of the coalition; a pair or trio cannot aggregate. A lone bot (no group) may still be recruited and merged into a party by the event layer, which then counts.</summary>
+        public const int MinimumGroupMembers = 4;
 
         public enum Change { None, Joined, Left, Promoted }
 

@@ -78,6 +78,23 @@ public class UT_StagedSiegeOct6
     }
 
     [Test]
+    public void AGroupSmallerThanFourCannotAggregateToAnAssault()
+    {
+        string id = Guid.NewGuid().ToString();
+        long opened = GameLoop.GameLoopTime;
+        var objective = new AutonomousRvrEventLayer.LiveObjective(id, "Muster keep",
+            AutonomousRvrEventLayer.Intent.AssaultKeep, eRealm.Hibernia, 200, 100, 100, 0, false, 0, 0, 5, 2);
+        var opener = new AutonomousRvrEventLayer.Force(id + "-attack", eRealm.Albion, 8, 50, 1);
+        Assert.That(AutonomousRvrEventLayer.ChooseOrJoin(opener, [objective], opened, 0)?.TargetId, Is.EqualTo(id));
+        var pair = new AutonomousRvrEventLayer.Force(id + "-pair", eRealm.Albion, 2, 50, 1);
+        Assert.That(AutonomousRvrEventLayer.ChooseOrJoin(pair, [objective], opened, 0)?.TargetId, Is.Not.EqualTo(id),
+            "a pair does not aggregate (a lone bot may, to be merged into a party)");
+        var four = new AutonomousRvrEventLayer.Force(id + "-four", eRealm.Albion, 4, 50, 1);
+        Assert.That(AutonomousRvrEventLayer.ChooseOrJoin(four, [objective], opened, 0)?.TargetId, Is.EqualTo(id),
+            "four members are a group");
+    }
+
+    [Test]
     public void OneGroupAloneNeverMarchesHoweverManyBotsItHas()
     {
         string id = Guid.NewGuid().ToString();

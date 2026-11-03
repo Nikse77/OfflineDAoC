@@ -525,7 +525,8 @@ public static partial class AutonomousRvrEventLayer
                     // attaccanti per far partire un assalto".
                     bool patrolFree = !SiegeScheduling || active.Forced || active.DefenseReaction ||
                         !AutonomousRvrPatrolLock.Holds(force.GroupId, nowTick) || NeedsMinimumArmy(active);
-                    if (patrolFree && force.AverageLevel >= 50 && (!active.BattleStarted || active.Attackers.ContainsKey(force.GroupId) ||
+                    if (patrolFree && force.AverageLevel >= 50 && (force.MemberCount == 1 || force.MemberCount >= AutonomousRvrCoalition.MinimumGroupMembers) &&
+                        (!active.BattleStarted || active.Attackers.ContainsKey(force.GroupId) ||
                         ShouldJoinActiveEvent(force, active.Attackers.Values.Sum(), Capacity(active), active.RelicKeep, false, roll)) &&
                         TryJoin(active.Attackers, force, Capacity(active)))
                         return ToPlan(Intent: active.RelicKeep ? Intent.AssaultRelicKeep : Intent.AssaultKeep, target, true,
@@ -1510,7 +1511,8 @@ public static partial class AutonomousRvrEventLayer
     /// </summary>
     private static void SyncCoalition(ActiveEvent active)
     {
-        var changes = active.Coalition.Reconcile(active.Attackers.Keys);
+        var changes = active.Coalition.Reconcile(active.Attackers
+            .Where(pair => pair.Value >= AutonomousRvrCoalition.MinimumGroupMembers).Select(pair => pair.Key));
         if (changes.Count == 0) return;
         var log = DOL.Logging.LoggerManager.Create(typeof(AutonomousRvrEventLayer));
         if (!log.IsInfoEnabled) return;
