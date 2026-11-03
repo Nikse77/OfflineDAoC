@@ -5620,8 +5620,12 @@ namespace DOL.GS
             }
         }
 
+        // Owner 2026-11-03: a party on RvR duty has no XP camp, so outside the assembly phase this fell through to
+        // "Find a reachable level-appropriate XP camp" - six members fighting keep guards showed a hunting goal while
+        // their healers showed the RvR one. An RvR party keeps its shared goal in every phase.
         private string GoalText() => _groupDirective?.IsDynamic == true &&
-            AutonomousBotGroupCoordinator.IsAssemblyPhase(_groupDirective.Phase)
+            (AutonomousBotGroupCoordinator.IsAssemblyPhase(_groupDirective.Phase) ||
+             _groupDirective.ObjectiveKind == eAutonomousObjectiveKind.RvR)
             ? _groupDirective.SharedGoal
             : _camp == null
             ? "Find a reachable level-appropriate XP camp"
