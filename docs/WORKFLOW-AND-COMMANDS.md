@@ -211,7 +211,7 @@ dotnet test  Tests/Tests.csproj -c Release --no-build --nologo 2>&1 | tail -3   
   **`source/server/build/Tests/Release/lib/GameServer.dll`** and its `.pdb`. (DEVELOPMENT.md also describes building the whole
   solution `"Dawn of Light.sln"`; in this workflow the Tests project is always the one built, so the installed file and the tested file are the same.)
 - The build prints several hundred warnings (about 640). That is normal; only errors matter.
-- At the time of writing: **3,328 server tests pass**, 0 fail, a few ignored. The count grows with every change.
+- At the time of writing (2026-11-03): **3,442 server tests pass**, 0 fail. The count grows with every change.
 - A failing test after your change means either you broke something or the test documented the behaviour you changed on purpose. In the
   second case update the test to the new rule and say so in the commit message (an example: the old "the army marches at the deadline"
   test became "a rally under the army minimum fails" plus "the minimum gathered march"; the minimum was 16 and is 20
@@ -278,7 +278,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File D:\Giochi\OfflineDAoC\svil\t
   6 port not listening after 480 s, 7 a dialog needs the owner.
 - Only run them when the owner asked you to start/stop (or authorised a scheduled shutdown). Usually the owner says "avvio io".
 - A server start takes about a minute for the world to load, then the bots enter in the **staggered login queue** (highest level first)
-  over many minutes; groups of RvR bots do not form in the first 10 minutes.
+  over many minutes; groups of RvR bots do not form in the first 5 minutes.
 - To stop in an emergency and shut the PC down (only when the owner authorised it): stop the server with the script; if it will not stop,
   `Stop-Process -Name CoreServer -Force`; then in **PowerShell** `shutdown.exe /s /t 90` (cancel with `shutdown /a`).
 
@@ -450,7 +450,21 @@ Log line format: `MM/DD HH:MM:SS | LVL | Logger | message`. Markers worth knowin
 | `AUTONOMOUS_GROUP_RVR_EVENT_OVER` | an RvR group left a finished siege and went back to patrol |
 | `RVR_KEEP_ROUTE_FAILED`, `RVR_KEEP_UNREACHABLE` | no route to a keep; the force gives it up for 20 minutes |
 | `RVR_KEEP_TRAVEL_STALL`, `RVR_RALLY_DELAY` | a bot stuck on its way, a rally member with no progress for 8 minutes |
-| `AUTONOMOUS_RVR_LOGIN_AT_KEEP` | a level-50 bot logged in at its frontier keep |
+| `AUTONOMOUS_RVR_LOGIN_AT_KEEP` | a level-50 bot logged in at its frontier keep (`source=` says which point was used) |
+| `RVR_MENU_DRAW` | what the leader's random menu gave a party (defense / assault / relic / open assault / patrol), written when it changes; `locked=True` is the 30-minute patrol |
+| `RVR_FRONTIER_TRANSPORT_REFUSED` | an RvR bot could not start a frontier crossing; `reason=` names the test (no passage, no porter, no merchant, no home hop) |
+| `RVR_RELEASED_MEMBER_FREED` | a member waiting for a release pickup was freed because its new leader cannot come for it |
+| `RVR_FRONTIER_DEPARTURE` | members boarded a frontier porter; `RVR_RENDEZVOUS_MOVED` the leader moved the rendezvous to another frontier |
+| `RVR_GROUP_LEADER_SUCCEEDED` | the party's leader fell and a successor took over where it fell |
+| `RVR_LEADER_FETCHES_RELEASED_MEMBER` / `RVR_MEMBER_TELEPORTED_TO_RENDEZVOUS` | the leader goes for a casualty waiting at its border keep / a stranded member was put on the rendezvous |
+| `AUTONOMOUS_GROUP_NO_SHOW` | a member missed the meetup; the JSON carries its slot, the distance to slot, rendezvous and leader |
+| `RVR_DUNGEON_CROSSING_REFUSED`, `SIEGE_RAM_REFUSED` | an RvR bot was refused a frontier dungeon (they are excluded from RvR) / a siege ram summon was refused |
+
+RvR rules in force (2026-11-03, see the class comments for the owner's words): a party patrols 30 minutes after it assembles and
+after every objective; the patrol is broken only to defend or to bring a mustering assault to its minimum army (20, `MinimumArmy`);
+a rally with fewer than 20 attackers at its deadline fails and the parties go back to patrol; conquest of another frontier waits
+40 minutes after the end of the previous attempt; a party changes frontier on foot behind its leader to the realm's border keep and
+through the portal.
 | `BG_KEEP_STATUS` | every 5 minutes per battleground, the central keep's state |
 | `AUTONOMOUS_DEATH_ROUTE_REPLAN`, `AUTONOMOUS_ROUTE_THREAT` | PvE bots re-planning after deaths / choosing to pull or avoid |
 
@@ -499,7 +513,7 @@ not need this: it needs only sections 5 and 6.
 | New client does not compile C# changes | `--path` does not compile; run `dotnet build ...MMOEngine.csproj` again |
 | `start_server.ps1` aborts with exit 7 | a dialog needs the owner (unsaved/invalid bot goals) |
 | A scheduled job did not run | scheduled prompts live only while the Claude session is open and idle |
-| Bots stand still / groups do not form | check the first 10 minutes after a start (RvR groups are held back by design), then the logs of section 11 |
+| Bots stand still / groups do not form | check the first 5 minutes after a start (RvR groups are held back by design) and the first 30 of a group (patrol), then the logs of section 11 |
 
 ---------------------------------------------------------------------------------------------------
 
