@@ -93,6 +93,16 @@ namespace DOL.GS.Tests
             Assert.That(AutonomousRvrDashboard.CoalitionLine(groups, leader, bots, mustering), Is.EqualTo(expected));
 
         [Test]
+        public void TheArmyWaitsForTheOrganizersLeaderBeforeItMarches()
+        {
+            var members = new (string, bool)[] { ("a", false), ("b", true), ("b", false) };
+            Assert.That(AutonomousRvrCoalition.OrganizerArrived("a", members), Is.False, "only a member of the organizing group is there");
+            Assert.That(AutonomousRvrCoalition.OrganizerArrived("a", members.Append(("a", true))), Is.True);
+            Assert.That(AutonomousRvrCoalition.OrganizerArrived(null, members), Is.True, "no organizer to wait for");
+            Assert.That(AutonomousRvrCoalition.OrganizerArrived("a", System.Array.Empty<(string, bool)>()), Is.False);
+        }
+
+        [Test]
         public void ReconcileReportsJoinsLeavesAndPromotionsInOrder()
         {
             var coalition = new AutonomousRvrCoalition();

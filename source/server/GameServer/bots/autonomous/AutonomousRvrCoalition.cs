@@ -61,6 +61,15 @@ namespace DOL.GS
             return null;
         }
 
+        /// <summary>
+        /// Owner 2026-11-03: the army does not march before the organizer has arrived - its group leader stands at the muster.
+        /// True when there is no organizer to wait for (no group of four yet) or its leader is among the mustered bots. The muster
+        /// deadline still sends the army whatever happens.
+        /// </summary>
+        public static bool OrganizerArrived(string organizerGroup, IEnumerable<(string Force, bool IsGroupLeader)> mustered) =>
+            string.IsNullOrEmpty(organizerGroup) ||
+            mustered.Any(entry => entry.IsGroupLeader && string.Equals(entry.Force, organizerGroup, StringComparison.Ordinal));
+
         /// <summary>Whether the coalition is large enough to march (2 groups and 16 bots at least).</summary>
         public static bool IsViable(int groups, int bots) => groups >= MinimumGroups && bots >= MinimumBots;
 

@@ -969,6 +969,14 @@ public static partial class AutonomousRvrEventLayer
         .Count(entry => nowTick - entry.Tick <= AttendanceFreshnessMilliseconds && entry.Bot?.IsAlive == true &&
             entry.Bot.ObjectState == GameObject.eObjectState.Active && active.Attackers.ContainsKey(entry.Force));
 
+    /// <summary>The organizing group's leader stands at the muster (owner 2026-11-03); the deadline marches without it.</summary>
+    private static bool OrganizerHasArrived(ActiveEvent active)
+    {
+        SyncCoalition(active);
+        return AutonomousRvrCoalition.OrganizerArrived(active.Coalition.Leader,
+            active.Mustered.Values.Select(entry => (entry.Force, entry.Bot?.Group?.LivingLeader == entry.Bot)));
+    }
+
     private static void GiveMarchOrder(ActiveEvent active, long nowTick, string reason)
     {
         if (active.Marching) return;
@@ -1131,7 +1139,8 @@ public static partial class AutonomousRvrEventLayer
             if (inPosition) active.Mustered[botId] = (forceId, nowTick, bot, position);
             else active.Mustered.Remove(botId);
             int assigned = active.Attackers.Values.Sum();
-            if (MusterAttendance(active, nowTick) >= (active.Retake ? DefenseWaveSize(assigned) : MarchThreshold(active.RelicKeep, assigned)))
+            if (MusterAttendance(active, nowTick) >= (active.Retake ? DefenseWaveSize(assigned) : MarchThreshold(active.RelicKeep, assigned)) &&
+                OrganizerHasArrived(active))
                 GiveMarchOrder(active, nowTick, "enough attackers mustered at the border keep");
         }
     }
