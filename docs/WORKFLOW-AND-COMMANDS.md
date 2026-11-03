@@ -457,14 +457,20 @@ Log line format: `MM/DD HH:MM:SS | LVL | Logger | message`. Markers worth knowin
 | `RVR_FRONTIER_TRANSPORT_REFUSED` | an RvR bot could not start a frontier crossing; `reason=` names the test (no passage, no porter, no merchant, no home hop) |
 | `RVR_RELEASED_MEMBER_FREED` | a member waiting for a release pickup was freed because its new leader cannot come for it |
 | `RVR_FRONTIER_DEPARTURE` | members boarded a frontier porter; `RVR_RENDEZVOUS_MOVED` the leader moved the rendezvous to another frontier |
+| `RVR_COALITION_FORMED` / `RVR_COALITION_JOINED` / `RVR_COALITION_LEFT` / `RVR_COALITION_PROMOTED` | the attacking groups of one assault, in joining order (`groups=`, `bots=`, `leader=`): the organizer first, a group of four members or more only; when the leader leaves, the next group takes the command. The march follows `leader=` |
+| `AUTONOMOUS_GROUP_RVR_WIPED` / `RVR_FORCE_WIPED_WITHDRAWN` | a group with every member dead or waiting at the portal keep left the siege and went back to patrol (it does not rejoin; its 30-minute patrol starts again) |
 | `RVR_GROUP_LEADER_SUCCEEDED` | the party's leader fell and a successor took over where it fell |
 | `RVR_LEADER_FETCHES_RELEASED_MEMBER` / `RVR_MEMBER_TELEPORTED_TO_RENDEZVOUS` | the leader goes for a casualty waiting at its border keep / a stranded member was put on the rendezvous |
 | `AUTONOMOUS_GROUP_NO_SHOW` | a member missed the meetup; the JSON carries its slot, the distance to slot, rendezvous and leader |
 | `RVR_DUNGEON_CROSSING_REFUSED`, `SIEGE_RAM_REFUSED` | an RvR bot was refused a frontier dungeon (they are excluded from RvR) / a siege ram summon was refused |
 
 RvR rules in force (2026-11-03, see the class comments for the owner's words): a party patrols 30 minutes after it assembles and
-after every objective; the patrol is broken only to defend or to bring a mustering assault to its minimum army (20, `MinimumArmy`);
-a rally with fewer than 20 attackers at its deadline fails and the parties go back to patrol; conquest of another frontier waits
+after every objective; the patrol is broken only to defend or to bring a mustering assault to its minimum army (two groups and 16 bots, `MinimumArmy`; groups smaller than four members cannot
+aggregate, lone bots are recruited and merged into a party first); a muster that is not viable at its deadline is extended once and then
+cancelled and the parties go back to patrol; the march is led by the leader of the organizing group (the first in the coalition),
+group leaders follow it and members follow their own leader; each attacking group takes its own block at the siege camp; a group
+wiped out in a siege goes back to patrol; defense and the third realm have no coalition: each group chooses alone, the defenders
+gather at a friendly keep and march together, each group behind its own leader; conquest of another frontier waits
 40 minutes after the end of the previous attempt; a party changes frontier on foot behind its leader to the realm's border keep and
 through the portal.
 | `BG_KEEP_STATUS` | every 5 minutes per battleground, the central keep's state |
