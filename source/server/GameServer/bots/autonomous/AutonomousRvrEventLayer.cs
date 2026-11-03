@@ -368,6 +368,30 @@ public static partial class AutonomousRvrEventLayer
             "Choosing to converge to defend the live opposing-realm assault; participation is capped.");
     }
 
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, string> LastMenuDraw = new();
+
+    /// <summary>
+    /// Owner 2026-11-03 (diagnostics only): what the leader's random menu gave a force, written when it differs from the last
+    /// draw of that force. Run of 2026-11-03 06:15: of six Midgard parties free at the same time only two joined an assault and
+    /// the log could not say whether the others drew "patrol" or were refused.
+    /// </summary>
+    private static void LogMenuDraw(Force force, bool patrolLocked, List<Choice> tried, Plan plan)
+    {
+        try
+        {
+            string drawn = string.Join(">", tried);
+            string outcome = plan == null ? "none" : $"{plan.Intent}:{plan.TargetId}";
+            string key = $"{patrolLocked}|{drawn}|{outcome}";
+            if (LastMenuDraw.TryGetValue(force.GroupId, out string last) && last == key) return;
+            LastMenuDraw[force.GroupId] = key;
+            var log = DOL.Logging.LoggerManager.Create(typeof(AutonomousRvrEventLayer));
+            if (log.IsInfoEnabled)
+                log.Info($"RVR_MENU_DRAW force={force.GroupId} realm={force.Realm} members={force.MemberCount} locked={patrolLocked} " +
+                         $"drawn={drawn} plan={outcome} events={Events.Values.Count(entry => !entry.DefenseReaction)}");
+        }
+        catch { }
+    }
+
     private static Plan ChooseCore(Force force, IReadOnlyCollection<LiveObjective> objectives, long nowTick, double roll)
     {
         if (force == null || string.IsNullOrWhiteSpace(force.GroupId) || force.Realm == eRealm.None || objectives == null)
@@ -401,8 +425,10 @@ public static partial class AutonomousRvrEventLayer
             List<Choice> menu = patrolLocked
                 ? [Choice.Defense, Choice.Patrol]
                 : [Choice.Assault, Choice.Defense, Choice.Relic, Choice.OpenAssault, Choice.Patrol];
+            List<Choice> tried = [];
             foreach (int attempt in Enumerable.Range(0, menu.Count).OrderBy(_ => Random.Shared.Next()).ToArray())
             {
+                tried.Add(menu[attempt]);
                 Plan granted = menu[attempt] switch
                 {
                     Choice.Assault or Choice.Defense => JoinRunningEvent(),
@@ -410,8 +436,13 @@ public static partial class AutonomousRvrEventLayer
                     Choice.OpenAssault => OpenAssault(),
                     _ => ReservePlan(force, objectives),
                 };
-                if (granted != null) return granted;
+                if (granted != null)
+                {
+                    LogMenuDraw(force, patrolLocked, tried, granted);
+                    return granted;
+                }
             }
+            LogMenuDraw(force, patrolLocked, tried, null);
             return null;
 
             Plan JoinRelic()

@@ -13,6 +13,32 @@ public sealed partial class AutonomousWorldBotController
     private long _nextPorterSearch;
     private Vector3? _frontierWaitingPoint;
     private long _nextWaitingPointSearch;
+    private long _nextTransportRefusalLog;
+
+    /// <summary>
+    /// Owner 2026-11-03 (diagnostics only): a frontier crossing of an RvR bot that cannot start says why, at most once a minute
+    /// per bot. Run of 2026-11-03 06:15: a Midgard party that patrolled Odin was given an assault in Hadrian, moved its
+    /// rendezvous across and then stood still for 18 minutes with no marker to say which test stopped it.
+    /// </summary>
+    private bool RefuseFrontierTransport(GameBot bot, CampDestination destination, string reason)
+    {
+        try
+        {
+            long now = GameLoop.GameLoopTime;
+            if (now >= _nextTransportRefusalLog &&
+                AutonomousObjectiveAssignments.Parse(bot.PersistentRecord?.ObjectiveKind) == eAutonomousObjectiveKind.RvR)
+            {
+                _nextTransportRefusalLog = now + 60_000;
+                Log.Info($"RVR_FRONTIER_TRANSPORT_REFUSED bot={bot.Name} id={bot.DatabaseID} realm={bot.Realm} " +
+                         $"group={bot.Group?.GetHashCode()} leader={bot.Group?.LivingLeader == bot} region={bot.CurrentRegionID} " +
+                         $"destRegion={destination.RegionId} reason={reason} " +
+                         $"porter=\"{_frontierPorter?.Name}\" merchant=\"{_medallionMerchant?.Name}\" " +
+                         $"merchantDistance={(_medallionMerchant == null ? -1 : (int)bot.GetDistanceTo(_medallionMerchant))}");
+            }
+        }
+        catch { }
+        return false;
+    }
 
     private bool TryReturnFromForeignFrontier(GameBot bot)
     {
@@ -35,7 +61,7 @@ public sealed partial class AutonomousWorldBotController
         if (bot.CurrentRegionID == destination.RegionId || bot.CurrentRegionID is not (1 or 100 or 200) ||
             destination.RegionId is not (1 or 100 or 200) || GameRelic.IsPlayerCarryingRelic(bot)) return false;
         var passage = AutonomousFrontierTransport.Destination(bot.Realm,destination.RegionId);
-        if (passage == null) return false;
+        if (passage == null) return RefuseFrontierTransport(bot, destination, "no-passage");
         // Owner 2026-11-02: the party walks to the teleporter as one body and crosses one member at a time; whoever steps
         // through first re-anchors the rendezvous on the arrival pad, so the rest converge there and the party reassembles
         // on the far side instead of waiting for the leader at the porter.
@@ -75,7 +101,7 @@ public sealed partial class AutonomousWorldBotController
             _frontierWaitingPoint = null;
             _nextWaitingPointSearch = 0;
         }
-        if (_frontierPorter == null) return false;
+        if (_frontierPorter == null) return RefuseFrontierTransport(bot, destination, "no-porter-in-region");
         // Declare the transport intent before approaching its merchant. A
         // returning PvE bot may need its own portal-keep door to BUY the ticket.
         // Boarding still requires the real purchased medallion and all safety checks.
@@ -88,12 +114,12 @@ public sealed partial class AutonomousWorldBotController
                 _medallionMerchant = _frontierPorter.GetNPCsInRadius(3000).OfType<GameMerchant>()
                     .Where(npc => (npc.Realm==bot.Realm || npc.Realm==eRealm.None) && npc.TradeItems?.GetAllItems().Values.OfType<DbItemTemplate>().Any(item=>item.Id_nb==passage.Medallion)==true)
                     .OrderBy(_frontierPorter.GetDistanceTo).FirstOrDefault();
-            if (_medallionMerchant == null) return TryHomeFrontierDetour(bot, destination);
+            if (_medallionMerchant == null) return TryHomeFrontierDetour(bot, destination, "no-medallion-merchant");
             // Each realm sells frontier medallions only at its first border keep (Druim Ligen, Castle Sauvage, Svasud
             // Faste). A bot staged at the other border keep walks into the frontier through that keep's gate, as players
             // do, instead of crossing the realm for a medallion (run 24: Hibernians at Druim Cain stood still for 15
             // minutes "collecting a frontier medallion" 110,000 units from Araisa).
-            if (bot.GetDistanceTo(_medallionMerchant) > FrontierMedallionReach) return TryHomeFrontierDetour(bot, destination);
+            if (bot.GetDistanceTo(_medallionMerchant) > FrontierMedallionReach) return TryHomeFrontierDetour(bot, destination, "merchant-too-far");
             // A ride (town teleporter or horse route) when clearly faster than walking to the merchant.
             if (TryBeginFasterStableRoute(bot, new(_medallionMerchant.X, _medallionMerchant.Y, _medallionMerchant.Z), _medallionMerchant.Name))
                 return true;
@@ -172,13 +198,13 @@ public sealed partial class AutonomousWorldBotController
     /// walk and never the stalled "No legal region connection" rendezvous that left a party standing in Emain with
     /// an objective in Hadrian's Wall.
     /// </summary>
-    private bool TryHomeFrontierDetour(GameBot bot, CampDestination destination)
+    private bool TryHomeFrontierDetour(GameBot bot, CampDestination destination, string cause)
     {
         if (!AutonomousFrontierTransport.NeedsHomeHop(bot.Realm, bot.CurrentRegionID, destination.RegionId))
-            return false;
+            return RefuseFrontierTransport(bot, destination, cause + "+no-home-hop");
         AutonomousFrontierTransport.Passage home =
             AutonomousFrontierTransport.Destination(bot.Realm, AutonomousFrontierTransport.HomeFrontier(bot.Realm));
-        if (home == null) return false;
+        if (home == null) return RefuseFrontierTransport(bot, destination, cause + "+no-home-passage");
         return TryFrontierTransport(bot, new("frontier-passage", home.Location.Name, "frontier",
             home.Region, home.Location.X, home.Location.Y, home.Location.Z, bot.Level, false, true));
     }
