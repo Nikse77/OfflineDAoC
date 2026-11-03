@@ -10,6 +10,28 @@ public sealed class UT_AutonomousGroupRecoveryState
     private static Member[] Ready() => [new(1, 0, true), new(2, 0, true), new(3, 0, true)];
 
     [Test]
+    public void AMemberWaitingAtItsKeepDoesNotReopenTheRegroupThatCompletedWithoutIt()
+    {
+        var recovery = new AutonomousGroupRecoveryState();
+        Member[] members = [new(1, 0, true), new(2, 0, true), new(3, 0, true)];
+        recovery.Observe(members, true);
+        members[2] = members[2] with { Deaths = 1, Returning = true };       // died, released, waits at its keep
+        Assert.That(recovery.Observe(members, true), Is.True, "the death opens one regroup");
+        Member[] present = [members[0], members[1]];
+        Assert.That(recovery.TryComplete(present, 0), Is.False);
+        Assert.That(recovery.TryComplete(present, AutonomousGroupRecoveryState.ReadySettleMilliseconds), Is.True);
+        recovery.AcceptWaiting(members);
+
+        Assert.That(recovery.Observe(members, true), Is.False, "the comrade still waits: no second regroup");
+        Assert.That(recovery.IsRegrouping, Is.False);
+
+        members[2] = members[2] with { Returning = false };                    // the leader fetched it
+        Assert.That(recovery.Observe(members, true), Is.False);
+        members[2] = members[2] with { Deaths = 2, Returning = true };         // it dies again: a real casualty
+        Assert.That(recovery.Observe(members, true), Is.True);
+    }
+
+    [Test]
     public void AGroupIsWipedWhenEveryMemberIsDeadOrWaitingAtItsKeep()
     {
         Assert.That(AutonomousGroupRecoveryState.IsWiped([new(1, 1, false), new(2, 1, true, Returning: true), new(3, 1, false)]), Is.True);

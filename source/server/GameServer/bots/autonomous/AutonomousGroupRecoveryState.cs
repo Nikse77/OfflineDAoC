@@ -21,8 +21,20 @@ namespace DOL.GS
         public static bool IsWiped(IReadOnlyCollection<Member> members) =>
             members.Count > 0 && members.All(member => !member.Alive || member.Returning);
 
+        // Members that were released and waiting at their keep when a regroup completed without them. The leader fetches them
+        // on its own; they must not open the same regroup again a second later (run of 2026-11-03 22:26: a party looped through
+        // 111 regroups in fourteen minutes because one comrade waited at the portal, and the leader never got to go for it).
+        private readonly HashSet<long> _waiting = new();
+
+        /// <summary>Remembers the living members that wait at their keep as the regroup completes without them.</summary>
+        public void AcceptWaiting(IEnumerable<Member> members)
+        {
+            foreach (Member member in members)
+                if (member.Alive && member.Returning) _waiting.Add(member.Id);
+        }
+
         public bool HasCasualty(IEnumerable<Member> members) => members.Any(member =>
-            !member.Alive || member.Returning ||
+            !member.Alive || member.Returning && !_waiting.Contains(member.Id) ||
             _deaths.TryGetValue(member.Id, out int previous) && member.Deaths > previous);
 
         private bool HasNewDeath(IEnumerable<Member> members) => members.Any(member =>
@@ -30,6 +42,8 @@ namespace DOL.GS
 
         public bool Observe(Member[] members, bool taskStarted)
         {
+            // A waiting member that is back on its feet, or gone, is a normal member again.
+            _waiting.RemoveWhere(id => !members.Any(member => member.Id == id && member.Alive && member.Returning));
             bool casualty = HasCasualty(members);
             bool start = taskStarted && !IsRegrouping && casualty;
             // Only a new death restarts the settle clock. A member that is dead or still returning (an RvR casualty

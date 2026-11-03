@@ -2443,6 +2443,7 @@ public static partial class AutonomousBotGroupCoordinator
                 session.Recovery.TryComplete(present, GameLoop.GameLoopTime))
             {
                 session.Phase = "Choosing group target";
+                session.Recovery.AcceptWaiting(RecoveryMembers(session, members, false));
                 Log.Info($"AUTONOMOUS_GROUP_REGROUP_READY group={session.Id} size={members.Length} " +
                     $"remainingSeconds={session.TaskClock.RemainingMilliseconds(GameLoop.GameLoopTime) / 1000}");
             }
