@@ -114,6 +114,8 @@ public static partial class AutonomousRvrEventLayer
         public readonly Dictionary<string, int[]> Slots = new(StringComparer.Ordinal);
         public readonly Dictionary<long, (string Force, long ProgressTick, double BestDistance, Vector3 Position, ushort Region)> Travel = new();
         public readonly Dictionary<string, int> Attackers = new(StringComparer.Ordinal);
+        /// <summary>The attacking groups in joining order (organizer first); bookkeeping and logs only (siege rework phase 1).</summary>
+        public readonly AutonomousRvrCoalition Coalition = new();
         public readonly Dictionary<string, int> Defenders = new(StringComparer.Ordinal);
         public readonly Dictionary<string, int> ThirdRealm = new(StringComparer.Ordinal);
     }
@@ -1496,6 +1498,31 @@ public static partial class AutonomousRvrEventLayer
     public static bool ExpireThrottled(long nowTick, long lastTick) =>
         lastTick != long.MinValue && nowTick >= lastTick && nowTick - lastTick < ExpireIntervalMilliseconds;
 
+    /// <summary>
+    /// Siege rework phase 1: keeps the coalition list in line with the attacking groups and says what changed. The organizer is
+    /// the first group the event ever had (the one that opened it); a group that left is replaced as leader by the next in
+    /// joining order. No movement depends on it yet.
+    /// </summary>
+    private static void SyncCoalition(ActiveEvent active)
+    {
+        var changes = active.Coalition.Reconcile(active.Attackers.Keys);
+        if (changes.Count == 0) return;
+        var log = DOL.Logging.LoggerManager.Create(typeof(AutonomousRvrEventLayer));
+        if (!log.IsInfoEnabled) return;
+        foreach (var (kind, group) in changes)
+        {
+            string marker = kind switch
+            {
+                AutonomousRvrCoalition.Change.Joined => active.Coalition.Count == 1 || active.Coalition.Leader == group
+                    ? "RVR_COALITION_FORMED" : "RVR_COALITION_JOINED",
+                AutonomousRvrCoalition.Change.Left => "RVR_COALITION_LEFT",
+                _ => "RVR_COALITION_PROMOTED",
+            };
+            log.Info($"{marker} target={active.TargetId} group={group} groups={active.Coalition.Count} " +
+                     $"bots={active.Attackers.Values.Sum()} leader={active.Coalition.Leader}");
+        }
+    }
+
     private static void Expire(long nowTick)
     {
         // Only the live clock is throttled; a caller asking about another moment (tests step time by a millisecond) runs.
@@ -1509,6 +1536,7 @@ public static partial class AutonomousRvrEventLayer
         }
         foreach (var active in Events.Values)
         {
+            SyncCoalition(active);
             if (!RealmEventBanter.ReminderDue(active.BattleStarted, active.PreparationNoticeSent, active.ExpiresTick - nowTick)) continue;
             active.PreparationNoticeSent = true;
             RealmEventNotices.Queue(active.TargetId, active.AttackerRealm, RealmEventBanter.SiegeReminder(Place(active.Target.Name), false));
