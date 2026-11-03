@@ -2936,7 +2936,8 @@ namespace DOL.GS
                     warband.Length, averageLevel, healers, siegeReady,
                     ambusher || (unchecked((ulong)(_groupDirective?.Leader?.DatabaseID ?? bot.DatabaseID)) * 2654435761UL % 100) < 30,
                     warband.Select(member => member.DatabaseID).ToArray(), warband.Min(member => member.Level)),
-                objectives, GameLoop.GameLoopTime, Random.Shared.NextDouble());
+                objectives, GameLoop.GameLoopTime, Random.Shared.NextDouble(),
+                new AutonomousRvrEventLayer.PatrolPosition(bot.CurrentRegionID, (int)bot.X, (int)bot.Y));
             _rvrSharedEvent = plan?.IsSharedEvent == true;
             _rvrIntent = plan?.Intent ?? AutonomousRvrEventLayer.Intent.Roam;
             bot.TempProperties.SetProperty("RvrWarbandIntent", (int)_rvrIntent);

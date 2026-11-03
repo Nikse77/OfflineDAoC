@@ -125,5 +125,44 @@ namespace DOL.GS.Tests
 
             Assert.That(plan?.Intent, Is.Not.EqualTo(AutonomousRvrEventLayer.Intent.AssaultKeep));
         }
+
+        private static AutonomousRvrEventLayer.LiveObjective Point(string id, int x, int y) =>
+            new(id, id, AutonomousRvrEventLayer.Intent.Roam, eRealm.None, 1000, x, y, 0, false, 0, 0, 0, 0);
+
+        [Test]
+        public void APatrolKeepsItsPointUntilItIsReachedOrFiveMinutesPass()
+        {
+            // Owner 2026-11-03: the point of a patrol is held until the party reaches it, five minutes pass, or the patrol is
+            // interrupted; it used to be drawn again at every review, about once a minute.
+            var party = new AutonomousRvrEventLayer.Force("patrol-hold", eRealm.Albion, 8, 50, 2);
+            var a = Point("rvr-roam-a", 10_000, 10_000);
+            var b = Point("rvr-roam-b", 90_000, 90_000);
+            const long start = 1_000;
+
+            Assert.That(AutonomousRvrEventLayer.ChooseOrJoin(party, new[] { a }, start, 0)?.TargetId, Is.EqualTo("rvr-roam-a"));
+            var far = new AutonomousRvrEventLayer.PatrolPosition(1000, 50_000, 50_000);
+
+            Assert.That(AutonomousRvrEventLayer.ChooseOrJoin(party, new[] { b }, start + 60_000, 0, far)?.TargetId,
+                Is.EqualTo("rvr-roam-a"), "a minute later, not there yet: the same point");
+            Assert.That(AutonomousRvrEventLayer.ChooseOrJoin(party, new[] { b }, start + 299_000, 0, far)?.TargetId,
+                Is.EqualTo("rvr-roam-a"), "just under five minutes: still the same point");
+            Assert.That(AutonomousRvrEventLayer.ChooseOrJoin(party, new[] { b }, start + 300_000, 0, far)?.TargetId,
+                Is.EqualTo("rvr-roam-b"), "five minutes: a new point");
+        }
+
+        [Test]
+        public void APatrolChoosesANewPointOnceThePartyHasReachedIt()
+        {
+            var party = new AutonomousRvrEventLayer.Force("patrol-reached", eRealm.Albion, 8, 50, 2);
+            var a = Point("rvr-roam-a", 10_000, 10_000);
+            var b = Point("rvr-roam-b", 90_000, 90_000);
+            const long start = 1_000;
+
+            Assert.That(AutonomousRvrEventLayer.ChooseOrJoin(party, new[] { a }, start, 0)?.TargetId, Is.EqualTo("rvr-roam-a"));
+            var there = new AutonomousRvrEventLayer.PatrolPosition(1000, 10_400, 10_300);
+
+            Assert.That(AutonomousRvrEventLayer.ChooseOrJoin(party, new[] { b }, start + 60_000, 0, there)?.TargetId,
+                Is.EqualTo("rvr-roam-b"), "the party is at the point: it may pick another");
+        }
     }
 }

@@ -310,14 +310,18 @@ public static partial class AutonomousRvrEventLayer
         return _siegeStartReady;
     }
 
-    public static Plan ChooseOrJoin(Force force, IReadOnlyCollection<LiveObjective> objectives, long nowTick, double roll)
+    public static Plan ChooseOrJoin(Force force, IReadOnlyCollection<LiveObjective> objectives, long nowTick, double roll,
+        PatrolPosition? where = null)
     {
         lock (Sync)
         {
             // Defensive boundary: protected hubs cannot become new events,
             // reinforcements or reserve patrols, even if a caller supplies one.
             bool patrolOver = SiegeScheduling && force != null && AutonomousRvrPatrolLock.Expired(force.GroupId, nowTick);
-            Plan plan = ChooseCore(force, objectives?.Where(objective => !objective.IsPortalKeep).ToArray(), nowTick, roll);
+            Plan plan = ChooseCore(force, objectives?.Where(objective => !objective.IsPortalKeep).ToArray(), nowTick, roll, where);
+            // Anything but a patrol (a defense, an assault, a hunt, nothing) interrupts it: the held point is forgotten.
+            if (force?.GroupId != null && (plan == null || plan.Intent != Intent.Roam))
+                PatrolHeld.Remove(force.GroupId);
             // Owner 2026-11-01: after its thirty minutes of patrol the force chose; an event ends the lock, a patrol renews it.
             if (patrolOver && plan != null)
                 AutonomousRvrPatrolLock.ChoiceMade(force.GroupId, nowTick, plan.IsSharedEvent);
@@ -373,6 +377,20 @@ public static partial class AutonomousRvrEventLayer
 
     private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, string> LastMenuDraw = new();
 
+    /// <summary>Where a caller stands, so a patrol point can be recognised as reached.</summary>
+    public readonly record struct PatrolPosition(ushort RegionId, int X, int Y);
+
+    /// <summary>
+    /// Owner 2026-11-03: "tenere un punto di pattuglia finché il gruppo non lo raggiunge oppure finché non sono passati 5 minuti
+    /// oppure finché la pattuglia non viene interrotta". The menu is drawn at every review (about a minute) and a patrol used to
+    /// pick a new random point each time: the log of 11:24-11:29 showed parties changing point every minute and never arriving.
+    /// </summary>
+    public const long PatrolHoldMilliseconds = 5 * 60_000;
+    /// <summary>The leader's arrival radius (the controller's CampArrivalRadius): only the living leader of a party plans, so it is
+    /// the leader's position that is passed in.</summary>
+    public const int PatrolReachRadius = 1_250;
+    private static readonly Dictionary<string, (LiveObjective Target, long Since)> PatrolHeld = new();
+
     /// <summary>
     /// Owner 2026-11-03 (diagnostics only): what the leader's random menu gave a force, written when it differs from the last
     /// draw of that force. Run of 2026-11-03 06:15: of six Midgard parties free at the same time only two joined an assault and
@@ -403,7 +421,8 @@ public static partial class AutonomousRvrEventLayer
         catch { }
     }
 
-    private static Plan ChooseCore(Force force, IReadOnlyCollection<LiveObjective> objectives, long nowTick, double roll)
+    private static Plan ChooseCore(Force force, IReadOnlyCollection<LiveObjective> objectives, long nowTick, double roll,
+        PatrolPosition? where = null)
     {
         if (force == null || string.IsNullOrWhiteSpace(force.GroupId) || force.Realm == eRealm.None || objectives == null)
             return null;
@@ -412,7 +431,8 @@ public static partial class AutonomousRvrEventLayer
         {
             Cleanup(nowTick, objectives);
             if (force.AverageLevel < 50 || force.MinimumMemberLevel < 50)
-                return ReservePlan(force, objectives.Where(o => !o.IsRelicCarrier && o.Kind is not Intent.AssaultKeep and not Intent.AssaultRelicKeep).ToArray());
+                return ReservePlan(force, objectives.Where(o => !o.IsRelicCarrier && o.Kind is not Intent.AssaultKeep and not Intent.AssaultRelicKeep).ToArray(),
+                    nowTick, where);
             if (ReleasedForces.ContainsKey(force.GroupId)) return null;
 
             Plan committed = CommittedPlan(force, objectives);
@@ -426,7 +446,7 @@ public static partial class AutonomousRvrEventLayer
                                 AutonomousRvrPatrolLock.Holds(force.GroupId, nowTick);
 
             if (force.RoamingReserve)
-                return ReservePlan(force, objectives);
+                return ReservePlan(force, objectives, nowTick, where);
 
             // Owner 2026-11-02: the coordinator offers the leader this menu - join an assault, join a defense, join the
             // relic, patrol, open an assault - and the leader picks one at RANDOM among those available ("il capo sceglie
@@ -446,7 +466,7 @@ public static partial class AutonomousRvrEventLayer
                     Choice.Assault or Choice.Defense => JoinRunningEvent(),
                     Choice.Relic => JoinRelic(),
                     Choice.OpenAssault => OpenAssault(),
-                    _ => ReservePlan(force, objectives),
+                    _ => ReservePlan(force, objectives, nowTick, where),
                 };
                 if (granted != null)
                 {
@@ -639,12 +659,39 @@ public static partial class AutonomousRvrEventLayer
             ?? patrols.Where(RoamsHere).OrderBy(_ => Random.Shared.Next()).FirstOrDefault();
     }
 
-    private static Plan ReservePlan(Force force, IReadOnlyCollection<LiveObjective> objectives)
+    private static Plan ReservePlan(Force force, IReadOnlyCollection<LiveObjective> objectives, long nowTick,
+        PatrolPosition? where)
     {
-        LiveObjective target = PickPatrol(force, objectives)
+        // Owner 2026-11-03: the patrol point is held until the force reaches it, five minutes pass, or the patrol is
+        // interrupted (ChooseOrJoin forgets the point when the plan is anything but a patrol). Called under Sync.
+        // With no patrol or hunt on offer at all the menu entry gives nothing, as before, whatever point was held.
+        LiveObjective fresh = PickPatrol(force, objectives)
             ?? objectives.Where(objective => objective.Kind == Intent.HuntEnemy && !objective.IsRelicCarrier && objective.EnemyCount > 0)
                 .OrderBy(_ => Random.Shared.Next()).FirstOrDefault();
-        return target == null ? null : ToPlan(target.Kind == Intent.HuntEnemy ? Intent.HuntEnemy : Intent.Roam, target, false,
+        if (fresh == null)
+        {
+            PatrolHeld.Remove(force.GroupId);
+            return null;
+        }
+        LiveObjective target = null;
+        long since = nowTick;
+        if (PatrolHeld.TryGetValue(force.GroupId, out var held))
+        {
+            bool reached = where is { } here && here.RegionId == held.Target.RegionId &&
+                           (long)(here.X - held.Target.X) * (here.X - held.Target.X) + (long)(here.Y - held.Target.Y) * (here.Y - held.Target.Y)
+                               <= (long)PatrolReachRadius * PatrolReachRadius;
+            if (!reached && nowTick >= held.Since && nowTick - held.Since < PatrolHoldMilliseconds)
+            {
+                target = held.Target;
+                since = held.Since;
+            }
+        }
+        target ??= fresh;
+        if (target.Kind == Intent.Roam)
+            PatrolHeld[force.GroupId] = (target, since);
+        else
+            PatrolHeld.Remove(force.GroupId);
+        return ToPlan(target.Kind == Intent.HuntEnemy ? Intent.HuntEnemy : Intent.Roam, target, false,
             "Keeping a deliberate roaming reserve instead of automatically joining the active event.");
     }
 
