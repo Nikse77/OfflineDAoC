@@ -1627,7 +1627,7 @@ internal sealed partial class MainForm : Form
             command.Transaction = transaction;
             command.CommandText = """
                 INSERT INTO ServerProperty (Category, `Key`, Description, DefaultValue, Value, LastTimeRowUpdated, ServerProperty_ID)
-                VALUES ('autonomous_population', @key, @description, @default, @value, @updated, '')
+                VALUES ('autonomous_population', @key, @description, @default, @value, @updated, @id)
                 ON CONFLICT(`Key`) DO UPDATE SET
                     Value=excluded.Value,
                     LastTimeRowUpdated=excluded.LastTimeRowUpdated
@@ -1635,6 +1635,8 @@ internal sealed partial class MainForm : Form
             command.Parameters.AddWithValue("@key", key);
             command.Parameters.AddWithValue("@description", description);
             command.Parameters.AddWithValue("@default", defaultValue);
+            // ServerProperty_ID has a unique index: an empty id on a second new row fails with a UNIQUE constraint error.
+            command.Parameters.AddWithValue("@id", Guid.NewGuid().ToString());
             command.Parameters.AddWithValue("@value", value.ToString(System.Globalization.CultureInfo.InvariantCulture));
             command.Parameters.AddWithValue("@updated", DateTime.UtcNow.ToString("O"));
             command.ExecuteNonQuery();
