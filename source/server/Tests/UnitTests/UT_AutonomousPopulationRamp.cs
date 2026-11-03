@@ -45,6 +45,18 @@ public sealed class UT_AutonomousPopulationRamp
         Assert.That(AutonomousPopulationRamp.DesiredActiveCount(true, 500, 15, TimeSpan.FromHours(2)), Is.EqualTo(500));
     }
 
+    [Test]
+    public void AFourMinuteRampBringsTheRosterInSteadily()
+    {
+        Assert.Multiple(() =>
+        {
+            Assert.That(AutonomousPopulationRamp.DesiredActiveCount(true, 200, 4, TimeSpan.FromMinutes(1)), Is.EqualTo(49));
+            Assert.That(AutonomousPopulationRamp.DesiredActiveCount(true, 200, 4, TimeSpan.FromMinutes(2)), Is.EqualTo(99));
+            Assert.That(AutonomousPopulationRamp.DesiredActiveCount(true, 200, 4, TimeSpan.FromMinutes(3)), Is.EqualTo(149));
+            Assert.That(AutonomousPopulationRamp.DesiredActiveCount(true, 200, 4, TimeSpan.FromMinutes(4)), Is.EqualTo(200));
+        });
+    }
+
     [TestCase(15, 2230, 15)]
     [TestCase(15, 2000, 15)]
     [TestCase(15, 10_000, 15)]

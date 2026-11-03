@@ -13,6 +13,13 @@ public static class AutonomousPopulationRamp
     public const double EarlyPopulationFraction = 0.33d;
     public const int EarlyRampMinutes = 5;
 
+    /// <summary>
+    /// The first third of the roster enters in the first third of the ramp, five minutes at the usual fifteen. A ramp shorter
+    /// than fifteen minutes used to keep a five-minute early window (or the whole ramp below five), so a four-minute ramp
+    /// brought a third of the roster in four minutes and then the rest at once.
+    /// </summary>
+    private static double EarlyMinutes(int rampMinutes) => Math.Min(EarlyRampMinutes, rampMinutes / 3d);
+
     public static int DesiredActiveCount(bool enabled, int rosterCount, int rampMinutes, TimeSpan sinceStartup)
     {
         if (!enabled || rosterCount <= 0)
@@ -23,7 +30,7 @@ public static class AutonomousPopulationRamp
             return target;
 
         double elapsed = Math.Clamp(sinceStartup.TotalMinutes, 0, rampMinutes);
-        double earlyMinutes = Math.Min(EarlyRampMinutes, rampMinutes);
+        double earlyMinutes = EarlyMinutes(rampMinutes);
         int earlyTarget = Math.Max(1, (int)Math.Ceiling(target * EarlyPopulationFraction));
         int desired;
         if (elapsed <= earlyMinutes)
@@ -33,7 +40,7 @@ public static class AutonomousPopulationRamp
         }
         else
         {
-            double remainingMinutes = Math.Max(1d, rampMinutes - earlyMinutes);
+            double remainingMinutes = Math.Max(0.1d, rampMinutes - earlyMinutes);
             desired = earlyTarget + (int)Math.Floor((target - earlyTarget) * (elapsed - earlyMinutes) / remainingMinutes + 1e-9);
         }
         return Math.Min(target, desired);
@@ -66,7 +73,7 @@ public static class AutonomousPopulationRamp
         if (target == 0 || ordinal < 0 || ordinal >= target)
             return TimeSpan.MaxValue;
 
-        double earlyMinutes = Math.Min(EarlyRampMinutes, Math.Max(0, rampMinutes));
+        double earlyMinutes = EarlyMinutes(Math.Max(0, rampMinutes));
         int earlyTarget = Math.Max(1, (int)Math.Ceiling(target * EarlyPopulationFraction));
         double minutes = ordinal < earlyTarget
             ? earlyMinutes * (ordinal + 1d) / earlyTarget
