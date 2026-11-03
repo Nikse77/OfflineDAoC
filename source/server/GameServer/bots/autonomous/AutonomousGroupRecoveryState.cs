@@ -18,11 +18,17 @@ namespace DOL.GS
             !member.Alive || member.Returning ||
             _deaths.TryGetValue(member.Id, out int previous) && member.Deaths > previous);
 
+        private bool HasNewDeath(IEnumerable<Member> members) => members.Any(member =>
+            _deaths.TryGetValue(member.Id, out int previous) && member.Deaths > previous);
+
         public bool Observe(Member[] members, bool taskStarted)
         {
             bool casualty = HasCasualty(members);
             bool start = taskStarted && !IsRegrouping && casualty;
-            if (IsRegrouping && casualty) _readySince = null;
+            // Only a new death restarts the settle clock. A member that is dead or still returning (an RvR casualty
+            // waiting at its frontier keep for the leader) is not part of the group that TryComplete settles, so it
+            // must not clear the clock on every pulse: the regroup of midgard-b041b5-029 stayed open for forty minutes.
+            if (IsRegrouping && casualty && HasNewDeath(members)) _readySince = null;
             foreach (Member member in members) _deaths[member.Id] = member.Deaths;
             if (start) { IsRegrouping = true; _readySince = null; }
             return start;

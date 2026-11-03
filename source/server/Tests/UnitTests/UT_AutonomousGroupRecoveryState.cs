@@ -153,6 +153,32 @@ public sealed class UT_AutonomousGroupRecoveryState
         Assert.That(clock.Start(6_000, DateTime.UtcNow), Is.False);
     }
 
+    // Run of 2026-11-03: midgard-b041b5-029 stayed in a regroup for forty minutes. Two released members waited at their
+    // frontier keep (Returning) while the six others stood ready around the leader. The coordinator hands TryComplete
+    // only the members that are present, but it calls Observe with the whole roster on every pulse, and Observe clears
+    // the five second settle clock whenever any member is Returning.
+    [Test]
+    public void MembersWaitingAtTheKeepDoNotKeepAReadyPartyFromSettling()
+    {
+        var recovery = new AutonomousGroupRecoveryState();
+        Member[] roster = Ready();
+        recovery.Observe(roster, true);
+        roster[2] = roster[2] with { Alive = false, Deaths = 1 };
+        Assert.That(recovery.Observe(roster, true), Is.True);
+        roster[2] = roster[2] with { Alive = true, Returning = true, AtRendezvous = false };
+
+        bool completed = false;
+        for (long now = 0; now <= 60_000 && !completed; now += 500)
+        {
+            recovery.Observe(roster, true);
+            Member[] present = Array.FindAll(roster, member => member.Alive && !member.Returning);
+            if (now % 1_000 == 0)
+                completed = recovery.TryComplete(present, now);
+        }
+
+        Assert.That(completed, Is.True, "The ready members settle in five seconds; the one waiting at its keep is fetched later");
+    }
+
     [TestCase(90, 80, 80, true, true)]
     [TestCase(89, 100, 100, true, false)]
     [TestCase(100, 79, 100, true, false)]
