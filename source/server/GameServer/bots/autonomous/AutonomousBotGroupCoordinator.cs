@@ -3437,6 +3437,30 @@ public static partial class AutonomousBotGroupCoordinator
             .First();
     }
 
+    /// <summary>
+    /// Owner 2026-11-03: the successor of a fallen RvR leader takes the role for good, with the orders of the lost leader: the
+    /// session names it, and the group (which the controller reads through Group.LivingLeader) names it too. It stays leader
+    /// whoever respawns; only its own death opens another election. With nobody to succeed, the fallen leader keeps the role.
+    /// </summary>
+    private static void PromoteRvrLeader(Session session, GameBot successor)
+    {
+        GameBot lost = session.Leader;
+        Log.Info($"RVR_GROUP_LEADER_SUCCEEDED group={session.Id} from={lost?.Name} to={successor.Name} " +
+                 $"objective={session.ObjectiveKind} phase={session.Phase}");
+        if (lost != null)
+        {
+            int intent = lost.TempProperties.GetProperty<int>("RvrWarbandIntent", -1);
+            if (intent >= 0)
+                successor.TempProperties.SetProperty("RvrWarbandIntent", intent);
+            int defended = lost.TempProperties.GetProperty<int>("RvrDefendingKeep", -1);
+            if (defended >= 0)
+                successor.TempProperties.SetProperty("RvrDefendingKeep", defended);
+        }
+        session.Leader = successor;
+        if (session.Group != null && session.Group.LivingLeader != successor)
+            session.Group.MakeLeader(successor);
+    }
+
     private static GameBot ChooseLeader(Session session, GameBot[] members)
     {
         if (session?.Leader != null && session.Leader.IsAlive && session.Leader.Group == session.Group &&
@@ -3452,7 +3476,15 @@ public static partial class AutonomousBotGroupCoordinator
         // would hand the task to a corpse or to a bot waiting at the keep, which is what happened to Linaallyn when she
         // died last at 21:40:03 and was named leader sixteen seconds later.
         if (session?.ObjectiveKind == eAutonomousObjectiveKind.RvR)
+        {
+            // Owner 2026-11-03: "la successione deve essere completa, il nuovo capo deve sostituire il vecchio in tutto, come
+            // se fosse lui l'originale". The election used to be recomputed at every pulse and never stored, so the old
+            // leader became leader again the moment it respawned at the keep, and the group (Group.LivingLeader) went on
+            // naming a corpse: the successor neither planned nor fetched anybody.
+            if (replacement != null && replacement != session.Leader)
+                PromoteRvrLeader(session, replacement);
             return replacement ?? session?.Leader;
+        }
         if (replacement == null)
             replacement = ChooseLeader(session?.Group, members);
         if (replacement == null)
