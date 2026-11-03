@@ -644,7 +644,7 @@ namespace DOL.GS
                     // runs for the living leader only, and the party is told once, after all of it (PublishRvrOrder).
                     if (LeadsRvrParty(bot) && _rvrDestination == null && nowTick >= _nextRvrPlanReview)
                     {
-                        _nextRvrPlanReview = nowTick + 45_000;
+                        _nextRvrPlanReview = nowTick + 90_000;
                         _rvrDestination = ChooseRvrDestination(bot);
                         PublishRvrOrder(bot, _rvrDestination);
                     }
@@ -2299,7 +2299,7 @@ namespace DOL.GS
             }
 
             // Owner 2026-11-02: a member that released waits at its frontier keep, so the leader goes for it with the
-            // party behind it on the very next pulse - not at the next planning review, up to forty-five seconds later,
+            // party behind it on the very next pulse - not at the next planning review, up to ninety seconds later,
             // which is how a party used to march away from a casualty that was standing at the keep.
             // Owner 2026-11-02: "bisogna che il recupero di quelli in attesa al keep sia fatto dal capo corrente". The
             // directive's leader can go stale - after a wipe and three deaths of the leader, albion-3fdd74-049 walked on
@@ -2323,7 +2323,9 @@ namespace DOL.GS
                 {
                     _rvrDestination = ChooseRvrDestination(bot);
                     PublishRvrOrder(bot, _rvrDestination);
-                    _nextRvrPlanReview = GameLoop.GameLoopTime + 45_000 + bot.ObjectID % 15_000;
+                    // Owner 2026-11-03: the review is every 90 seconds (it was 45) plus the per-bot spread; with the patrol
+                    // point held for five minutes the review only has to notice an event to join.
+                    _nextRvrPlanReview = GameLoop.GameLoopTime + 90_000 + bot.ObjectID % 15_000;
                     _campStartedTick = GameLoop.GameLoopTime;
                     _patrolDestination = null;
                     _rvrApproachDestination = null;
