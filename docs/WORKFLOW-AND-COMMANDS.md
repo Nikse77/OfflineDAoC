@@ -214,7 +214,8 @@ dotnet test  Tests/Tests.csproj -c Release --no-build --nologo 2>&1 | tail -3   
 - At the time of writing: **3,328 server tests pass**, 0 fail, a few ignored. The count grows with every change.
 - A failing test after your change means either you broke something or the test documented the behaviour you changed on purpose. In the
   second case update the test to the new rule and say so in the commit message (an example: the old "the army marches at the deadline"
-  test became "a rally under 16 fails" plus "16 gathered march").
+  test became "a rally under the army minimum fails" plus "the minimum gathered march"; the minimum was 16 and is 20
+  since 2026-11-03, `AutonomousRvrEventLayer.MinimumArmy`).
 - Run one test: `dotnet test Tests/Tests.csproj -c Release --no-build --nologo --filter "FullyQualifiedName~UT_RvrPatrolLock"`.
 - Test state is global (static): tests of the RVR event layer reset it with `RvrEventTestState.Clear()` (in `Tests/UnitTests`), which
   also turns off the siege scheduling that is on in production. A new static dictionary in the event layer must be added to that list if

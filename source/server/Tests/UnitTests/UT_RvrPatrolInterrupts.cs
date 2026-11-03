@@ -73,5 +73,55 @@ namespace DOL.GS.Tests
             Assert.That(later.Intent, Is.EqualTo(AutonomousRvrEventLayer.Intent.AssaultKeep));
             Assert.That(later.TargetId, Is.EqualTo("keep-home"));
         }
+
+        [Test]
+        public void APatrollingForceBreaksOffToBringAnAssaultToItsMinimumArmy()
+        {
+            // Owner 2026-11-03: the patrol may be broken to defend or to reach the minimum number of attackers of an assault.
+            var lostKeep = Keep("keep-home", eRealm.Hibernia, 1);
+            var opener = new AutonomousRvrEventLayer.Force("opener", eRealm.Albion, 8, 50, 2);
+            const long start = 1_000;
+            Assert.That(AutonomousRvrPatrolLock.Holds(opener.GroupId, start), Is.True);
+            long over = start + AutonomousRvrPatrolLock.MinimumMilliseconds;
+            var opened = AutonomousRvrEventLayer.ChooseOrJoin(opener, new[] { lostKeep }, over, 0);
+            Assert.That(opened?.Intent, Is.EqualTo(AutonomousRvrEventLayer.Intent.AssaultKeep));
+
+            // A second force that began its patrol only now is still locked, yet the assault has 8 of its 20.
+            var patroller = new AutonomousRvrEventLayer.Force("patroller", eRealm.Albion, 8, 50, 2);
+            AutonomousRvrPatrolLock.Begin(patroller.GroupId, over);
+            var joined = AutonomousRvrEventLayer.ChooseOrJoin(patroller, new[] { lostKeep }, over + 10, 0);
+
+            Assert.That(joined, Is.Not.Null, "the patrol is broken to bring the assault to its minimum");
+            Assert.That(joined.Intent, Is.EqualTo(AutonomousRvrEventLayer.Intent.AssaultKeep));
+            Assert.That(joined.TargetId, Is.EqualTo("keep-home"));
+            Assert.That(AutonomousRvrPatrolLock.Expired(patroller.GroupId, over + 10), Is.False, "released, not expired");
+        }
+
+        [Test]
+        public void APatrollingForceStaysOnPatrolOnceTheAssaultHasItsMinimumArmy()
+        {
+            var lostKeep = Keep("keep-home", eRealm.Hibernia, 1);
+            var opener = new AutonomousRvrEventLayer.Force("opener", eRealm.Albion, 8, 50, 2);
+            const long start = 1_000;
+            Assert.That(AutonomousRvrPatrolLock.Holds(opener.GroupId, start), Is.True);
+            long over = start + AutonomousRvrPatrolLock.MinimumMilliseconds;
+            Assert.That(AutonomousRvrEventLayer.ChooseOrJoin(opener, new[] { lostKeep }, over, 0)?.Intent,
+                Is.EqualTo(AutonomousRvrEventLayer.Intent.AssaultKeep));
+            var second = new AutonomousRvrEventLayer.Force("second", eRealm.Albion, 8, 50, 2);
+            AutonomousRvrPatrolLock.Begin(second.GroupId, over);
+            Assert.That(AutonomousRvrEventLayer.ChooseOrJoin(second, new[] { lostKeep }, over + 10, 0)?.Intent,
+                Is.EqualTo(AutonomousRvrEventLayer.Intent.AssaultKeep), "8 + 8 is still under the minimum of 20");
+            var third = new AutonomousRvrEventLayer.Force("third", eRealm.Albion, 8, 50, 2);
+            AutonomousRvrPatrolLock.Begin(third.GroupId, over);
+            Assert.That(AutonomousRvrEventLayer.ChooseOrJoin(third, new[] { lostKeep }, over + 20, 0)?.Intent,
+                Is.EqualTo(AutonomousRvrEventLayer.Intent.AssaultKeep), "8 + 8 + 8 reaches the minimum of 20");
+
+            // The assault now has its 24: a fourth force still inside its patrol is left alone.
+            var fourth = new AutonomousRvrEventLayer.Force("fourth", eRealm.Albion, 8, 50, 2);
+            AutonomousRvrPatrolLock.Begin(fourth.GroupId, over);
+            var plan = AutonomousRvrEventLayer.ChooseOrJoin(fourth, new[] { lostKeep }, over + 30, 0);
+
+            Assert.That(plan?.Intent, Is.Not.EqualTo(AutonomousRvrEventLayer.Intent.AssaultKeep));
+        }
     }
 }

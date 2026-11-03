@@ -323,7 +323,10 @@ public static partial class AutonomousRvrEventLayer
                 AutonomousRvrPatrolLock.ChoiceMade(force.GroupId, nowTick, plan.IsSharedEvent);
             // Owner 2026-11-01: a defense interrupts the patrol; the lock is released and a new thirty-minute patrol starts once
             // the defense is over.
-            else if (SiegeScheduling && plan?.Intent == Intent.DefendEvent && AutonomousRvrPatrolLock.Holds(force.GroupId, nowTick))
+            else if (SiegeScheduling &&
+                     (plan?.Intent == Intent.DefendEvent ||
+                      plan is { IsSharedEvent: true, Intent: Intent.AssaultKeep or Intent.AssaultRelicKeep }) &&
+                     AutonomousRvrPatrolLock.Holds(force.GroupId, nowTick))
                 AutonomousRvrPatrolLock.ChoiceMade(force.GroupId, nowTick, sharedEvent: true);
             if (force != null)
             {
@@ -421,9 +424,10 @@ public static partial class AutonomousRvrEventLayer
             // relic, patrol, open an assault - and the leader picks one at RANDOM among those available ("il capo sceglie
             // liberamente (che immagino significhi casualmente)"). The attempts are therefore shuffled instead of
             // priority-ordered: the first entry that can be granted wins. While the thirty-minute patrol holds, the menu
-            // is reduced to defense and patrol, as the owner confirmed.
+            // is reduced to defense, patrol and - owner 2026-11-03 - joining an assault that has not yet got its minimum
+            // number of attackers (NeedsMinimumArmy): the patrol may be broken to defend or to bring an assault to its minimum.
             List<Choice> menu = patrolLocked
-                ? [Choice.Defense, Choice.Patrol]
+                ? [Choice.Defense, Choice.Assault, Choice.Patrol]
                 : [Choice.Assault, Choice.Defense, Choice.Relic, Choice.OpenAssault, Choice.Patrol];
             List<Choice> tried = [];
             foreach (int attempt in Enumerable.Range(0, menu.Count).OrderBy(_ => Random.Shared.Next()).ToArray())
@@ -487,8 +491,10 @@ public static partial class AutonomousRvrEventLayer
                     // Owner 2026-11-02: an assault is never assigned to a force still inside its thirty-minute patrol
                     // window: it would be counted at the rally and never walk there, which is what kept the night musters at
                     // 0-14 against 64 needed. A player-forced siege and a defense still interrupt the patrol.
+                    // Owner 2026-11-03: "la pattuglia può essere interrotta per difendere o per raggiungere il numero minimo di
+                    // attaccanti per far partire un assalto".
                     bool patrolFree = !SiegeScheduling || active.Forced || active.DefenseReaction ||
-                        !AutonomousRvrPatrolLock.Holds(force.GroupId, nowTick);
+                        !AutonomousRvrPatrolLock.Holds(force.GroupId, nowTick) || NeedsMinimumArmy(active);
                     if (patrolFree && force.AverageLevel >= 50 && (!active.BattleStarted || active.Attackers.ContainsKey(force.GroupId) ||
                         ShouldJoinActiveEvent(force, active.Attackers.Values.Sum(), Capacity(active), active.RelicKeep, false, roll)) &&
                         TryJoin(active.Attackers, force, Capacity(active)))
@@ -753,11 +759,19 @@ public static partial class AutonomousRvrEventLayer
         Math.Max(MinimumArmy, Math.Min(relic ? 170 : 108, assigned * 85 / 100));
 
     /// <summary>
-    /// Owner 2026-11-01: an army never marches with fewer than this many (two full groups). The night run sent armies of 8, 5 and
+    /// Owner 2026-11-01: an army never marches with fewer than this many (sixteen, two full groups; owner 2026-11-03: twenty,
+    /// three groups of eight in practice). The night run sent armies of 8, 5 and
     /// even 2 against keeps with guards and a lord. A rally that has not gathered this many by its deadline fails; its forces go
     /// back to patrol. A siege forced by a player and a retake are not held to it.
     /// </summary>
-    public const int MinimumArmy = 16;
+    public const int MinimumArmy = 20;
+
+    /// <summary>
+    /// Owner 2026-11-03: an assault still mustering whose assigned attackers are fewer than <see cref="MinimumArmy"/> may take a
+    /// force away from its patrol; once it has them, a patrolling force is left alone.
+    /// </summary>
+    private static bool NeedsMinimumArmy(ActiveEvent active) =>
+        !active.Marching && !active.BattleStarted && !active.DefenseReaction && active.Attackers.Values.Sum() < MinimumArmy;
 
     /// <summary>Attackers at their posts that open a marched siege without the leader: 60% of the army that marched, at least 8.</summary>
     public static int ArrivalQuorum(int marchedAttackers) => Math.Max(8, marchedAttackers * 6 / 10);

@@ -4,16 +4,17 @@ using System.Linq;
 
 namespace DOL.UnitTests
 {
-    /// <summary>Owner 2026-11-01: no army under two groups, and the level-50 RvR bots log in at their frontier keep.</summary>
+    /// <summary>Owner 2026-11-01: no army under two groups (owner 2026-11-03: under twenty), and the level-50 RvR bots log in at their frontier keep.</summary>
     [TestFixture]
     public class UT_RvrArmyAndLogin
     {
-        [TestCase(8, false, 16)]
-        [TestCase(16, false, 16)]
-        [TestCase(20, false, 17)]
+        [TestCase(8, false, 20)]
+        [TestCase(16, false, 20)]
+        [TestCase(20, false, 20)]
+        [TestCase(30, false, 25)]
         [TestCase(200, false, 108)]
         [TestCase(300, true, 170)]
-        public void AnArmyNeverMarchesUnderSixteen(int assigned, bool relic, int expected) =>
+        public void AnArmyNeverMarchesUnderTwenty(int assigned, bool relic, int expected) =>
             Assert.That(AutonomousRvrEventLayer.MarchThreshold(relic, assigned), Is.EqualTo(expected));
 
         [TestCase(50, true)]

@@ -47,13 +47,13 @@ public class UT_StagedSiegeOct6
         Assert.That(AutonomousRvrEventLayer.GetRallyOrder(attacker.GroupId, eRealm.Albion, firstDeadline)?.HomeMuster, Is.True,
             "a muster too thin to start a battle waits once more for the army on its way");
         long marched = firstDeadline + AutonomousRvrEventLayer.MusterExtensionMilliseconds + 1;
-        // Owner 2026-11-01: nobody mustered, so under the sixteen an army needs the rally fails instead of marching.
+        // Owner 2026-11-01 (sixteen), 2026-11-03 (twenty): nobody mustered, so under the minimum an army needs the rally fails instead of marching.
         Assert.That(AutonomousRvrEventLayer.GetRallyOrder(attacker.GroupId, eRealm.Albion, marched), Is.Null,
-            "a rally with fewer than 16 attackers at its extended deadline fails");
+            "a rally with fewer than 20 attackers at its extended deadline fails");
     }
 
     [Test]
-    public void AnArmyOfSixteenMarchesAtTheExtendedMusterDeadline()
+    public void AnArmyOfTwentyMarchesAtTheExtendedMusterDeadline()
     {
         string id = Guid.NewGuid().ToString();
         long opened = GameLoop.GameLoopTime;
@@ -69,7 +69,7 @@ public class UT_StagedSiegeOct6
         var order = AutonomousRvrEventLayer.GetRallyOrder(attacker.GroupId, eRealm.Albion, marched);
         Assert.Multiple(() =>
         {
-            Assert.That(order?.HomeMuster, Is.False, "sixteen gathered: the army marches at the deadline");
+            Assert.That(order?.HomeMuster, Is.False, "twenty gathered: the army marches at the deadline");
             Assert.That(order?.RemainingMilliseconds, Is.GreaterThanOrEqualTo(RealmEventPolicy.RecruitmentMilliseconds(0) - 1),
                 "the forward rally keeps its full hour after the march");
         });
