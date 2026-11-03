@@ -71,7 +71,9 @@ public sealed partial class AutonomousWorldBotController
         // rewrite put the phase back to "Leader staging", which is the one phase where a member may cross alone: eight
         // bots queueing at the porter one at a time and never assembling. A follower that crosses still uses the anchor;
         // it just does not choose it.
-        if (bot.Group != null && bot.Group.LivingLeader == bot)
+        if (bot.Group != null && bot.Group.LivingLeader == bot &&
+            AutonomousFrontierTransport.AnchorsTheTargetNow(bot.Realm, bot.CurrentRegionID, destination.RegionId,
+                AutonomousFrontierTransport.Ticket(bot, passage) != null))
         {
             // Owner 2026-11-02: "dopo il salto a volte vedo che i gruppi si radunano dentro al mure del keep". A home
             // keep's passage pad sits inside its walls, so the shared anchor goes to the gate front instead - the same

@@ -50,6 +50,16 @@ namespace DOL.UnitTests
         }
 
         [Test]
+        public void ALeaderBoundForAThirdFrontierAnchorsTheHomeHopOnlyNotTheTarget()
+        {
+            // Emain to Hadrian for a Midgard party without the Hadrian ticket: no anchor in region 1, the home hop writes it.
+            Assert.That(AutonomousFrontierTransport.AnchorsTheTargetNow(eRealm.Midgard, 200, 1, false), Is.False);
+            Assert.That(AutonomousFrontierTransport.AnchorsTheTargetNow(eRealm.Midgard, 200, 100, false), Is.True);
+            Assert.That(AutonomousFrontierTransport.AnchorsTheTargetNow(eRealm.Midgard, 200, 1, true), Is.True);
+            Assert.That(AutonomousFrontierTransport.AnchorsTheTargetNow(eRealm.Midgard, 100, 1, false), Is.True);
+        }
+
+        [Test]
         public void TheSameRegionAndRegionsOutsideTheFrontierNeverAskForAHop()
         {
             Assert.That(AutonomousFrontierTransport.NeedsHomeHop(eRealm.Midgard, 200, 200), Is.False);

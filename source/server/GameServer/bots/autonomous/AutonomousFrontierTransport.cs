@@ -197,6 +197,15 @@ public static class AutonomousFrontierTransport
                currentRegion != home && targetRegion != home;
     }
 
+    /// <summary>
+    /// Owner 2026-11-03 (siege rework, phase 0): the leader writes the party's rendezvous for the passage it can board now.
+    /// A bot without the ticket of a third frontier cannot board it (the vendor sells only the home one), so the target
+    /// is not anchored at all: the home hop anchors once and the target follows from home. Writing the target first and the
+    /// home hop right after rewrote the anchor twice per pulse (744 writes on 39 groups in one run).
+    /// </summary>
+    public static bool AnchorsTheTargetNow(eRealm realm, ushort currentRegion, ushort targetRegion, bool hasTicket) =>
+        hasTicket || !NeedsHomeHop(realm, currentRegion, targetRegion);
+
     public static DbInventoryItem Ticket(GameBot bot, Passage passage) => bot.Inventory.AllItems
         .FirstOrDefault(item => item.SlotPosition >= (int)eInventorySlot.FirstBackpack &&
             item.SlotPosition <= (int)eInventorySlot.LastBackpack && item.Count > 0 && item.Id_nb == passage.Medallion);
