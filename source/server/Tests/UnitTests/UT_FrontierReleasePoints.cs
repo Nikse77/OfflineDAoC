@@ -5,8 +5,9 @@ namespace DOL.UnitTests
 {
     /// <summary>
     /// Owner 2026-11-02: in a frontier the release is always the realm's border keep with the portal - its own
-    /// frontier's keep, or its portal keep in the enemy frontier it came in through. Each value below is the landing pad
-    /// of that realm's passage in that frontier, i.e. the keep whose porter carries its medallions.
+    /// frontier's keep, or its portal keep in the enemy frontier it came in through. Each value below is the spot in front
+    /// of that keep's gate: the frontier hastener's position plus five hundred units along the direction he faces (owner
+    /// 2026-11-02, home keeps included; the fixture used the landing pads until the 2026-11-03 update).
     /// </summary>
     [TestFixture]
     public class UT_FrontierReleasePoints
@@ -23,33 +24,39 @@ namespace DOL.UnitTests
         [Test]
         public void AlbionReleasesAtItsOwnKeepAtHomeAndInFrontOfTheGateInTheEnemyFrontiers()
         {
-            AssertPoint(eRealm.Albion, 1, 584_285, 477_200);    // Castle Sauvage, home keep: pad
-            AssertPoint(eRealm.Albion, 100, 596_596, 630_190);  // Albion portal keep in Odin's Gate: gate
-            AssertPoint(eRealm.Albion, 200, 474_803, 343_226);  // Albion portal keep in Emain: gate
+            AssertPoint(eRealm.Albion, 1, 586_460, 476_519);    // Castle Sauvage, home keep: in front of the gate
+            AssertPoint(eRealm.Albion, 100, 597_274, 629_875);  // Albion portal keep in Odin's Gate: gate
+            AssertPoint(eRealm.Albion, 200, 474_679, 342_496);  // Albion portal keep in Emain: gate
         }
 
         [Test]
         public void MidgardReleasesAtItsOwnKeepAtHomeAndInFrontOfTheGateInTheEnemyFrontiers()
         {
-            AssertPoint(eRealm.Midgard, 100, 766_811, 669_605); // Svasud Faste, home keep: pad
-            AssertPoint(eRealm.Midgard, 1, 654_516, 293_941);   // Midgard portal keep in Hadrian's Wall: gate
-            AssertPoint(eRealm.Midgard, 200, 473_466, 296_048); // Midgard portal keep in Emain: gate
+            AssertPoint(eRealm.Midgard, 100, 766_219, 667_345); // Svasud Faste, home keep: in front of the gate
+            AssertPoint(eRealm.Midgard, 1, 654_013, 294_113);   // Midgard portal keep in Hadrian's Wall: gate
+            AssertPoint(eRealm.Midgard, 200, 473_000, 296_290); // Midgard portal keep in Emain: gate
         }
 
         [Test]
         public void HiberniaReleasesAtItsOwnKeepAtHomeAndInFrontOfTheGateInTheEnemyFrontiers()
         {
-            AssertPoint(eRealm.Hibernia, 200, 334_386, 420_071); // Druim Ligen, home keep: pad
-            AssertPoint(eRealm.Hibernia, 1, 606_409, 294_333);   // Hibernia portal keep in Hadrian's Wall: gate
-            AssertPoint(eRealm.Hibernia, 100, 596_723, 582_126); // Hibernia portal keep in Odin's Gate: gate
+            AssertPoint(eRealm.Hibernia, 200, 332_862, 418_660); // Druim Ligen, home keep: in front of the gate
+            AssertPoint(eRealm.Hibernia, 1, 606_664, 295_125);   // Hibernia portal keep in Hadrian's Wall: gate
+            AssertPoint(eRealm.Hibernia, 100, 596_891, 582_904); // Hibernia portal keep in Odin's Gate: gate
         }
 
         [Test]
-        public void OnlyTheSixEntryKeepsKnowAGatePoint()
+        public void AllNineBorderKeepsKnowAGatePoint()
         {
-            Assert.That(AutonomousFrontierRelease.TryGateFront(eRealm.Albion, 1, out _), Is.False);
-            Assert.That(AutonomousFrontierRelease.TryGateFront(eRealm.Midgard, 100, out _), Is.False);
-            Assert.That(AutonomousFrontierRelease.TryGateFront(eRealm.Hibernia, 200, out _), Is.False);
+            // Owner 2026-11-02: the home keeps got a gate front too, outside their walls (the six entry keeps had one already).
+            Assert.That(AutonomousFrontierRelease.TryGateFront(eRealm.Albion, 1, out _), Is.True);
+            Assert.That(AutonomousFrontierRelease.TryGateFront(eRealm.Midgard, 100, out _), Is.True);
+            Assert.That(AutonomousFrontierRelease.TryGateFront(eRealm.Hibernia, 200, out _), Is.True);
+            Assert.That(AutonomousFrontierRelease.TryGateFront(eRealm.Albion, 100, out _), Is.True);
+            Assert.That(AutonomousFrontierRelease.TryGateFront(eRealm.Midgard, 200, out _), Is.True);
+            Assert.That(AutonomousFrontierRelease.TryGateFront(eRealm.Hibernia, 1, out _), Is.True);
+            Assert.That(AutonomousFrontierRelease.TryGateFront(eRealm.None, 1, out _), Is.False);
+            Assert.That(AutonomousFrontierRelease.TryGateFront(eRealm.Albion, 10, out _), Is.False);
             Assert.That(AutonomousFrontierRelease.TryGateFront(eRealm.Albion, 200, out _), Is.True);
             Assert.That(AutonomousFrontierRelease.TryGateFront(eRealm.Midgard, 1, out _), Is.True);
             Assert.That(AutonomousFrontierRelease.TryGateFront(eRealm.Hibernia, 100, out _), Is.True);
@@ -66,8 +73,8 @@ namespace DOL.UnitTests
                 System.Numerics.Vector3 offset = AutonomousFrontierRelease.GateOffset(eRealm.Albion, 200, botId);
                 seen.Add(((int)offset.X, (int)offset.Y));
                 farthest = System.Math.Max(farthest, offset.Length());
-                // the gate of the Albion keep in Emain faces (-0.9112, -0.4114): nobody stands behind the walls
-                double forward = offset.X * -0.9112 + offset.Y * -0.4114;
+                // the gate of the Albion keep in Emain faces (-0.7045, -0.7097): nobody stands behind the walls
+                double forward = offset.X * -0.7045 + offset.Y * -0.7097;
                 Assert.That(forward, Is.GreaterThanOrEqualTo(-1f), $"bot {botId} would stand behind the gate");
             }
             Assert.That(seen.Count, Is.GreaterThan(50), "the offsets must not collapse on one point");

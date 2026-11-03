@@ -77,6 +77,7 @@ namespace DOL.GS.Tests
         [Test]
         public void APatrollingForceBreaksOffToBringAnAssaultToItsMinimumArmy()
         {
+            AutonomousRvrEventLayer.StagedAssault = true;   // the muster stage of production; the fixture clears it
             // Owner 2026-11-03: the patrol may be broken to defend or to reach the minimum number of attackers of an assault.
             var lostKeep = Keep("keep-home", eRealm.Hibernia, 1);
             var opener = new AutonomousRvrEventLayer.Force("opener", eRealm.Albion, 8, 50, 2);
@@ -100,6 +101,7 @@ namespace DOL.GS.Tests
         [Test]
         public void APatrollingForceStaysOnPatrolOnceTheAssaultHasItsMinimumArmy()
         {
+            AutonomousRvrEventLayer.StagedAssault = true;   // the muster stage of production; the fixture clears it
             var lostKeep = Keep("keep-home", eRealm.Hibernia, 1);
             var opener = new AutonomousRvrEventLayer.Force("opener", eRealm.Albion, 8, 50, 2);
             const long start = 1_000;
