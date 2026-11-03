@@ -14,6 +14,13 @@ namespace DOL.GS
         private long? _readySince;
         public bool IsRegrouping { get; private set; }
 
+        /// <summary>
+        /// Owner 2026-11-03 (siege rework phase 5): a group is wiped when no member is left on its feet - each is dead or released
+        /// and waiting at its frontier keep. A wiped group leaves the siege and goes back to patrol.
+        /// </summary>
+        public static bool IsWiped(IReadOnlyCollection<Member> members) =>
+            members.Count > 0 && members.All(member => !member.Alive || member.Returning);
+
         public bool HasCasualty(IEnumerable<Member> members) => members.Any(member =>
             !member.Alive || member.Returning ||
             _deaths.TryGetValue(member.Id, out int previous) && member.Deaths > previous);

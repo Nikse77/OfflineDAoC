@@ -9,6 +9,14 @@ public sealed class UT_AutonomousGroupRecoveryState
 {
     private static Member[] Ready() => [new(1, 0, true), new(2, 0, true), new(3, 0, true)];
 
+    [Test]
+    public void AGroupIsWipedWhenEveryMemberIsDeadOrWaitingAtItsKeep()
+    {
+        Assert.That(AutonomousGroupRecoveryState.IsWiped([new(1, 1, false), new(2, 1, true, Returning: true), new(3, 1, false)]), Is.True);
+        Assert.That(AutonomousGroupRecoveryState.IsWiped([new(1, 1, false), new(2, 0, true)]), Is.False, "one member is still on its feet");
+        Assert.That(AutonomousGroupRecoveryState.IsWiped([]), Is.False);
+    }
+
     [TestCase(false)]
     [TestCase(true)]
     public void PartialAndFullWipesStartOneRecoveryEpisode(bool fullWipe)

@@ -1377,6 +1377,43 @@ public static partial class AutonomousRvrEventLayer
         }
     }
 
+    /// <summary>
+    /// Owner 2026-11-03 (siege rework phase 5): a group wiped out in a siege leaves the event and goes back to patrol (the
+    /// regroup at its realm's portal keep is the ordinary one). It keeps no place in the coalition; its patrol lock starts anew,
+    /// so it does not at once join again. False when the force is in no event.
+    /// </summary>
+    public static bool WithdrawWipedForce(string forceId, long nowTick)
+    {
+        lock (Sync)
+        {
+            bool found = false;
+            foreach (var active in Events.Values)
+            {
+                if (!(active.Attackers.ContainsKey(forceId) || active.Defenders.ContainsKey(forceId) || active.ThirdRealm.ContainsKey(forceId)))
+                    continue;
+                found = true;
+                active.Attackers.Remove(forceId);
+                active.Defenders.Remove(forceId);
+                active.ThirdRealm.Remove(forceId);
+                active.Slots.Remove(forceId);
+                foreach (long id in active.Travel.Where(pair => pair.Value.Force == forceId).Select(pair => pair.Key).ToArray())
+                    active.Travel.Remove(id);
+                foreach (long id in active.Present.Where(pair => pair.Value.Force == forceId).Select(pair => pair.Key).ToArray())
+                    active.Present.Remove(id);
+                foreach (long id in active.Mustered.Where(pair => pair.Value.Force == forceId).Select(pair => pair.Key).ToArray())
+                    active.Mustered.Remove(id);
+                foreach (long id in active.DefenseMustered.Where(pair => pair.Value.Force == forceId).Select(pair => pair.Key).ToArray())
+                    active.DefenseMustered.Remove(id);
+                SyncCoalition(active);
+                var log = DOL.Logging.LoggerManager.Create(typeof(AutonomousRvrEventLayer));
+                if (log.IsInfoEnabled) log.Info($"RVR_FORCE_WIPED_WITHDRAWN force={forceId} target={active.TargetId} " +
+                    $"battle={active.BattleStarted} attackersLeft={active.Attackers.Values.Sum()}");
+            }
+            if (found) AutonomousRvrPatrolLock.Begin(forceId, nowTick);
+            return found;
+        }
+    }
+
     public static void RemoveForce(string forceId)
     {
         AutonomousRvrRoamZones.Release(forceId);

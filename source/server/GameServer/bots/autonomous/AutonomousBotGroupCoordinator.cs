@@ -2275,6 +2275,16 @@ public static partial class AutonomousBotGroupCoordinator
         // An active siege replaces the normal wipe rendezvous: each revived
         // member returns directly to the event while its warband stays locked.
         // Its muster and march too (run 8: the Dun Dagda army waited 90 minutes in group rendezvous).
+        // Owner 2026-11-03: a group wiped out in a siege leaves it and goes back to patrol; the members wait at the portal keep
+        // of their frontier and the ordinary regroup follows.
+        if (session.ObjectiveKind == eAutonomousObjectiveKind.RvR &&
+            AutonomousRvrEventLayer.IsEventForce(session.Id, GameLoop.GameLoopTime) &&
+            AutonomousGroupRecoveryState.IsWiped(RecoveryMembers(session, members, false)) &&
+            AutonomousRvrEventLayer.WithdrawWipedForce(session.Id, GameLoop.GameLoopTime))
+        {
+            Log.Info($"AUTONOMOUS_GROUP_RVR_WIPED group={session.Id} size={members.Length}; the group leaves the siege and goes back to patrol");
+            session.Phase = "Choosing group target";
+        }
         if (session.ObjectiveKind == eAutonomousObjectiveKind.RvR &&
             AutonomousRvrEventLayer.IsEventForce(session.Id, GameLoop.GameLoopTime))
         {
