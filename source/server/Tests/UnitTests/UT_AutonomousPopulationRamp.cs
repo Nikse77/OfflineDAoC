@@ -45,6 +45,20 @@ public sealed class UT_AutonomousPopulationRamp
         Assert.That(AutonomousPopulationRamp.DesiredActiveCount(true, 500, 15, TimeSpan.FromHours(2)), Is.EqualTo(500));
     }
 
+    [TestCase(15, 2230, 15)]
+    [TestCase(15, 2000, 15)]
+    [TestCase(15, 10_000, 15)]
+    [TestCase(15, 1000, 8)]
+    [TestCase(15, 400, 4)]
+    [TestCase(15, 200, 4)]
+    [TestCase(15, 1, 4)]
+    [TestCase(15, 0, 4)]
+    [TestCase(0, 200, 0)]
+    [TestCase(5, 200, 4)]
+    [TestCase(3, 200, 3)]
+    public void ARosterBelowTwoThousandEntersInProportionallyLessTime(int configured, int eligible, int expected) =>
+        Assert.That(AutonomousPopulationRamp.ScaledRampMinutes(configured, eligible), Is.EqualTo(expected));
+
     [Test]
     public void DisabledPopulationLoadsNobody()
     {

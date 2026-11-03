@@ -39,6 +39,27 @@ public static class AutonomousPopulationRamp
         return Math.Min(target, desired);
     }
 
+    /// <summary>The roster size at which the configured ramp applies in full.</summary>
+    public const int FullRampRosterCount = 2_000;
+
+    /// <summary>The shortest ramp a restricted roster gets.</summary>
+    public const int MinimumScaledRampMinutes = 4;
+
+    /// <summary>
+    /// Owner 2026-11-03: the configured ramp (15 minutes) is the time for a roster of 2,000 or more; a smaller number of
+    /// bots that may log in (a login level range) enters in proportionally less time, four minutes at least (the owner's
+    /// floor; a configured ramp shorter than that is kept as it is). A ramp of zero (switched off) stays zero.
+    /// </summary>
+    public static int ScaledRampMinutes(int configuredMinutes, int eligibleCount)
+    {
+        if (configuredMinutes <= 0)
+            return configuredMinutes;
+        if (eligibleCount >= FullRampRosterCount)
+            return configuredMinutes;
+        double scaled = configuredMinutes * (double)Math.Max(0, eligibleCount) / FullRampRosterCount;
+        return Math.Clamp((int)Math.Ceiling(scaled), Math.Min(MinimumScaledRampMinutes, configuredMinutes), configuredMinutes);
+    }
+
     public static TimeSpan NominalLoginOffset(int ordinal, int rosterCount, int rampMinutes)
     {
         int target = Math.Max(0, rosterCount);

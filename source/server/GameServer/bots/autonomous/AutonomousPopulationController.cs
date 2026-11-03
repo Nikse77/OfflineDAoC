@@ -113,7 +113,8 @@ public static class AutonomousPopulationController
             int eligible = minimumLevel > 1 || maximumLevel > 0
                 ? roster.Count(record => MayLogin(record.Level, minimumLevel, maximumLevel))
                 : roster.Length;
-            int desired = AutonomousPopulationRamp.DesiredActiveCount(_cachedEnabled, eligible, _cachedRampMinutes, nowUtc - _startedUtc);
+            int desired = AutonomousPopulationRamp.DesiredActiveCount(_cachedEnabled, eligible,
+                AutonomousPopulationRamp.ScaledRampMinutes(_cachedRampMinutes, eligible), nowUtc - _startedUtc);
             int missing = desired - AutonomousBotRegistry.Count - PendingSpawns.Count;
             _populationSatisfied = missing <= 0;
             if (missing <= 0)
