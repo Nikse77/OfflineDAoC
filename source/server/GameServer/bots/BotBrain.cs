@@ -2299,13 +2299,14 @@ namespace DOL.AI.Brain
         /// </summary>
         private GameLiving FindOutOfRangeBuffTarget(Spell spell)
         {
-            if (Body.Group == null || spell.IsPulsing ||
+            Group group = Body.Group;
+            if (group == null || spell.IsPulsing ||
                 spell.Target is not (eSpellTarget.REALM or eSpellTarget.GROUP))
                 return null;
             int range = spell.Target == eSpellTarget.GROUP
                 ? Math.Max(350, spell.Range)
                 : spell.CalculateEffectiveRange(Body);
-            return Body.Group.GetMembersInTheGroup()
+            return group.GetMembersInTheGroup()
                 .Where(member => member != Body && member.IsAlive && InSupportReach(member) &&
                     !Body.IsWithinRadius(member, range) && !LivingHasEffect(member, spell))
                 .OrderBy(member => Body.GetDistanceTo(member))
@@ -2829,9 +2830,10 @@ namespace DOL.AI.Brain
         /// </summary>
         private bool GroupmateHasStrongerSpeed(Spell speed)
         {
-            if (Body?.Group == null || speed == null)
+            Group group = Body?.Group;
+            if (group == null || speed == null)
                 return false;
-            foreach (GameLiving member in Body.Group.GetMembersInTheGroup())
+            foreach (GameLiving member in group.GetMembersInTheGroup())
             {
                 if (member == Body || !member.IsAlive)
                     continue;
@@ -3979,14 +3981,15 @@ namespace DOL.AI.Brain
 
         public bool TryAssistAutonomousPveCombat()
         {
+            Group group = Body?.Group;
             if (BotBody?.IsAutonomousWorldBot != true || BotBody.IsPlayerLedGroup ||
-                BotBody.IsTemporaryGroupHelper || Body.Group == null)
+                BotBody.IsTemporaryGroupHelper || group == null)
                 return false;
 
             // Use the party's actual combat targets, not a new camp search.
             // The controller must then yield to the normal combat FSM so support,
             // pet attacks and movement into spell/melee range can execute.
-            GameLiving target = Body.Group.GetMembersInTheGroup()
+            GameLiving target = group.GetMembersInTheGroup()
                 .Where(member => member != Body && member?.IsAlive == true &&
                     member.CurrentRegion == Body.CurrentRegion &&
                     (member.InCombat || member.IsAttacking))
@@ -4005,14 +4008,15 @@ namespace DOL.AI.Brain
 
         private GameLiving FindProtectionTarget()
         {
-            if (!IsTankClass || Body?.Group == null)
+            Group group = Body?.Group;
+            if (!IsTankClass || group == null)
                 return null;
 
             GamePlayer leader = AssistedPlayer;
             // Owner 2026-10-26: the tank is not on its own protection list. The
             // monster hitting it was always the nearest candidate and so beat a
             // monster on a caster or any other non-healer member every time.
-            HashSet<GameLiving> protectedMembers = Body.Group.GetMembersInTheGroup()
+            HashSet<GameLiving> protectedMembers = group.GetMembersInTheGroup()
                 .Where(member => member != Body && member?.IsAlive == true && member.CurrentRegionID == Body.CurrentRegionID &&
                                  Body.IsWithinRadius(member, GROUP_DEFENSE_ASSIST_RADIUS))
                 .ToHashSet();
@@ -4042,8 +4046,9 @@ namespace DOL.AI.Brain
 
         private bool TryPriorityTaunt(GameLiving target)
         {
-            if (!IsTankClass || target?.TargetObject is not GameLiving victim || Body.Group == null ||
-                victim.Group != Body.Group || !Body.Group.IsInTheGroup(victim) ||
+            Group group = Body.Group;
+            if (!IsTankClass || target?.TargetObject is not GameLiving victim || group == null ||
+                victim.Group != group || !group.IsInTheGroup(victim) ||
                 victim.CurrentRegionID != Body.CurrentRegionID ||
                 !Body.IsWithinRadius(victim, GROUP_DEFENSE_ASSIST_RADIUS))
                 return false;
@@ -4819,11 +4824,11 @@ namespace DOL.AI.Brain
                         break;
                     }
 
-                    if (Body.Group != null)
+                    if (Body.Group is { } targetGroup1)
                     {
                         if (spell.Target == eSpellTarget.REALM || spell.Target == eSpellTarget.GROUP)
                         {
-                            foreach (GameLiving groupMember in Body.Group.GetMembersInTheGroup())
+                            foreach (GameLiving groupMember in targetGroup1.GetMembersInTheGroup())
                             {
                                 if (groupMember != Body)
                                 {
@@ -4852,9 +4857,9 @@ namespace DOL.AI.Brain
                         break;
                     }
 
-                    if (Body.Group != null)
+                    if (Body.Group is { } targetGroup2)
                     {
-                        foreach (GameLiving groupMember in Body.Group.GetMembersInTheGroup())
+                        foreach (GameLiving groupMember in targetGroup2.GetMembersInTheGroup())
                         {
                             if (groupMember != Body && groupMember.IsDiseased && Body.IsWithinRadius(groupMember, spell.Range))
                             {
@@ -4872,9 +4877,9 @@ namespace DOL.AI.Brain
                         break;
                     }
 
-                    if (Body.Group != null)
+                    if (Body.Group is { } targetGroup3)
                     {
-                        foreach (GameLiving groupMember in Body.Group.GetMembersInTheGroup())
+                        foreach (GameLiving groupMember in targetGroup3.GetMembersInTheGroup())
                         {
                             if (groupMember != Body && groupMember.IsPoisoned && Body.IsWithinRadius(groupMember, spell.Range))
                             {
@@ -4886,9 +4891,9 @@ namespace DOL.AI.Brain
                     break;
 
                 case eSpellType.CureMezz:
-                    if (Body.Group != null)
+                    if (Body.Group is { } targetGroup4)
                     {
-                        foreach (GameLiving groupMember in Body.Group.GetMembersInTheGroup())
+                        foreach (GameLiving groupMember in targetGroup4.GetMembersInTheGroup())
                         {
                             if (groupMember != Body && groupMember.IsMezzed && Body.IsWithinRadius(groupMember, spell.Range))
                             {
@@ -5017,9 +5022,9 @@ namespace DOL.AI.Brain
                         break;
                     }
 
-                    if (Body.Group != null && (spell.Target == eSpellTarget.REALM || spell.Target == eSpellTarget.GROUP))
+                    if (Body.Group is { } targetGroup5 && (spell.Target == eSpellTarget.REALM || spell.Target == eSpellTarget.GROUP))
                     {
-                        foreach (GameLiving groupMember in Body.Group.GetMembersInTheGroup())
+                        foreach (GameLiving groupMember in targetGroup5.GetMembersInTheGroup())
                         {
                             if (groupMember != Body && !LivingHasEffect(groupMember, spell) && Body.IsWithinRadius(groupMember, spell.Range) && groupMember.IsAlive)
                             {
@@ -5168,13 +5173,14 @@ namespace DOL.AI.Brain
             const byte ManaThreshold = 90;
             const long CureDelay = 5000;
 
-            if (AlreadyCheckedHeals || (!Body.CanCastHealSpells && !(Body.Group != null && BotBody.ResurrectionSpell != null)) || Body.IsStunned || Body.IsMezzed || Body.IsSilenced)
+            Group group = Body.Group;
+            if (AlreadyCheckedHeals || (!Body.CanCastHealSpells && !(group != null && BotBody.ResurrectionSpell != null)) || Body.IsStunned || Body.IsMezzed || Body.IsSilenced)
                 return false;
 
             AlreadyCheckedHeals = true;
 
             // The first heal after someone gets hurt waits a moment (BotReactionDelay.Heal); a resurrection does not.
-            bool hurt = Body.HealthPercent < 90 || Body.Group != null && Body.Group.GetMembersInTheGroup()
+            bool hurt = Body.HealthPercent < 90 || group != null && group.GetMembersInTheGroup()
                 .Any(member => member.IsAlive && member.HealthPercent < 90 && InSupportReach(member));
             if (!hurt)
                 _reactionHurtSeen = false;
@@ -5216,9 +5222,9 @@ namespace DOL.AI.Brain
             bool startedCasting = false;
 
             // Check group health
-            if (Body.Group != null)
+            if (group != null)
             {
-                foreach (GameLiving member in Body.Group.GetMembersInTheGroup())
+                foreach (GameLiving member in group.GetMembersInTheGroup())
                 {
                     if (!member.IsAlive || !InSupportReach(member))
                         continue;
@@ -5297,7 +5303,7 @@ namespace DOL.AI.Brain
                 // leader needs a heal, prefer that player over autonomous bot members;
                 // healthy leaders do not prevent the healer from tending the rest.
                 GamePlayer assistedPlayer = AssistedPlayer;
-                if (BotBody.IsPlayerLedGroup && assistedPlayer?.IsAlive == true && Body.Group.IsInTheGroup(assistedPlayer) &&
+                if (BotBody.IsPlayerLedGroup && assistedPlayer?.IsAlive == true && group.IsInTheGroup(assistedPlayer) &&
                     InSupportReach(assistedPlayer))
                 {
                     bool playerNeedsHealing = assistedPlayer.HealthPercent < 65 || (IsHealer && assistedPlayer.HealthPercent < 80);
@@ -5312,7 +5318,7 @@ namespace DOL.AI.Brain
                 GameLiving relicCarrier = RelicMgr.GetRelics()
                     .Select(relic => relic?.CurrentCarrier)
                     .FirstOrDefault(carrier => carrier?.IsAlive == true && carrier.Realm == BotBody.Realm &&
-                                               (Body.Group.IsInTheGroup(carrier) || BotBody.IsAutonomousWorldBot &&
+                                               (group.IsInTheGroup(carrier) || BotBody.IsAutonomousWorldBot &&
                                                 AutonomousObjectiveAssignments.Is(BotBody, eAutonomousObjectiveKind.RvR)) && CanHealRelicCarrier(carrier));
                 if (relicCarrier != null && relicCarrier.HealthPercent < 100 &&
                     (!BotBody.IsTemporaryGroupHelper ||
@@ -5405,9 +5411,9 @@ namespace DOL.AI.Brain
             // Cure Mezz/Disease/Poison
             if (spellToCast == null)
             {
-                if (Body.Group != null)
+                if (group != null)
                 {
-                    foreach (GameLiving member in Body.Group.GetMembersInTheGroup().OrderBy(member => member == AssistedPlayer ? 0 : 1))
+                    foreach (GameLiving member in group.GetMembersInTheGroup().OrderBy(member => member == AssistedPlayer ? 0 : 1))
                     {
                         if (member.IsMezzed && member != Body && InSupportReach(member) && CheckHealSpell(BotBody.CureMezz))
                         {
@@ -5419,7 +5425,7 @@ namespace DOL.AI.Brain
 
                     if (spellToCast == null && nextCureTime < GameLoop.GameLoopTime)
                     {
-                        foreach (GameLiving member in Body.Group.GetMembersInTheGroup().OrderBy(member => member == AssistedPlayer ? 0 : 1))
+                        foreach (GameLiving member in group.GetMembersInTheGroup().OrderBy(member => member == AssistedPlayer ? 0 : 1))
                         {
                             if (!InSupportReach(member))
                                 continue;
@@ -5607,10 +5613,11 @@ namespace DOL.AI.Brain
         // minute, and only while a dead group member is actually within spell range.
         private void ReportResurrectionBlock(Spell resurrection, string reason, GameLiving corpse = null)
         {
-            if (Body.Group == null || !BotBody.IsAutonomousWorldBot || GameLoop.GameLoopTime < _nextResurrectionBlockReportTick)
+            Group group = Body.Group;
+            if (group == null || !BotBody.IsAutonomousWorldBot || GameLoop.GameLoopTime < _nextResurrectionBlockReportTick)
                 return;
             int range = BotBody.castingComponent.CalculateSpellRange(resurrection);
-            corpse ??= Body.Group.GetMembersInTheGroup().FirstOrDefault(member => member != Body && !member.IsAlive &&
+            corpse ??= group.GetMembersInTheGroup().FirstOrDefault(member => member != Body && !member.IsAlive &&
                 member.ObjectState == GameObject.eObjectState.Active && member.CurrentRegionID == Body.CurrentRegionID &&
                 Body.IsWithinRadius(member, range));
             if (corpse == null)
@@ -5690,7 +5697,8 @@ namespace DOL.AI.Brain
         private bool TryResurrectGroupMember()
         {
             Spell resurrection = BotBody.ResurrectionSpell;
-            if (Body.Group != null)
+            Group group = Body.Group;
+            if (group != null)
             {
                 if (Body.IsCasting && Body.castingComponent.SpellHandler?.Spell?.SpellType == eSpellType.Resurrect)
                     return BotGroupSupport.ContinueResurrection(BotBody);
@@ -5719,12 +5727,12 @@ namespace DOL.AI.Brain
                 }
                 ReportResurrectionBlock(resurrection, null);
             }
-            if (resurrection == null || Body.Group == null || Body.InCombat || Body.Group.GetMembersInTheGroup().Any(m => m.IsAlive && m.InCombat) || Body.IsCasting || !CheckHealSpell(resurrection))
+            if (resurrection == null || group == null || Body.InCombat || group.GetMembersInTheGroup().Any(m => m.IsAlive && m.InCombat) || Body.IsCasting || !CheckHealSpell(resurrection))
                 return false;
 
             int range = BotBody.castingComponent.CalculateSpellRange(resurrection);
             bool regrouping = AutonomousBotGroupCoordinator.IsRecovering(BotBody);
-            GameLiving deadMember = Body.Group.GetMembersInTheGroup()
+            GameLiving deadMember = group.GetMembersInTheGroup()
                 .Where(member => member != Body && !member.IsAlive && member.ObjectState is GameObject.eObjectState.Active &&
                                  member.CurrentRegionID == Body.CurrentRegionID)
                 // Raise nearby casualties, but do not abandon recovery to chase
