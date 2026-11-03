@@ -14,6 +14,42 @@ public static class RegenerationDiagnostics
     private static readonly Dictionary<int, long> LastReport = new();
     private static readonly DOL.Logging.Logger Log = DOL.Logging.LoggerManager.Create(typeof(RegenerationDiagnostics));
 
+    private static readonly Dictionary<int, (long Tick, int Endurance)> LastEndurance = new();
+
+    /// <summary>
+    /// Owner 2026-11-03: Foog sits out of combat and his endurance bar stays at zero, with a Paladin's endurance chant on
+    /// him. One line every ten seconds per player names every component of the regeneration and the net change of the
+    /// bar since the last line. If the lines stop while the bar is below its maximum, the regeneration timer is dead.
+    /// </summary>
+    public static void ReportEndurance(GamePlayer player, int regen, int baseTick)
+    {
+        long now = GameLoop.GameLoopTime;
+        int delta = 0;
+        lock (LastEndurance)
+        {
+            if (LastEndurance.TryGetValue(player.ObjectID, out var last) && now - last.Tick < IntervalMilliseconds)
+                return;
+            if (LastEndurance.TryGetValue(player.ObjectID, out last)) delta = player.Endurance - last.Endurance;
+            LastEndurance[player.ObjectID] = (now, player.Endurance);
+        }
+
+        eProperty property = eProperty.EnduranceRegenerationAmount;
+        try
+        {
+            Log.Info($"ENDURANCE_REGEN_TICK who=\"{player.Name}\" level={player.Level} regen={regen} " +
+                     $"endurance={player.Endurance}/{player.MaxEndurance} change_since_last_line={delta} base_tick={baseTick} " +
+                     $"buff={player.BaseBuffBonusCategory[property]} ability={player.AbilityBonus[property]} " +
+                     $"item={player.ItemBonus[property]} spec_debuff={player.SpecBuffBonusCategory[property]} " +
+                     $"modifier={ServerProperties.Properties.ENDURANCE_REGEN_AMOUNT_MODIFIER} sitting={player.IsSitting} " +
+                     $"in_combat={player.InCombat} moving={player.IsMoving} sprinting={player.IsSprinting} " +
+                     $"fatigue_consumption={player.GetModified(eProperty.FatigueConsumption)}");
+        }
+        catch (System.Exception)
+        {
+            // A tick is worth more than a log line.
+        }
+    }
+
     /// <summary>Called for every power tick of a player or a companion; autonomous population is left out.</summary>
     public static void ReportPower(GameLiving living, int amount)
     {

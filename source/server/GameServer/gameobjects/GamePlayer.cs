@@ -2439,6 +2439,9 @@ namespace DOL.GS
                 }
             }
 
+            RegenerationDiagnostics.ReportEndurance(this, regen,
+                ClassicRestRegeneration.BaseEndurancePerTick(IsSitting, InCombat, IsMoving));
+
             if (regen != 0)
                 ChangeEndurance(this, eEnduranceChangeType.Regenerate, regen);
 
