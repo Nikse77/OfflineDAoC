@@ -129,6 +129,8 @@ public static partial class AutonomousBotGroupCoordinator
         public string ArrivalLoggedCampId { get; set; } = string.Empty;
         public Dictionary<string, long> RejectedDungeonCamps { get; } = new(StringComparer.Ordinal);
         public int WipePenalty { get; set; }
+        /// <summary>The RvR regroup was moved to the leader's border keep (the leader fell and released); once per regroup.</summary>
+        public bool RegroupAtKeep { get; set; }
         public long? NoCampSinceTick { get; set; }
         public AutonomousGroupRecoveryState Recovery { get; } = new();
         public bool RecoveryRendezvousChosen { get; set; }
@@ -2308,6 +2310,7 @@ public static partial class AutonomousBotGroupCoordinator
             session.TeleportedToRendezvous.Clear();
             // Owner 2026-11-02: every regroup converges on the leader again, so the point is chosen each time.
             session.RecoveryRendezvousChosen = false;
+            session.RegroupAtKeep = false;
             ChooseRecoveryRendezvous(session, members[0].Realm);
             Log.Info($"AUTONOMOUS_GROUP_REGROUP_STARTED group={session.Id} objective={session.ObjectiveKind} " +
                 $"members=\"{string.Join(",", members.Select(member => $"{member.Name}:L{member.Level}:deaths={member.PersistentRecord?.DeathCount}:alive={member.IsAlive}"))}\" " +
@@ -2352,6 +2355,22 @@ public static partial class AutonomousBotGroupCoordinator
         {
             session.NextRecoveryReadinessTick = GameLoop.GameLoopTime + 1_000;
             leader = ChooseLeader(session, members);
+            // Owner 2026-11-03: when the leader itself has fallen and released, the regroup is held at its border keep, at the
+            // usual spot in front of the gate, as when the party was born; it used to stay where the first casualties fell.
+            if (session.ObjectiveKind == eAutonomousObjectiveKind.RvR && !session.RegroupAtKeep && leader != null &&
+                leader.IsAlive && leader.WaitingAtFrontierKeep &&
+                AutonomousFrontierRelease.TryGateFront(leader.Realm, leader.CurrentRegionID, out Point3D keepGate))
+            {
+                session.RegroupAtKeep = true;
+                session.Rendezvous = new Vector3(keepGate.X, keepGate.Y, keepGate.Z);
+                session.RendezvousRegion = leader.CurrentRegionID;
+                session.RendezvousName = "its border keep";
+                session.LeaderReadyForAssembly = false;
+                session.TeleportedToRendezvous.Clear();
+                TryBuildRendezvousSlots(session, members);
+                Log.Info($"RVR_REGROUP_AT_BORDER_KEEP group={session.Id} leader=\"{leader.Name}\" region={session.RendezvousRegion} " +
+                         $"at={keepGate.X},{keepGate.Y}");
+            }
             if (!session.LeaderReadyForAssembly && leader != null && AtRendezvous(session, leader))
             {
                 Vector3 previous = session.Rendezvous;
