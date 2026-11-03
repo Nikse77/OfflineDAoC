@@ -229,6 +229,21 @@ public static class AutonomousRvrDashboard
             .FirstOrDefault(realm => realm != attacker && realm != defender);
     }
 
+    /// <summary>The coalition of an assault in one line: groups, leader, and what a muster still lacks to march.</summary>
+    public static string CoalitionLine(int groups, string leader, int attackers, bool mustering)
+    {
+        string line = groups == 0 ? "Coalition: no group yet" : $"Coalition: {groups} group{(groups == 1 ? "" : "s")} · leader {leader}";
+        if (!mustering) return line;
+        int missingGroups = Math.Max(0, AutonomousRvrCoalition.MinimumGroups - groups);
+        int missingBots = Math.Max(0, AutonomousRvrCoalition.MinimumBots - attackers);
+        if (missingGroups == 0 && missingBots == 0) return line + " · ready to march";
+        return line + " · needs " + string.Join(" and ", new[]
+        {
+            missingGroups > 0 ? $"{missingGroups} more group{(missingGroups == 1 ? "" : "s")}" : null,
+            missingBots > 0 ? $"{missingBots} more bot{(missingBots == 1 ? "" : "s")}" : null,
+        }.Where(part => part != null));
+    }
+
     private static string FormatForces(AutonomousRvrEventLayer.BattleNotice battle)
     {
         if (battle == null)
@@ -243,6 +258,7 @@ public static class AutonomousRvrDashboard
         return $"Present / cap (assigned)\n{GlobalConstants.RealmToName(battle.Attacker)}: {battle.PresentAttackers}/{battle.CapPerRealm} ({battle.Attackers})\n" +
                $"{GlobalConstants.RealmToName(battle.Defender)}: {battle.PresentDefenders}/{battle.CapPerRealm} ({battle.Defenders})\n" +
                $"{GlobalConstants.RealmToName(thirdRealm)}: {battle.PresentThirdRealm}/{battle.CapPerRealm} ({battle.ThirdRealm})\n" +
+               (battle.MusterRemainingMilliseconds >= 0 ? CoalitionLine(battle.CoalitionGroups, battle.CoalitionLeader, battle.Attackers, battle.MusterRemainingMilliseconds > 0) + "\n" : "") +
                "Attackers prepare first; opposing realms respond to actual fighting\n" +
                (battle.MusterRemainingMilliseconds > 0
                    ? $"Gathering: marching in {Math.Max(1, (int)Math.Ceiling(battle.MusterRemainingMilliseconds / 60_000d))}m\n"

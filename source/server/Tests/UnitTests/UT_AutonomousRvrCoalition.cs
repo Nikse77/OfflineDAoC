@@ -85,6 +85,13 @@ namespace DOL.GS.Tests
             Assert.That(AutonomousRvrRally.BlockAlignedSlots(used, 8, 16), Is.Null);
         }
 
+        [TestCase(0, null, 0, true, "Coalition: no group yet · needs 2 more groups and 16 more bots")]
+        [TestCase(1, "albion-1", 8, true, "Coalition: 1 group · leader albion-1 · needs 1 more group and 8 more bots")]
+        [TestCase(2, "albion-1", 16, true, "Coalition: 2 groups · leader albion-1 · ready to march")]
+        [TestCase(3, "albion-1", 24, false, "Coalition: 3 groups · leader albion-1")]
+        public void TheDashboardSaysWhatAMusterStillLacks(int groups, string leader, int bots, bool mustering, string expected) =>
+            Assert.That(AutonomousRvrDashboard.CoalitionLine(groups, leader, bots, mustering), Is.EqualTo(expected));
+
         [Test]
         public void ReconcileReportsJoinsLeavesAndPromotionsInOrder()
         {

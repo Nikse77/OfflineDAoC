@@ -800,7 +800,7 @@ public static partial class AutonomousRvrEventLayer
     public sealed record BattleNotice(string TargetId, string Kind, eRealm Attacker, eRealm Defender,
         int Attackers, int Defenders, int ThirdRealm, int CapPerRealm, long RemainingMilliseconds,
         bool BattleStarted = false, int PresentAttackers = 0, int PresentDefenders = 0, int PresentThirdRealm = 0,
-        long MusterRemainingMilliseconds = -1);
+        long MusterRemainingMilliseconds = -1, int CoalitionGroups = 0, string CoalitionLeader = null);
 
     public static BattleNotice[] Snapshot()
     {
@@ -817,7 +817,8 @@ public static partial class AutonomousRvrEventLayer
                     Attendance(entry, OtherRealm(entry), GameLoop.GameLoopTime),
                     // gathering: time to the march order; 0 = the army is marching; -1 = no muster stage
                     entry.BattleStarted || entry.DefenseReaction || entry.MusterDeadlineTick == 0 ? -1
-                        : entry.Marching ? 0 : Math.Max(1, entry.MusterDeadlineTick - GameLoop.GameLoopTime))).ToArray();
+                        : entry.Marching ? 0 : Math.Max(1, entry.MusterDeadlineTick - GameLoop.GameLoopTime),
+                    entry.Coalition.Count, entry.Coalition.Leader)).ToArray();
         }
     }
 
