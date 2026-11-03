@@ -209,6 +209,7 @@ public sealed partial class AutonomousWorldBotController
     /// an objective in Hadrian's Wall.
     /// </summary>
     private bool _frontierWalkWaiting;
+    private bool _walkingWithTheParty;
 
     /// <summary>Within this distance of the porter the walk is over and the party boards (see BoardingParty).</summary>
     private const int PartyWalkEndRadius = 2_000;
@@ -223,7 +224,13 @@ public sealed partial class AutonomousWorldBotController
     /// </summary>
     private bool WalkWithThePartyToThePorter(GameBot bot)
     {
-        if (_groupDirective?.IsDynamic != true || _groupDirective.ObjectiveKind != eAutonomousObjectiveKind.RvR ||
+        // FollowDynamicGroupLeader can itself call TryFrontierTransport (a member that may cross alone during the meetup, or a
+        // member in another region), which calls this again: without the guard the two called each other without end and
+        // took CoreServer down with a stack overflow (exception 0xc00000fd, 2026-11-03 10:15:07). While the party is still
+        // gathering (staging, meeting up) every member walks on its own, as it always did.
+        if (_walkingWithTheParty || _groupDirective?.IsDynamic != true ||
+            _groupDirective.ObjectiveKind != eAutonomousObjectiveKind.RvR ||
+            AutonomousBotGroupCoordinator.MemberMayCrossAlone(_groupDirective.Phase) ||
             bot.Group == null || _frontierPorter == null)
             return false;
         if (bot.Group.LivingLeader is not GameBot leader || !leader.IsAlive ||
@@ -233,7 +240,11 @@ public sealed partial class AutonomousWorldBotController
             return false;
         }
         if (leader != bot)
-            return FollowDynamicGroupLeader(bot, _groupDirective);
+        {
+            _walkingWithTheParty = true;
+            try { return FollowDynamicGroupLeader(bot, _groupDirective); }
+            finally { _walkingWithTheParty = false; }
+        }
 
         long now = GameLoop.GameLoopTime;
         GameBot[] members = bot.Group.GetMembersInTheGroup().OfType<GameBot>().ToArray();
