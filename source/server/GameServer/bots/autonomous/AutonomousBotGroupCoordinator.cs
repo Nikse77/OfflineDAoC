@@ -2291,7 +2291,13 @@ public static partial class AutonomousBotGroupCoordinator
                     $"returning={members.Count(member => member.IsReturningAfterRelease)}");
             }
         }
-        if (session.Recovery.Observe(RecoveryMembers(session, members, false), session.TaskClock.HasStarted))
+        // Owner 2026-11-03: "col combattimento in corso capo e membri devono solo combattere". Run of 11:02: the first death of
+        // an RvR party (7 alive of 8) opened the regroup in the middle of the fight, put its point where the fight was, and the
+        // leader died there two seconds later. The casualty is not forgotten (a corpse, or a death count above the last one
+        // seen, still counts when Observe runs) - the regroup begins when no member of the party fights any more.
+        bool fightingRvrParty = session.ObjectiveKind == eAutonomousObjectiveKind.RvR && groupCombatActive &&
+                                !session.Recovery.IsRegrouping;
+        if (!fightingRvrParty && session.Recovery.Observe(RecoveryMembers(session, members, false), session.TaskClock.HasStarted))
         {
             session.WipePenalty = session.ObjectiveKind == eAutonomousObjectiveKind.GroupPve
                 ? AutonomousGroupTargetPolicy.PenaltyAfterWipe((int)Math.Round(members.Average(member => member.Level)),
