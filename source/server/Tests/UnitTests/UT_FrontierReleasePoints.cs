@@ -24,7 +24,7 @@ namespace DOL.UnitTests
         [Test]
         public void AlbionReleasesAtItsOwnKeepAtHomeAndInFrontOfTheGateInTheEnemyFrontiers()
         {
-            AssertPoint(eRealm.Albion, 1, 586_460, 476_519);    // Castle Sauvage, home keep: in front of the gate
+            AssertPoint(eRealm.Albion, 1, 585_685, 475_450);    // Castle Sauvage, home keep: connected ground in front of it (the hastener's own spot is a navmesh pocket)
             AssertPoint(eRealm.Albion, 100, 597_274, 629_875);  // Albion portal keep in Odin's Gate: gate
             AssertPoint(eRealm.Albion, 200, 474_679, 342_496);  // Albion portal keep in Emain: gate
         }

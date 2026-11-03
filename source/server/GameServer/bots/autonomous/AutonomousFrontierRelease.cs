@@ -104,7 +104,11 @@ namespace DOL.GS
             // Owner 2026-11-02: "tiri una linea dal centro del pad all'hastener e siccome l'hastener sta davanti al keep
             // sai in quale direzione devi aggiungere i 500 punti". The pad-to-hastener line is the outward direction, so
             // the five hundred are added past the hastener along it, home keeps included.
-            (eRealm.Albion, 1) => new GateSpot(586460, 476519, 2600, 0.9543, -0.2990),
+            // Owner 2026-11-03: the hastener's own spot (586460,476519) is a navigation pocket of the installed mesh - a path from
+            // it reaches 46,000 units short of Caer Renaris, 403 route queries failed there and Albion regroups stood in it.
+            // This point on the connected ground south of the keep (probe UT_HomeAlbGateFrontNavigation): the whole fan of
+            // GateOffset (30 to 650 forward, 400 sideways) joins the frontier network, 63 of 63 sampled points.
+            (eRealm.Albion, 1) => new GateSpot(585685, 475450, 2602, 0.8660, -0.5000),
             (eRealm.Midgard, 100) => new GateSpot(766219, 667345, 5736, -0.2533, -0.9674),
             (eRealm.Hibernia, 200) => new GateSpot(332862, 418660, 5184, -0.7339, -0.6793),
             _ => null,
