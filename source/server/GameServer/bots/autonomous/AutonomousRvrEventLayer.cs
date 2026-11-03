@@ -675,18 +675,41 @@ public static partial class AutonomousRvrEventLayer
         }
         LiveObjective target = null;
         long since = nowTick;
+        string why = "first"; // first point, or the previous one was forgotten by an interruption
+        string previous = "none";
+        long heldSeconds = 0;
+        long distance = -1;
         if (PatrolHeld.TryGetValue(force.GroupId, out var held))
         {
-            bool reached = where is { } here && here.RegionId == held.Target.RegionId &&
-                           (long)(here.X - held.Target.X) * (here.X - held.Target.X) + (long)(here.Y - held.Target.Y) * (here.Y - held.Target.Y)
-                               <= (long)PatrolReachRadius * PatrolReachRadius;
+            previous = held.Target.Id;
+            heldSeconds = Math.Max(0, nowTick - held.Since) / 1000;
+            if (where is { } at && at.RegionId == held.Target.RegionId)
+                distance = (long)Math.Sqrt((double)(at.X - held.Target.X) * (at.X - held.Target.X) +
+                                           (double)(at.Y - held.Target.Y) * (at.Y - held.Target.Y));
+            bool reached = distance >= 0 && distance <= PatrolReachRadius;
             if (!reached && nowTick >= held.Since && nowTick - held.Since < PatrolHoldMilliseconds)
             {
                 target = held.Target;
                 since = held.Since;
+                why = "kept";
             }
+            else
+                why = reached ? "reached" : "expired";
         }
         target ??= fresh;
+        // Owner 2026-11-03 (diagnostics only): one line each time a party's patrol point changes, with why. "kept" is not
+        // written (it would be one line per review per party). A bot on its own ("rvr-<id>") is not worth a line.
+        if (why != "kept" && !force.GroupId.StartsWith("rvr-", StringComparison.Ordinal))
+        {
+            try
+            {
+                var log = DOL.Logging.LoggerManager.Create(typeof(AutonomousRvrEventLayer));
+                if (log.IsInfoEnabled)
+                    log.Info($"RVR_PATROL_POINT force={force.GroupId} realm={force.Realm} reason={why} previous={previous} " +
+                             $"heldSeconds={heldSeconds} leaderDistanceToPrevious={distance} next={target.Id} region={target.RegionId}");
+            }
+            catch { }
+        }
         if (target.Kind == Intent.Roam)
             PatrolHeld[force.GroupId] = (target, since);
         else
