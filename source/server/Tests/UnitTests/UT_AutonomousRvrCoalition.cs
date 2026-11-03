@@ -103,6 +103,26 @@ namespace DOL.GS.Tests
         }
 
         [Test]
+        public void TheOrganizersLeaderHasTwoMinutesBeforeItIsReplaced()
+        {
+            Assert.That(AutonomousRvrEventLayer.MarchLeaderSilenceLimit(true), Is.EqualTo(120_000));
+            Assert.That(AutonomousRvrEventLayer.MarchLeaderSilenceLimit(false), Is.EqualTo(30_000));
+        }
+
+        [TestCase(true, true, true, false, true, 20_000.0, 120_000L, true)]
+        [TestCase(true, true, true, false, true, 20_000.0, 119_000L, false, TestName = "not yet two minutes")]
+        [TestCase(true, true, true, false, true, 8_000.0, 300_000L, false, TestName = "close enough to walk")]
+        [TestCase(true, true, true, false, false, 20_000.0, 300_000L, false, TestName = "another region: the portals do it")]
+        [TestCase(true, true, true, true, true, 20_000.0, 300_000L, false, TestName = "never twice")]
+        [TestCase(true, false, true, false, true, 20_000.0, 300_000L, false, TestName = "the leader is not ready yet")]
+        [TestCase(true, true, false, false, true, 20_000.0, 300_000L, false, TestName = "dead, fighting or released")]
+        [TestCase(false, true, true, false, true, 20_000.0, 300_000L, false, TestName = "not an RvR party")]
+        public void AFarStragglerIsMovedToTheRendezvousOnlyWhenReallyNecessary(bool rvr, bool leaderReady, bool free, bool moved,
+            bool sameRegion, double distance, long waited, bool expected) =>
+            Assert.That(AutonomousBotGroupCoordinator.ShouldMoveStraggler(rvr, leaderReady, free, moved, sameRegion, distance, waited),
+                Is.EqualTo(expected));
+
+        [Test]
         public void ReconcileReportsJoinsLeavesAndPromotionsInOrder()
         {
             var coalition = new AutonomousRvrCoalition();

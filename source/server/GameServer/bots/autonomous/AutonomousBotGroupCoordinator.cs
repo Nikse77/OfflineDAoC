@@ -2579,12 +2579,53 @@ public static partial class AutonomousBotGroupCoordinator
                  $"expiresUtc={session.TaskClock.ExpiresUtc:O}");
     }
 
+    /// <summary>How long a member may keep the party waiting, with the leader ready, before it is put on the rendezvous.</summary>
+    public const long StragglerWaitMilliseconds = 2 * 60_000;
+    /// <summary>A straggler nearer than this walks the last stretch itself.</summary>
+    public const int StragglerFarDistance = 12_000;
+
+    /// <summary>
+    /// Owner 2026-11-03: "usare il moveto in modo intelligente e solo se proprio necessario". A member that is still far
+    /// from the rendezvous two minutes after its leader was ready (a bot logged in elsewhere, a death far away) is put on the
+    /// rendezvous once. Never across a region (frontier crossings always use the portals), never a member that is dead, fighting,
+    /// riding or released, and never twice.
+    /// </summary>
+    public static bool ShouldMoveStraggler(bool rvr, bool leaderReady, bool memberFree, bool alreadyMoved, bool sameRegion,
+        double distance, long waitedMilliseconds) =>
+        rvr && leaderReady && memberFree && !alreadyMoved && sameRegion &&
+        distance > StragglerFarDistance && waitedMilliseconds >= StragglerWaitMilliseconds;
+
+    private static void MoveFarStragglers(Session session, GameBot[] members, long now)
+    {
+        if (session.ObjectiveKind != eAutonomousObjectiveKind.RvR || !session.LeaderReadyForAssembly) return;
+        foreach (GameBot member in members)
+        {
+            if (member == session.Leader || AtRendezvous(session, member)) continue;
+            bool free = member.IsAlive && !member.InCombat && !member.IsAttacking && !member.IsReturningAfterRelease &&
+                        !member.IsOnStableMasterRoute && !member.WaitingAtFrontierKeep;
+            bool sameRegion = member.CurrentRegionID == session.RendezvousRegion;
+            double distance = sameRegion
+                ? Math.Sqrt(Math.Pow(member.X - session.Rendezvous.X, 2) + Math.Pow(member.Y - session.Rendezvous.Y, 2)) : double.MaxValue;
+            long waited = session.Attendance.WaitedMilliseconds(member.DatabaseID, now);
+            if (!ShouldMoveStraggler(true, true, free, session.TeleportedToRendezvous.Contains(MemberKey(member)),
+                    sameRegion, distance, waited)) continue;
+            Vector3 rally = session.Rendezvous;
+            session.TeleportedToRendezvous.Add(MemberKey(member));
+            if (member.MoveTo(new GameLocation($"{session.RendezvousName} rally", session.RendezvousRegion,
+                    (int)rally.X, (int)rally.Y, (int)rally.Z)))
+                Log.Warn($"RVR_STRAGGLER_MOVED_TO_RENDEZVOUS group={session.Id} bot=\"{member.Name}\" id={member.DatabaseID} " +
+                         $"distance={(int)distance} waitedSeconds={waited / 1000} to={(int)rally.X},{(int)rally.Y},{(int)rally.Z} " +
+                         $"region={session.RendezvousRegion}");
+        }
+    }
+
     private static void ExpelRendezvousNoShows(Session session, GameBot[] members)
     {
         long now = GameLoop.GameLoopTime;
         if (now < session.NextAttendanceTick)
             return;
         session.NextAttendanceTick = now + 5_000;
+        MoveFarStragglers(session, members, now);
         foreach (GameBot member in members)
         {
             int deathCount = member.PersistentRecord?.DeathCount ?? 0;

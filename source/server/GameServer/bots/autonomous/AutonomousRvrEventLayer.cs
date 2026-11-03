@@ -1021,13 +1021,16 @@ public static partial class AutonomousRvrEventLayer
                 // ("Waiting with the army") behind a leader whose group sat at its rendezvous and never led.
                 // A leader in a fight is leading too: the column holds or joins it (run 6: armies fought all the way
                 // and their leaders were replaced every minute).
-                if (now - Math.Max(active.MarchLeaderSinceTick, active.MarchLeaderHeartbeatTick) < MarchLeaderSilenceMilliseconds ||
-                    active.MarchLeader.InCombatInLast((int)MarchLeaderSilenceMilliseconds))
+                // Owner 2026-11-03: the organizer's leader gets two minutes before it is replaced - it often reaches the
+                // muster, but is still crossing or forming up when the army is told to march (seen twice on 2026-11-03).
+                long silence = MarchLeaderSilenceLimit(IsOrganizerLeader(active, active.MarchLeader));
+                if (now - Math.Max(active.MarchLeaderSinceTick, active.MarchLeaderHeartbeatTick) < silence ||
+                    active.MarchLeader.InCombatInLast((int)silence))
                     return active.MarchLeader;
                 active.StaleLeaders[active.MarchLeader.DatabaseID] = now + MarchLeaderStaleMilliseconds;
                 var log = DOL.Logging.LoggerManager.Create(typeof(AutonomousRvrEventLayer));
                 if (log.IsInfoEnabled) log.Info($"RVR_MARCH_LEADER_REPLACED target={targetId} leader={active.MarchLeader.Name} " +
-                    $"reason=\"no leading turn for {MarchLeaderSilenceMilliseconds / 1000} seconds\"");
+                    $"reason=\"no leading turn for {silence / 1000} seconds\"");
             }
             foreach (long id in active.StaleLeaders.Where(pair => pair.Value <= now).Select(pair => pair.Key).ToArray())
                 active.StaleLeaders.Remove(id);
@@ -1082,6 +1085,15 @@ public static partial class AutonomousRvrEventLayer
     public const int MainBodyRadius = 2_500;
 
     public const long MarchLeaderSilenceMilliseconds = 30_000;
+    /// <summary>How long the organizing group's leader may go without a leading turn before the army replaces it.</summary>
+    public const long OrganizerSilenceMilliseconds = 120_000;
+
+    public static long MarchLeaderSilenceLimit(bool organizerLeader) =>
+        organizerLeader ? OrganizerSilenceMilliseconds : MarchLeaderSilenceMilliseconds;
+
+    private static bool IsOrganizerLeader(ActiveEvent active, GameBot bot) =>
+        bot != null && active.Coalition.Leader is string organizer && bot.Group?.LivingLeader == bot &&
+        active.Mustered.TryGetValue(bot.DatabaseID, out var entry) && string.Equals(entry.Force, organizer, StringComparison.Ordinal);
     public const long MarchLeaderStaleMilliseconds = 10 * 60_000;
 
     /// <summary>A marcher took a march turn; for the leader that is a leading turn (walking, regrouping or holding).</summary>
