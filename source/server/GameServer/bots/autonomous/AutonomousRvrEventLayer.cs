@@ -1167,7 +1167,8 @@ public static partial class AutonomousRvrEventLayer
             {
                 var used = participants.Keys.Where(id => id != forceId && active.Slots.ContainsKey(id))
                     .SelectMany(id => active.Slots[id]).ToHashSet();
-                slots = Enumerable.Range(0, Capacity(active)).Where(slot => !used.Contains(slot)).Take(count).ToArray();
+                slots = realm == active.AttackerRealm ? AutonomousRvrRally.BlockAlignedSlots(used, count, Capacity(active)) : null;
+                slots ??= Enumerable.Range(0, Capacity(active)).Where(slot => !used.Contains(slot)).Take(count).ToArray();
                 active.Slots[forceId] = slots;
             }
             return new(active.TargetId, active.AttackerRealm, active.DefenderRealm, slots, active.ExpiresTick - nowTick,

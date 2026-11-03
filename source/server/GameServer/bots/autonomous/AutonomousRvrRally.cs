@@ -15,6 +15,27 @@ public static class AutonomousRvrRally
     public const int PostVariations = 24;
     private static readonly ConcurrentDictionary<(int Keep,eRealm Attacker,eRealm Defender), int> Orientations = new();
 
+    /// <summary>The slots of one block (a post block holds eight, see <see cref="AttackerPost"/>).</summary>
+    public const int BlockSize = 8;
+
+    /// <summary>
+    /// Siege rework phase 4: a group of up to eight takes the first block no other group uses, so one warband stands together
+    /// in one compact block (before, the first free slots were taken one by one and a group could straddle two blocks).
+    /// Null when the group is larger than a block or no whole block is free; the caller then takes free slots one by one.
+    /// </summary>
+    public static int[] BlockAlignedSlots(System.Collections.Generic.ISet<int> used, int count, int capacity)
+    {
+        if (count < 1 || count > BlockSize) return null;
+        for (int start = 0; start + BlockSize <= capacity; start += BlockSize)
+        {
+            bool free = true;
+            for (int slot = start; slot < start + BlockSize && free; slot++)
+                free = !used.Contains(slot);
+            if (free) return Enumerable.Range(start, count).ToArray();
+        }
+        return null;
+    }
+
     public static Vector3 AttackerPost(Vector3 center, int keepId, bool primaryAttacker, int slot, int variation = 0)
     {
         double angle = (keepId % 8) * Math.PI / 4 + (primaryAttacker ? 0 : Math.PI);

@@ -69,6 +69,23 @@ namespace DOL.GS.Tests
         }
 
         [Test]
+        public void EachGroupOfUpToEightTakesItsOwnPostBlock()
+        {
+            var used = new System.Collections.Generic.HashSet<int>();
+            int[] first = AutonomousRvrRally.BlockAlignedSlots(used, 5, 128);
+            Assert.That(first, Is.EqualTo(new[] { 0, 1, 2, 3, 4 }));
+            foreach (int slot in first) used.Add(slot);
+            // slots 5-7 are still free, but they belong to the first group's block: the next group starts a new block
+            int[] second = AutonomousRvrRally.BlockAlignedSlots(used, 8, 128);
+            Assert.That(second, Is.EqualTo(Enumerable.Range(8, 8).ToArray()));
+            foreach (int slot in second) used.Add(slot);
+            used.Remove(2);   // a freed slot inside block 0 does not let a newcomer share the block
+            Assert.That(AutonomousRvrRally.BlockAlignedSlots(used, 3, 128), Is.EqualTo(new[] { 16, 17, 18 }));
+            Assert.That(AutonomousRvrRally.BlockAlignedSlots(used, 9, 128), Is.Null);
+            Assert.That(AutonomousRvrRally.BlockAlignedSlots(used, 8, 16), Is.Null);
+        }
+
+        [Test]
         public void ReconcileReportsJoinsLeavesAndPromotionsInOrder()
         {
             var coalition = new AutonomousRvrCoalition();
