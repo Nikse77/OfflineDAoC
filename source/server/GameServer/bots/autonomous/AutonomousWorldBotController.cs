@@ -460,12 +460,28 @@ namespace DOL.GS
                     bool pickedUp = bot.WaitingAtFrontierKeep && IsLivingLeader(bot)
                         ? ComradesGatheredAtTheKeep(bot)
                         : bot.IsReturningAfterRelease && ReleasedMemberInReach(bot);
+                    // Owner 2026-11-03: a member that entered a NEW party after its wait was cleared (AUTONOMOUS_RVR_STATE_RESET)
+                    // but whose leader is not inside the pickup radius (another frontier, or too far) used to stay here for the
+                    // whole meetup: nobody fetches a bot that is no longer waiting at the keep. Run of 2026-11-03 06:15: Ingaenrun
+                    // stood at the Emain keep for three successive Midgard parties, 20 minutes each, and every one of them
+                    // failed its meetup with "Every invited member missed the meetup deadline". The release return is handed
+                    // back so the normal pass takes it to the meetup (a frontier crossing included).
+                    bool leaderCannotCome = !pickedUp && bot.IsAlive && bot.IsReturningAfterRelease && !bot.WaitingAtFrontierKeep &&
+                                            !bot.IsPlayerLedGroup && !ReleasedMemberInReach(bot) &&
+                                            bot.Group?.LivingLeader is GameBot newLeader && newLeader != bot && newLeader.IsAlive;
+                    if (leaderCannotCome)
+                    {
+                        Log.Info($"RVR_RELEASED_MEMBER_FREED bot=\"{bot.Name}\" id={bot.DatabaseID} region={bot.CurrentRegionID} " +
+                                 $"leader=\"{bot.Group.LivingLeader.Name}\" leaderRegion={bot.Group.LivingLeader.CurrentRegionID} " +
+                                 $"group={bot.Group.GetHashCode()}");
+                        bot.HandOverReleaseReturnToGroup();
+                    }
                     if (pickedUp)
                     {
                         bot.CompleteFrontierPickup();
                         bot.HandOverReleaseReturnToGroup();
                     }
-                    else
+                    else if (!leaderCannotCome)
                     {
                         if (frontierCasualty)
                             SetStatus(bot, "Waiting at the frontier keep for the leader",
