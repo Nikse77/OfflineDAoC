@@ -131,6 +131,8 @@ public static partial class AutonomousBotGroupCoordinator
         public int WipePenalty { get; set; }
         /// <summary>The RvR regroup was moved to the leader's border keep (the leader fell and released); once per regroup.</summary>
         public bool RegroupAtKeep { get; set; }
+        /// <summary>Diagnostics: the RvR party is in a fight that RVR_PARTY_FIGHT has announced, and since when.</summary>
+        public long FightSinceTick { get; set; }
         public long? NoCampSinceTick { get; set; }
         public AutonomousGroupRecoveryState Recovery { get; } = new();
         public bool RecoveryRendezvousChosen { get; set; }
@@ -2204,6 +2206,31 @@ public static partial class AutonomousBotGroupCoordinator
         // Only fights near the leader hold the group (see AutonomousGroupCombat).
         GameBot combatLeader = session.Leader != null && members.Contains(session.Leader) ? session.Leader : null;
         bool groupCombatActive = AutonomousGroupCombat.AnyHoldsGroup(members, combatLeader, GameLoop.GameLoopTime);
+        // Owner 2026-11-03 (diagnostics only): when an RvR party starts and stops fighting, who fights what, to read the patrol
+        // point and the regroup against the fights (RVR_PATROL_POINT, REGROUP_STARTED).
+        if (session.ObjectiveKind == eAutonomousObjectiveKind.RvR && groupCombatActive != (session.FightSinceTick != 0))
+        {
+            try
+            {
+                long fightTick = GameLoop.GameLoopTime;
+                if (groupCombatActive)
+                {
+                    session.FightSinceTick = Math.Max(1, fightTick);
+                    GameBot[] fighters = members.Where(member => AutonomousGroupCombat.IsFighting(member, fightTick)).ToArray();
+                    Log.Info($"RVR_PARTY_FIGHT group={session.Id} state=start phase=\"{session.Phase}\" fighters={fighters.Length}/{members.Length} " +
+                             $"region={fighters.FirstOrDefault()?.CurrentRegionID} " +
+                             $"at={(int)(fighters.FirstOrDefault()?.X ?? 0)},{(int)(fighters.FirstOrDefault()?.Y ?? 0)} " +
+                             $"targets=\"{string.Join(",", fighters.Select(member => member.TargetObject?.Name).Where(name => name != null).Distinct().Take(4))}\"");
+                }
+                else
+                {
+                    Log.Info($"RVR_PARTY_FIGHT group={session.Id} state=end phase=\"{session.Phase}\" seconds={(fightTick - session.FightSinceTick) / 1000} " +
+                             $"dead={members.Count(member => !member.IsAlive)}/{members.Length}");
+                    session.FightSinceTick = 0;
+                }
+            }
+            catch { }
+        }
         if (groupCombatActive)
         {
             session.CombatObserved = true;
