@@ -3294,7 +3294,22 @@ public static partial class AutonomousBotGroupCoordinator
             routeStatus = record?.ObjectiveProgress, riding = member.IsOnStableMasterRoute,
             horseDestination = member.StableRouteDestination, deaths = record?.DeathCount,
             assignment = record?.ObjectiveAssignmentId, camp = record?.CurrentCampId,
-            lastProgressUtc = record?.LastMeaningfulProgressUtc
+            lastProgressUtc = record?.LastMeaningfulProgressUtc,
+            // Owner 2026-11-03 (diagnostics only): arrival is judged against the member's own slot, not the rendezvous.
+            // Run of 2026-11-03 06:15: two Albion members stood 100 units from the rendezvous in formation with their leader
+            // for 20 minutes and were counted absent; these fields say how far the slot really was.
+            phase = session.Phase, tight = RendezvousIsTight(session),
+            hasSlot = session.RendezvousSlots.ContainsKey(MemberKey(member)),
+            slotX = session.RendezvousSlots.TryGetValue(MemberKey(member), out Vector3 noShowSlot) ? noShowSlot.X : 0,
+            slotY = session.RendezvousSlots.TryGetValue(MemberKey(member), out Vector3 noShowSlotY) ? noShowSlotY.Y : 0,
+            distanceToSlot = session.RendezvousSlots.TryGetValue(MemberKey(member), out Vector3 noShowSlotD)
+                ? (int)Vector3.Distance(new Vector3(member.X, member.Y, member.Z), noShowSlotD) : -1,
+            distanceToRendezvous = member.CurrentRegionID == session.RendezvousRegion
+                ? (int)Vector3.Distance(new Vector3(member.X, member.Y, member.Z), session.Rendezvous) : -1,
+            leaderRegion = member.Group?.LivingLeader?.CurrentRegionID ?? 0,
+            distanceToLeader = member.Group?.LivingLeader is GameBot noShowLeader && noShowLeader != member &&
+                               noShowLeader.CurrentRegionID == member.CurrentRegionID ? (int)member.GetDistanceTo(noShowLeader) : -1,
+            returningAfterRelease = member.IsReturningAfterRelease, waitingAtFrontierKeep = member.WaitingAtFrontierKeep
         }));
     }
 
