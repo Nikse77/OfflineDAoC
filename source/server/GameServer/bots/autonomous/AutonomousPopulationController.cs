@@ -63,6 +63,10 @@ public static class AutonomousPopulationController
                 GameServer.Database.SaveObject(previouslyOnline.Cast<DataObject>());
         }
         RefreshControlPlane(force: true);
+        int minimumLevel = AutonomousPopulationProperties.LOGIN_MINIMUM_LEVEL, maximumLevel = AutonomousPopulationProperties.LOGIN_MAXIMUM_LEVEL;
+        if (minimumLevel > 1 || maximumLevel > 0)
+            Log.Info($"AUTONOMOUS_LOGIN_RANGE minimum={minimumLevel} maximum={maximumLevel} eligible=" +
+                     $"{_cachedRoster.Count(record => MayLogin(record.Level, minimumLevel, maximumLevel))} roster={_cachedRoster.Length}");
         _nextCommandPollUtc = DateTime.MinValue;
         _nextOrphanRepairUtc = DateTime.MinValue;
         lock (OrphanChecked) OrphanChecked.Clear();
@@ -103,7 +107,13 @@ public static class AutonomousPopulationController
             }
 
             OfflineWorldBotRecord[] roster = _cachedRoster;
-            int desired = AutonomousPopulationRamp.DesiredActiveCount(_cachedEnabled, roster.Length, _cachedRampMinutes, nowUtc - _startedUtc);
+            int minimumLevel = AutonomousPopulationProperties.LOGIN_MINIMUM_LEVEL, maximumLevel = AutonomousPopulationProperties.LOGIN_MAXIMUM_LEVEL;
+            // Owner 2026-11-03: only the characters inside the configured level range enter the world; the target is the part of
+            // the roster that may log in, so the population counts as complete once they are all online.
+            int eligible = minimumLevel > 1 || maximumLevel > 0
+                ? roster.Count(record => MayLogin(record.Level, minimumLevel, maximumLevel))
+                : roster.Length;
+            int desired = AutonomousPopulationRamp.DesiredActiveCount(_cachedEnabled, eligible, _cachedRampMinutes, nowUtc - _startedUtc);
             int missing = desired - AutonomousBotRegistry.Count - PendingSpawns.Count;
             _populationSatisfied = missing <= 0;
             if (missing <= 0)
@@ -117,7 +127,8 @@ public static class AutonomousPopulationController
             }
 
             List<OfflineWorldBotRecord> available = roster
-                .Where(record => !record.IsOnline && !AutonomousBotRegistry.Contains(record.BotId) && !PendingSpawns.ContainsKey(record.BotId))
+                .Where(record => !record.IsOnline && !AutonomousBotRegistry.Contains(record.BotId) && !PendingSpawns.ContainsKey(record.BotId) &&
+                                 MayLogin(record.Level, minimumLevel, maximumLevel))
                 .ToList();
 
             // Ten thousand actors require about eleven scheduled logins per
@@ -182,7 +193,8 @@ public static class AutonomousPopulationController
         {
             if (prepared.Generation != Volatile.Read(ref _loginGeneration) || _timer == null) return;
             OfflineWorldBotRecord record = _cachedRoster.FirstOrDefault(candidate => candidate.BotId == botId);
-            if (record == null || record.IsRetired || record.IsOnline || AutonomousBotRegistry.Contains(botId))
+            if (record == null || record.IsRetired || record.IsOnline || AutonomousBotRegistry.Contains(botId) ||
+                !MayLogin(record.Level, AutonomousPopulationProperties.LOGIN_MINIMUM_LEVEL, AutonomousPopulationProperties.LOGIN_MAXIMUM_LEVEL))
                 return;
 
             GameBot bot = new(record, prepared.Inventory);
@@ -270,6 +282,13 @@ public static class AutonomousPopulationController
             PendingSpawns.TryRemove(botId, out _);
         }
     }
+
+    /// <summary>
+    /// Owner 2026-11-03: the level range that may log in (server properties autonomous_population / login_minimum_level and
+    /// login_maximum_level). A minimum of 1 and a maximum of 0 admit everybody.
+    /// </summary>
+    public static bool MayLogin(int level, int minimumLevel, int maximumLevel) =>
+        level >= Math.Max(1, minimumLevel) && (maximumLevel <= 0 || level <= maximumLevel);
 
     /// <summary>Only a never-saved, zero-position level-one record may enter fresh-start placement.</summary>
     public static bool IsFreshUnplacedLevelOneRecord(OfflineWorldBotRecord record) =>

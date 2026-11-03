@@ -32,6 +32,12 @@ namespace DOL.GS
         [ServerProperty("autonomous_population", "ai_budget_ms", "Maximum autonomous decision work per game-loop slice. Work over budget is deferred, never simulated.", 4.0)]
         public static double AI_BUDGET_MS;
 
+        [ServerProperty("autonomous_population", "login_minimum_level", "Lowest level a gamebot may have to enter the world at login. 1 admits everybody; 50 keeps every character below level 50 parked. Read at every poll; a character already online is not logged out.", 1)]
+        public static int LOGIN_MINIMUM_LEVEL;
+
+        [ServerProperty("autonomous_population", "login_maximum_level", "Highest level a gamebot may have to enter the world at login. 0 means no upper limit.", 0)]
+        public static int LOGIN_MAXIMUM_LEVEL;
+
         [ServerProperty("autonomous_population", "world_actor_only", "Require every progressing bot to remain a real loaded world actor.", true)]
         public static bool WORLD_ACTOR_ONLY;
     }
