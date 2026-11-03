@@ -391,12 +391,14 @@ public static partial class AutonomousRvrEventLayer
             LastMenuDraw[force.GroupId] = key;
             var log = DOL.Logging.LoggerManager.Create(typeof(AutonomousRvrEventLayer));
             if (log.IsInfoEnabled)
+            {
                 // The menu is shuffled and tried entry by entry until one can be granted: the entries before the last one
                 // found nothing to do (no running event to join, no relic carrier...), they were not chosen.
                 string granted = plan == null || tried.Count == 0 ? "none" : tried[^1].ToString();
                 string refused = tried.Count > (plan == null ? 0 : 1) ? string.Join(">", tried.Take(plan == null ? tried.Count : tried.Count - 1)) : "none";
                 log.Info($"RVR_MENU_DRAW force={force.GroupId} realm={force.Realm} members={force.MemberCount} locked={patrolLocked} " +
                          $"granted={granted} refusedBefore={refused} plan={outcome} events={Events.Values.Count(entry => !entry.DefenseReaction)}");
+            }
         }
         catch { }
     }
