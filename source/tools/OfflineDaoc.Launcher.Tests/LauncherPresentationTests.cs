@@ -199,8 +199,8 @@ public sealed class LauncherPresentationTests
 
         Type snapshotType = mainFormType.GetNestedType("DashboardSnapshot", BindingFlags.NonPublic)!;
         object runningSnapshot = snapshotType.GetConstructors(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
-            .Single(constructor => constructor.GetParameters().Length == 12)
-            .Invoke(new object[] { "Running", null!, null!, 0, 0d, null!, 1d, 1d, false, null!, true, true });
+            .Single(constructor => constructor.GetParameters().Length == 14)
+            .Invoke(new object[] { "Running", null!, null!, 0, 0d, null!, 1d, 1d, false, null!, true, true, 1, 0 });
         mainFormType.GetField("_stoppingServer", HiddenInstance)!.SetValue(form, false);
         mainFormType.GetMethod("UpdateXpRateControls", HiddenInstance)!.Invoke(form, new[] { runningSnapshot });
         var playerRate = (ComboBox)mainFormType.GetField("_playerXpRate", HiddenInstance)!.GetValue(form)!;

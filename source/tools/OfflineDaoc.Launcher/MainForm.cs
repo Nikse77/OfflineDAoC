@@ -87,6 +87,8 @@ internal sealed partial class MainForm : Form
     private readonly TextBox _groupSearch = new() { PlaceholderText = "Search bot, zone or faction", Width = 340 };
     private readonly ComboBox _playerXpRate = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 108 };
     private readonly ComboBox _botXpRate = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 108 };
+    private readonly NumericUpDown _loginMinimumLevel = new() { Minimum = 1, Maximum = 50, Value = 1, Width = 108 };
+    private readonly NumericUpDown _loginMaximumLevel = new() { Minimum = 0, Maximum = 50, Value = 0, Width = 108 };
     private readonly CheckBox _makeMeGm = new() { Text = "Make Me a GM", AutoSize = true, ForeColor = DaocTheme.Parchment, Font = new Font("Georgia", 9f, FontStyle.Bold) };
     private readonly CheckBox _rvrAnnouncements = new() { Text = "RvR and battleground announcements", AutoSize = true, Checked = true, ForeColor = DaocTheme.Parchment, Font = new Font("Georgia", 9f, FontStyle.Bold) };
     private readonly CheckBox _pveAnnouncements = new() { Text = "PvE realm event announcements", AutoSize = true, Checked = true, ForeColor = DaocTheme.Parchment, Font = new Font("Georgia", 9f, FontStyle.Bold) };
@@ -222,6 +224,13 @@ internal sealed partial class MainForm : Form
         ConfigureXpRateSelector(_botXpRate);
         _playerXpRate.SelectedIndexChanged += async (_, _) => await SaveXpRateAsync("xp_rate", _playerXpRate);
         _botXpRate.SelectedIndexChanged += async (_, _) => await SaveXpRateAsync("bot_xp_rate", _botXpRate);
+        foreach (NumericUpDown level in new[] { _loginMinimumLevel, _loginMaximumLevel })
+        {
+            StyleInput(level);
+            level.Anchor = AnchorStyles.Left;
+            level.Margin = new Padding(0, 10, 0, 9);
+            level.ValueChanged += async (_, _) => await SaveLoginRangeAsync();
+        }
         _groupSearch.TextChanged += (_, _) => ApplyGroupSearch();
         _groupSearch.KeyDown += (_, e) =>
         {
@@ -540,7 +549,7 @@ internal sealed partial class MainForm : Form
         var surface = new InsetPanel
         {
             Dock = DockStyle.Top,
-            Height = 354,
+            Height = 434,
             Margin = new Padding(18),
             Padding = new Padding(20),
             Accent = DaocTheme.Gold,
@@ -549,7 +558,7 @@ internal sealed partial class MainForm : Form
         {
             Dock = DockStyle.Fill,
             ColumnCount = 3,
-            RowCount = 7,
+            RowCount = 9,
             BackColor = Color.Transparent,
         };
         layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 210));
@@ -558,6 +567,8 @@ internal sealed partial class MainForm : Form
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 48));
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 48));
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 48));
+        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 40));
+        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 40));
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 40));
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 40));
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 40));
@@ -595,7 +606,13 @@ internal sealed partial class MainForm : Form
         layout.SetColumnSpan(_pveAnnouncements, 2);
         layout.Controls.Add(XpRateDescription("Screen announcements when realm raids form, and to every realm when a final boss (epic dungeons, Summoner's Hall, Darkness Falls) is defeated."), 2, 5);
         _pveAnnouncements.CheckedChanged += async (_, _) => await SaveAnnouncementSettingAsync();
-        layout.Controls.Add(_xpSettingsStatus, 0, 6);
+        layout.Controls.Add(XpRateLabel("BOT LOGIN FROM LEVEL"), 0, 6);
+        layout.Controls.Add(_loginMinimumLevel, 1, 6);
+        layout.Controls.Add(XpRateDescription("Only autonomous bots at or above this level enter the world at login. 1 admits everybody; 50 keeps the others parked."), 2, 6);
+        layout.Controls.Add(XpRateLabel("BOT LOGIN UP TO LEVEL"), 0, 7);
+        layout.Controls.Add(_loginMaximumLevel, 1, 7);
+        layout.Controls.Add(XpRateDescription("0 means no upper limit. Bots already online are not logged out by this setting."), 2, 7);
+        layout.Controls.Add(_xpSettingsStatus, 0, 8);
         layout.SetColumnSpan(_xpSettingsStatus, 3);
         surface.Controls.Add(layout);
         return surface;
@@ -1467,6 +1484,10 @@ internal sealed partial class MainForm : Form
             bool editable = snapshot.ServerState == "Stopped" && !_savingXpRates;
             _playerXpRate.Enabled = editable;
             _botXpRate.Enabled = editable;
+            _loginMinimumLevel.Value = Math.Clamp(snapshot.LoginMinimumLevel, (int)_loginMinimumLevel.Minimum, (int)_loginMinimumLevel.Maximum);
+            _loginMaximumLevel.Value = Math.Clamp(snapshot.LoginMaximumLevel, (int)_loginMaximumLevel.Minimum, (int)_loginMaximumLevel.Maximum);
+            _loginMinimumLevel.Enabled = editable;
+            _loginMaximumLevel.Enabled = editable;
             _makeMeGm.Checked = snapshot.MakeMeGm;
             _makeMeGm.Enabled = editable;
             _rvrAnnouncements.Checked = snapshot.RvrAnnouncements;
@@ -1549,6 +1570,76 @@ internal sealed partial class MainForm : Form
         try { await Task.Run(() => PersistAnnouncementSettings(rvr, pve)); }
         catch (Exception ex) { MessageBox.Show(this, ex.Message, "Unable to save announcement setting"); }
         finally { _savingXpRates = false; await RefreshDashboardAsync(); }
+    }
+
+    // Owner 2026-11-03: the level range of the gamebots that may log in (server properties login_minimum_level and
+    // login_maximum_level, read by AutonomousPopulationController). Saved with the server stopped, used at the next startup.
+    private async Task SaveLoginRangeAsync()
+    {
+        if (_loadingXpRates || _savingXpRates) return;
+        int minimum = (int)_loginMinimumLevel.Value;
+        int maximum = (int)_loginMaximumLevel.Value;
+        if (IsServerRunning() || FindExactServerProcess() is not null)
+        {
+            MessageBox.Show(this, "Stop the server before changing the login level range.", "Server is running");
+            await RefreshDashboardAsync();
+            return;
+        }
+        if (maximum != 0 && maximum < minimum)
+        {
+            _xpSettingsStatus.Text = "The upper login level is below the lower one; 0 means no upper limit.";
+            _xpSettingsStatus.ForeColor = DaocTheme.Muted;
+            return;
+        }
+        _savingXpRates = true;
+        _loginMinimumLevel.Enabled = _loginMaximumLevel.Enabled = _startButton.Enabled = false;
+        _xpSettingsStatus.Text = "APPLYING THE LOGIN LEVEL RANGE…";
+        _xpSettingsStatus.ForeColor = DaocTheme.Success;
+        try
+        {
+            await Task.Run(() => PersistLoginRange(minimum, maximum));
+            _xpSettingsStatus.Text = maximum == 0
+                ? $"APPLIED: bots from level {minimum} log in. It will be used on the next server startup."
+                : $"APPLIED: bots from level {minimum} to {maximum} log in. It will be used on the next server startup.";
+        }
+        catch (Exception ex) { MessageBox.Show(this, ex.Message, "Unable to save the login level range"); }
+        finally { _savingXpRates = false; await RefreshDashboardAsync(); }
+    }
+
+    private void PersistLoginRange(int minimum, int maximum)
+    {
+        if (IsServerRunning() || FindExactServerProcess() is not null)
+            throw new InvalidOperationException("The server must be fully stopped.");
+        if (!File.Exists(_database))
+            throw new InvalidOperationException("The prepared world database is missing.");
+        if (minimum < 1 || minimum > 50 || maximum < 0 || maximum > 50 || maximum != 0 && maximum < minimum)
+            throw new InvalidOperationException("The login level range is not valid.");
+        using var connection = new SQLiteConnection($"Data Source={_database};Version=3;Pooling=False;Default Timeout=10");
+        connection.Open();
+        using var transaction = connection.BeginTransaction();
+        foreach ((string key, int value, string description, string defaultValue) in new[]
+        {
+            ("login_minimum_level", minimum, "Lowest level a gamebot may have to enter the world at login (Offline DAoC launcher).", "1"),
+            ("login_maximum_level", maximum, "Highest level a gamebot may have to enter the world at login; 0 means no upper limit (Offline DAoC launcher).", "0"),
+        })
+        {
+            using var command = connection.CreateCommand();
+            command.Transaction = transaction;
+            command.CommandText = """
+                INSERT INTO ServerProperty (Category, `Key`, Description, DefaultValue, Value, LastTimeRowUpdated, ServerProperty_ID)
+                VALUES ('autonomous_population', @key, @description, @default, @value, @updated, '')
+                ON CONFLICT(`Key`) DO UPDATE SET
+                    Value=excluded.Value,
+                    LastTimeRowUpdated=excluded.LastTimeRowUpdated
+                """;
+            command.Parameters.AddWithValue("@key", key);
+            command.Parameters.AddWithValue("@description", description);
+            command.Parameters.AddWithValue("@default", defaultValue);
+            command.Parameters.AddWithValue("@value", value.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            command.Parameters.AddWithValue("@updated", DateTime.UtcNow.ToString("O"));
+            command.ExecuteNonQuery();
+        }
+        transaction.Commit();
     }
 
     // Two switches (owner 2026-10-07): RvR and battleground, and PvE realm events, both default on. The single
@@ -1783,6 +1874,8 @@ internal sealed partial class MainForm : Form
         connection.Open();
         double playerXpRate = ReadServerRate(connection, "xp_rate", 1);
         double botXpRate = ReadServerRate(connection, "bot_xp_rate", 1);
+        int loginMinimumLevel = (int)ReadServerRate(connection, "login_minimum_level", 1);
+        int loginMaximumLevel = (int)ReadServerRate(connection, "login_maximum_level", 0);
         using (var command = connection.CreateCommand())
         {
             bool hasObjectiveColumns = ColumnExists(connection, "offline_world_bots", "ObjectiveKind") &&
@@ -1886,7 +1979,7 @@ internal sealed partial class MainForm : Form
         bool rvrAnnouncements = ReadSwitch(connection, "rvr_battleground_announcements");
         bool pveAnnouncements = ReadSwitch(connection, "pve_realm_event_announcements");
         return new DashboardSnapshot(serverState, bots, groups, active, memoryMb, botAiDelay, playerXpRate, botXpRate, makeMeGm, ReadRvrWorld(),
-            rvrAnnouncements, pveAnnouncements);
+            rvrAnnouncements, pveAnnouncements, loginMinimumLevel, loginMaximumLevel);
     }
 
     // Anything but an explicit "false" (including a missing row) reads as on.
@@ -3318,7 +3411,7 @@ internal sealed partial class MainForm : Form
     }
     private sealed record DashboardSnapshot(string ServerState, List<BotRow> Bots, List<GroupRow> Groups,
         int Active, double ServerMemoryMb, BotAiDelayReport? BotAiDelay, double PlayerXpRate, double BotXpRate, bool MakeMeGm = false, RvrWorldSnapshot? RvrWorld = null,
-        bool RvrAnnouncements = true, bool PveAnnouncements = true);
+        bool RvrAnnouncements = true, bool PveAnnouncements = true, int LoginMinimumLevel = 1, int LoginMaximumLevel = 0);
 
     private sealed record LiveBotStatus(long BotId, int Level, string ZoneName, string Activity,
         string CurrentGoal, string TargetName, string TravelDestination, string ObjectiveProgress,
