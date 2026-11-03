@@ -378,6 +378,10 @@ namespace DOL.GS
                     // once.  No stale solo destination survives matchmaking.
                     _activeDynamicGroupId = _groupDirective.GroupId;
                     AutonomousGoalDiagnostics.End(bot, GoalAttemptEnd.GroupChanged, "Joined a new autonomous group");
+                    // Owner 2026-11-03: "WaitingAtFrontierKeep va resettato quando un bot entra in un nuovo gruppo": a wait
+                    // for the leader of an earlier party (or for none) means nothing to the new one.
+                    if (_groupDirective.ObjectiveKind == eAutonomousObjectiveKind.RvR)
+                        AutonomousBotGroupCoordinator.ResetRvrAfterGroupExit(bot, "Joined a new autonomous group");
                     // The party is the force now; a solo siege reservation must not outlive it.
                     AutonomousRvrEventLayer.RemoveForce($"rvr-{bot.DatabaseID}");
                     _camp = null;
