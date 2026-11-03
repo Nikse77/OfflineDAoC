@@ -451,7 +451,7 @@ Log line format: `MM/DD HH:MM:SS | LVL | Logger | message`. Markers worth knowin
 | `RVR_KEEP_ROUTE_FAILED`, `RVR_KEEP_UNREACHABLE` | no route to a keep; the force gives it up for 20 minutes |
 | `RVR_KEEP_TRAVEL_STALL`, `RVR_RALLY_DELAY` | a bot stuck on its way, a rally member with no progress for 8 minutes |
 | `AUTONOMOUS_RVR_LOGIN_AT_KEEP` | a level-50 bot logged in at its frontier keep (`source=` says which point was used) |
-| `RVR_MENU_DRAW` | what the leader's random menu gave a party (defense / assault / relic / open assault / patrol), written when it changes; `locked=True` is the 30-minute patrol |
+| `RVR_MENU_DRAW` | what the leader's random menu gave a party, written when it changes: `granted=` is the entry that produced the plan (defense / assault / relic / open assault / patrol), `refusedBefore=` the entries tried first that had nothing to offer (e.g. `assault` with `events=0`); `locked=True` is the 30-minute patrol |
 | `RVR_FRONTIER_TRANSPORT_REFUSED` | an RvR bot could not start a frontier crossing; `reason=` names the test (no passage, no porter, no merchant, no home hop) |
 | `RVR_RELEASED_MEMBER_FREED` | a member waiting for a release pickup was freed because its new leader cannot come for it |
 | `RVR_FRONTIER_DEPARTURE` | members boarded a frontier porter; `RVR_RENDEZVOUS_MOVED` the leader moved the rendezvous to another frontier |
