@@ -18,10 +18,19 @@ public static class AutonomousRvrLogin
     /// The login point: the realm's home frontier keep, on the passage pad itself (owner 2026-11-01), spread around the
     /// teleporters by bot so that they do not stack.
     /// </summary>
-    public static bool TryGetPoint(eRealm realm, long botId, out ushort region, out Vector3 point)
+    public static bool TryGetPoint(eRealm realm, long botId, out ushort region, out Vector3 point) =>
+        TryGetPoint(realm, botId, out region, out point, out _);
+
+    /// <summary>
+    /// Same, and <paramref name="source"/> says which branch gave the point: "pad+spread" (spread around the porter's pad),
+    /// "floor+spread" (spread around the hard-wired point or the necklace landing) or "hardwired-floor" / "necklace-floor"
+    /// (no spread found, the point itself), so a login that lands badly can be told from the log.
+    /// </summary>
+    public static bool TryGetPoint(eRealm realm, long botId, out ushort region, out Vector3 point, out string source)
     {
         region = 0;
         point = default;
+        source = string.Empty;
         ushort home = RealmRaidNeutralEvents.HomeRegion(realm);
         AutonomousFrontierTransport.Passage passage = AutonomousFrontierTransport.Destination(realm, home);
         if (passage?.Location == null)
@@ -36,15 +45,26 @@ public static class AutonomousRvrLogin
         point = floor;
         // Owner 2026-11-01: on the passage pad, where the player stands next to the realm's frontier porter (Master
         // Visur at Castle Sauvage), not on the pad the necklace lands on about 1,700 units away.
+        bool padFound = false;
         if (AutonomousFrontierTransport.TryGetHomePad(realm, home, out Vector3 pad))
+        {
             point = pad;
+            padFound = true;
+        }
         Vector3 centre = point;
         // Owner 2026-11-02: "anche stavolta alb non ha loggato a castel sauvage". An out parameter is assigned even when
         // the call fails, so a failed spread used to wipe the good fallback and leave the point at 0,0,0 - 33 of Albion's
         // 47 level-50 bots landed there on every boot while Midgard and Hibernia found their zone.
         Vector3 spread = floor;
-        if (!TrySpread(centre, out spread) && (centre == floor || !TrySpread(floor, out spread)))
+        if (TrySpread(centre, out spread))
+            source = padFound ? "pad+spread" : "floor+spread";
+        else if (centre != floor && TrySpread(floor, out spread))
+            source = "floor+spread";
+        else
+        {
             spread = floor;
+            source = FixedHomePad(realm).HasValue ? "hardwired-floor" : "necklace-floor";
+        }
         point = spread;
         return true;
 

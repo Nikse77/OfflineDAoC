@@ -216,10 +216,11 @@ public static class AutonomousPopulationController
             // Owner 2026-11-01: every level-50 bot enters the world at their realm's frontier keep, the one with the teleporter
             // mages, where their groups gather (AutonomousRvrLogin).
             if (AutonomousRvrLogin.Applies(record.Level) &&
-                AutonomousRvrLogin.TryGetPoint((eRealm)record.Realm, record.BotId, out ushort keepRegion, out Vector3 keepPoint))
+                AutonomousRvrLogin.TryGetPoint((eRealm)record.Realm, record.BotId, out ushort keepRegion, out Vector3 keepPoint,
+                    out string loginSource))
             {
                 Log.Info($"AUTONOMOUS_RVR_LOGIN_AT_KEEP bot={record.Name} id={record.BotId} realm={(eRealm)record.Realm} " +
-                         $"saved={record.RegionId}:{record.X},{record.Y},{record.Z} keep={keepRegion}:{(int)keepPoint.X},{(int)keepPoint.Y},{(int)keepPoint.Z}");
+                         $"saved={record.RegionId}:{record.X},{record.Y},{record.Z} keep={keepRegion}:{(int)keepPoint.X},{(int)keepPoint.Y},{(int)keepPoint.Z} source={loginSource}");
                 bot.CurrentRegionID = keepRegion;
                 bot.X = (int)keepPoint.X;
                 bot.Y = (int)keepPoint.Y;
