@@ -87,7 +87,7 @@ namespace DOL.GS.Tests
             var opened = AutonomousRvrEventLayer.ChooseOrJoin(opener, new[] { lostKeep }, over, 0);
             Assert.That(opened?.Intent, Is.EqualTo(AutonomousRvrEventLayer.Intent.AssaultKeep));
 
-            // A second force that began its patrol only now is still locked, yet the assault has 8 of its 20.
+            // A second force that began its patrol only now is still locked, yet the assault has 8 of its 16 and one group of two.
             var patroller = new AutonomousRvrEventLayer.Force("patroller", eRealm.Albion, 8, 50, 2);
             AutonomousRvrPatrolLock.Begin(patroller.GroupId, over);
             var joined = AutonomousRvrEventLayer.ChooseOrJoin(patroller, new[] { lostKeep }, over + 10, 0);
@@ -112,16 +112,12 @@ namespace DOL.GS.Tests
             var second = new AutonomousRvrEventLayer.Force("second", eRealm.Albion, 8, 50, 2);
             AutonomousRvrPatrolLock.Begin(second.GroupId, over);
             Assert.That(AutonomousRvrEventLayer.ChooseOrJoin(second, new[] { lostKeep }, over + 10, 0)?.Intent,
-                Is.EqualTo(AutonomousRvrEventLayer.Intent.AssaultKeep), "8 + 8 is still under the minimum of 20");
+                Is.EqualTo(AutonomousRvrEventLayer.Intent.AssaultKeep), "the second group is needed: one group is not a coalition");
+
+            // The assault now has two groups and 16 bots: a third force still inside its patrol is left alone.
             var third = new AutonomousRvrEventLayer.Force("third", eRealm.Albion, 8, 50, 2);
             AutonomousRvrPatrolLock.Begin(third.GroupId, over);
-            Assert.That(AutonomousRvrEventLayer.ChooseOrJoin(third, new[] { lostKeep }, over + 20, 0)?.Intent,
-                Is.EqualTo(AutonomousRvrEventLayer.Intent.AssaultKeep), "8 + 8 + 8 reaches the minimum of 20");
-
-            // The assault now has its 24: a fourth force still inside its patrol is left alone.
-            var fourth = new AutonomousRvrEventLayer.Force("fourth", eRealm.Albion, 8, 50, 2);
-            AutonomousRvrPatrolLock.Begin(fourth.GroupId, over);
-            var plan = AutonomousRvrEventLayer.ChooseOrJoin(fourth, new[] { lostKeep }, over + 30, 0);
+            var plan = AutonomousRvrEventLayer.ChooseOrJoin(third, new[] { lostKeep }, over + 30, 0);
 
             Assert.That(plan?.Intent, Is.Not.EqualTo(AutonomousRvrEventLayer.Intent.AssaultKeep));
         }

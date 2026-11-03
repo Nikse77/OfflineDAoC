@@ -53,7 +53,7 @@ public class UT_StagedSiegeOct6
     }
 
     [Test]
-    public void AnArmyOfTwentyMarchesAtTheExtendedMusterDeadline()
+    public void TwoGroupsWithSixteenBotsMarchAtTheExtendedMusterDeadline()
     {
         string id = Guid.NewGuid().ToString();
         long opened = GameLoop.GameLoopTime;
@@ -61,18 +61,38 @@ public class UT_StagedSiegeOct6
             AutonomousRvrEventLayer.Intent.AssaultKeep, eRealm.Hibernia, 200, 100, 100, 0, false, 0, 0, 5, 2);
         var attacker = new AutonomousRvrEventLayer.Force(id + "-attack", eRealm.Albion, 8, 50, 1);
         Assert.That(AutonomousRvrEventLayer.ChooseOrJoin(attacker, [objective], opened, 0)?.TargetId, Is.EqualTo(id));
+        var second = new AutonomousRvrEventLayer.Force(id + "-second", eRealm.Albion, 8, 50, 1);
+        Assert.That(AutonomousRvrEventLayer.ChooseOrJoin(second, [objective], opened, 0)?.TargetId, Is.EqualTo(id));
         for (int member = 1; member <= AutonomousRvrEventLayer.MinimumArmy; member++)
-            AutonomousRvrEventLayer.ReportMusterAttendance(id, attacker.GroupId, 9000 + member, true, opened, null, default);
+            AutonomousRvrEventLayer.ReportMusterAttendance(id, member % 2 == 0 ? attacker.GroupId : second.GroupId, 9000 + member, true, opened, null, default);
         long firstDeadline = opened + AutonomousRvrEventLayer.HomeMusterMilliseconds + 1;
         AutonomousRvrEventLayer.GetRallyOrder(attacker.GroupId, eRealm.Albion, firstDeadline);   // the thin muster is extended once
         long marched = firstDeadline + AutonomousRvrEventLayer.MusterExtensionMilliseconds + 1;
         var order = AutonomousRvrEventLayer.GetRallyOrder(attacker.GroupId, eRealm.Albion, marched);
         Assert.Multiple(() =>
         {
-            Assert.That(order?.HomeMuster, Is.False, "twenty gathered: the army marches at the deadline");
+            Assert.That(order?.HomeMuster, Is.False, "two groups, sixteen bots: the army marches at the deadline");
             Assert.That(order?.RemainingMilliseconds, Is.GreaterThanOrEqualTo(RealmEventPolicy.RecruitmentMilliseconds(0) - 1),
                 "the forward rally keeps its full hour after the march");
         });
+    }
+
+    [Test]
+    public void OneGroupAloneNeverMarchesHoweverManyBotsItHas()
+    {
+        string id = Guid.NewGuid().ToString();
+        long opened = GameLoop.GameLoopTime;
+        var objective = new AutonomousRvrEventLayer.LiveObjective(id, "Muster keep",
+            AutonomousRvrEventLayer.Intent.AssaultKeep, eRealm.Hibernia, 200, 100, 100, 0, false, 0, 0, 5, 2);
+        var attacker = new AutonomousRvrEventLayer.Force(id + "-attack", eRealm.Albion, 8, 50, 1);
+        Assert.That(AutonomousRvrEventLayer.ChooseOrJoin(attacker, [objective], opened, 0)?.TargetId, Is.EqualTo(id));
+        for (int member = 1; member <= 30; member++)
+            AutonomousRvrEventLayer.ReportMusterAttendance(id, attacker.GroupId, 9000 + member, true, opened, null, default);
+        long firstDeadline = opened + AutonomousRvrEventLayer.HomeMusterMilliseconds + 1;
+        AutonomousRvrEventLayer.GetRallyOrder(attacker.GroupId, eRealm.Albion, firstDeadline);   // extended once
+        long marched = firstDeadline + AutonomousRvrEventLayer.MusterExtensionMilliseconds + 1;
+        Assert.That(AutonomousRvrEventLayer.GetRallyOrder(attacker.GroupId, eRealm.Albion, marched), Is.Null,
+            "a single group is not a coalition: the assault is cancelled");
     }
 
     [TestCase(false, 107, ExpectedResult = false, TestName = "107 attackers at the camp are not yet an assault force")]

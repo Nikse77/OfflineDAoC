@@ -844,14 +844,19 @@ public static partial class AutonomousRvrEventLayer
     /// even 2 against keeps with guards and a lord. A rally that has not gathered this many by its deadline fails; its forces go
     /// back to patrol. A siege forced by a player and a retake are not held to it.
     /// </summary>
-    public const int MinimumArmy = 20;
+    public const int MinimumArmy = AutonomousRvrCoalition.MinimumBots;
 
     /// <summary>
     /// Owner 2026-11-03: an assault still mustering whose assigned attackers are fewer than <see cref="MinimumArmy"/> may take a
     /// force away from its patrol; once it has them, a patrolling force is left alone.
     /// </summary>
     private static bool NeedsMinimumArmy(ActiveEvent active) =>
-        !active.Marching && !active.BattleStarted && !active.DefenseReaction && active.Attackers.Values.Sum() < MinimumArmy;
+        !active.Marching && !active.BattleStarted && !active.DefenseReaction &&
+        !AutonomousRvrCoalition.IsViable(active.Attackers.Count, active.Attackers.Values.Sum());
+
+    /// <summary>Siege rework phase 2: the muster is a coalition when at least two groups and sixteen bots are at the muster point.</summary>
+    private static bool MusterViable(ActiveEvent active) =>
+        AutonomousRvrCoalition.IsViable(active.Mustered.Values.Select(entry => entry.Force).Distinct(StringComparer.Ordinal).Count(), active.Mustered.Count);
 
     /// <summary>Attackers at their posts that open a marched siege without the leader: 60% of the army that marched, at least 8.</summary>
     public static int ArrivalQuorum(int marchedAttackers) => Math.Max(8, marchedAttackers * 6 / 10);
@@ -1551,7 +1556,7 @@ public static partial class AutonomousRvrEventLayer
             // once more, ten minutes, for the army that is genuinely on its way.
             int gathered = active.Mustered.Count;
             bool mayExtend = active.RelicKeep ? active.MusterExtensions < RelicMusterExtensions : !active.MusterExtended;
-            if (!active.Retake && mayExtend && gathered < RealmEventPolicy.DynamicStartThreshold(active.RelicKeep, true))
+            if (!active.Retake && mayExtend && (gathered < RealmEventPolicy.DynamicStartThreshold(active.RelicKeep, true) || !MusterViable(active)))
             {
                 active.MusterExtended = true;
                 active.MusterExtensions++;
@@ -1562,9 +1567,10 @@ public static partial class AutonomousRvrEventLayer
                     $"needed={RealmEventPolicy.DynamicStartThreshold(active.RelicKeep, true)} minutes={(active.RelicKeep ? RelicMusterExtensionMilliseconds : MusterExtensionMilliseconds) / 60_000}");
                 continue;
             }
-            if (!active.Retake && !active.Forced && gathered < MinimumArmy)
+            if (!active.Retake && !active.Forced && !MusterViable(active))
             {
-                EndEvent(active, nowTick, $"Rally failed: only {gathered} attackers gathered, fewer than {MinimumArmy}");
+                EndEvent(active, nowTick, $"Rally failed: {gathered} attackers of {active.Mustered.Values.Select(entry => entry.Force).Distinct(StringComparer.Ordinal).Count()} groups gathered, " +
+                    $"fewer than {MinimumArmy} bots or {AutonomousRvrCoalition.MinimumGroups} groups");
                 continue;
             }
             GiveMarchOrder(active, nowTick, "muster deadline reached; marching with the attackers gathered");
