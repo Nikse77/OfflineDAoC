@@ -282,6 +282,7 @@ namespace DOL.GS
                         Force force = candidate.Force;
                         if (Participants(active, force.Realm).ContainsKey(force.GroupId)) continue;
                         if (ReleasedForces.ContainsKey(force.GroupId) ||
+                            WipedWithdrawn.TryGetValue(force.GroupId, out long wipedUntil) && wipedUntil > now ||
                             CarrierEvents.Values.Any(c => c.Participants.Values.Any(r => r.ContainsKey(force.GroupId)))) continue;
                         // Keep a deterministic 30% reserve of whole warbands;
                         // incidental nearby combat remains handled by normal AI.

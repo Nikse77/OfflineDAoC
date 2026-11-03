@@ -95,6 +95,22 @@ public class UT_StagedSiegeOct6
     }
 
     [Test]
+    public void AWipedOutGroupLeavesTheEventAndDoesNotTakeAPlaceInItAgain()
+    {
+        string id = Guid.NewGuid().ToString();
+        long opened = GameLoop.GameLoopTime;
+        var objective = new AutonomousRvrEventLayer.LiveObjective(id, "Muster keep",
+            AutonomousRvrEventLayer.Intent.AssaultKeep, eRealm.Hibernia, 200, 100, 100, 0, false, 0, 0, 5, 2);
+        var attacker = new AutonomousRvrEventLayer.Force(id + "-attack", eRealm.Albion, 8, 50, 1);
+        Assert.That(AutonomousRvrEventLayer.ChooseOrJoin(attacker, [objective], opened, 0)?.TargetId, Is.EqualTo(id));
+        Assert.That(AutonomousRvrEventLayer.WithdrawWipedForce(attacker.GroupId, opened + 10), Is.True);
+        Assert.That(AutonomousRvrEventLayer.IsEventForce(attacker.GroupId, opened + 11), Is.False);
+        Assert.That(AutonomousRvrEventLayer.ChooseOrJoin(attacker, [objective], opened + 20, 0), Is.Null,
+            "the wiped group goes back to patrol");
+        Assert.That(AutonomousRvrEventLayer.WithdrawWipedForce(attacker.GroupId, opened + 30), Is.False, "nothing left to withdraw from");
+    }
+
+    [Test]
     public void OneGroupAloneNeverMarchesHoweverManyBotsItHas()
     {
         string id = Guid.NewGuid().ToString();

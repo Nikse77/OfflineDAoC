@@ -174,6 +174,7 @@ public static partial class AutonomousRvrEventLayer
         }
     }
     private static readonly Dictionary<string, string> ReleasedForces = new(StringComparer.Ordinal);
+    private static readonly Dictionary<string, long> WipedWithdrawn = new(StringComparer.Ordinal);
     private static long _nextStragglerSweep;
     private static readonly HashSet<string> SelectedKeeps = new(StringComparer.Ordinal);
     private static readonly HashSet<string> SelectedRelics = new(StringComparer.Ordinal);
@@ -436,6 +437,8 @@ public static partial class AutonomousRvrEventLayer
                 return ReservePlan(force, objectives.Where(o => !o.IsRelicCarrier && o.Kind is not Intent.AssaultKeep and not Intent.AssaultRelicKeep).ToArray(),
                     nowTick, where);
             if (ReleasedForces.ContainsKey(force.GroupId)) return null;
+            // Owner 2026-11-03: a group wiped out in a siege patrols; it does not take another place in an event for a while.
+            if (WipedWithdrawn.TryGetValue(force.GroupId, out long wipedUntil) && wipedUntil > nowTick) return null;
 
             Plan committed = CommittedPlan(force, objectives);
             if (committed != null)
@@ -853,11 +856,17 @@ public static partial class AutonomousRvrEventLayer
     /// </summary>
     private static bool NeedsMinimumArmy(ActiveEvent active) =>
         !active.Marching && !active.BattleStarted && !active.DefenseReaction &&
-        !AutonomousRvrCoalition.IsViable(active.Attackers.Count, active.Attackers.Values.Sum());
+        !AutonomousRvrCoalition.IsViable(RealGroups(active), active.Attackers.Values.Sum());
+
+    /// <summary>The attacking groups that count as groups (four members or more); lone recruits are bots, not groups.</summary>
+    private static int RealGroups(ActiveEvent active) =>
+        active.Attackers.Values.Count(members => members >= AutonomousRvrCoalition.MinimumGroupMembers);
 
     /// <summary>Siege rework phase 2: the muster is a coalition when at least two groups and sixteen bots are at the muster point.</summary>
     private static bool MusterViable(ActiveEvent active) =>
-        AutonomousRvrCoalition.IsViable(active.Mustered.Values.Select(entry => entry.Force).Distinct(StringComparer.Ordinal).Count(), active.Mustered.Count);
+        AutonomousRvrCoalition.IsViable(active.Mustered.Values.Select(entry => entry.Force).Distinct(StringComparer.Ordinal)
+            .Count(force => active.Attackers.TryGetValue(force, out int members) && members >= AutonomousRvrCoalition.MinimumGroupMembers),
+            active.Mustered.Count);
 
     /// <summary>Attackers at their posts that open a marched siege without the leader: 60% of the army that marched, at least 8.</summary>
     public static int ArrivalQuorum(int marchedAttackers) => Math.Max(8, marchedAttackers * 6 / 10);
@@ -1077,6 +1086,15 @@ public static partial class AutonomousRvrEventLayer
             }
     }
 
+    /// <summary>True when this marcher took a march turn within the silence limit (it is walking, holding or fighting with the army).</summary>
+    public static bool IsMarching(string targetId, GameBot bot)
+    {
+        lock (Sync)
+            return bot != null && Events.TryGetValue(targetId, out var active) &&
+                   active.MarchTurns.TryGetValue(bot.DatabaseID, out long turn) &&
+                   GameLoop.GameLoopTime - turn < MarchLeaderSilenceMilliseconds;
+    }
+
     /// <summary>The mustered attackers still alive and in the world (the marching column).</summary>
     public static GameBot[] ArmyMembers(string targetId)
     {
@@ -1167,7 +1185,8 @@ public static partial class AutonomousRvrEventLayer
             {
                 var used = participants.Keys.Where(id => id != forceId && active.Slots.ContainsKey(id))
                     .SelectMany(id => active.Slots[id]).ToHashSet();
-                slots = realm == active.AttackerRealm ? AutonomousRvrRally.BlockAlignedSlots(used, count, Capacity(active)) : null;
+                slots = realm == active.AttackerRealm && count >= AutonomousRvrCoalition.MinimumGroupMembers
+                    ? AutonomousRvrRally.BlockAlignedSlots(used, count, Capacity(active)) : null;
                 slots ??= Enumerable.Range(0, Capacity(active)).Where(slot => !used.Contains(slot)).Take(count).ToArray();
                 active.Slots[forceId] = slots;
             }
@@ -1409,7 +1428,11 @@ public static partial class AutonomousRvrEventLayer
                 if (log.IsInfoEnabled) log.Info($"RVR_FORCE_WIPED_WITHDRAWN force={forceId} target={active.TargetId} " +
                     $"battle={active.BattleStarted} attackersLeft={active.Attackers.Values.Sum()}");
             }
-            if (found) AutonomousRvrPatrolLock.Begin(forceId, nowTick);
+            if (found)
+            {
+                AutonomousRvrPatrolLock.Begin(forceId, nowTick);
+                WipedWithdrawn[forceId] = nowTick + AutonomousRvrPatrolLock.MinimumMilliseconds;
+            }
             return found;
         }
     }

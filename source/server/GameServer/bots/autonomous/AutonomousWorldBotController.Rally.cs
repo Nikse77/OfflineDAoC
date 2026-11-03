@@ -394,7 +394,8 @@ public sealed partial class AutonomousWorldBotController
         // Siege rework phase 3: a member follows its own group leader; only the leaders of the groups follow the march leader.
         GameBot ownLeader = bot.Group?.LivingLeader as GameBot;
         if (ownLeader != null && ownLeader != bot && ownLeader != leader && ownLeader.IsAlive &&
-            ownLeader.CurrentRegionID == bot.CurrentRegionID && army.Contains(ownLeader))
+            ownLeader.CurrentRegionID == bot.CurrentRegionID && army.Contains(ownLeader) &&
+            AutonomousRvrEventLayer.IsMarching(targetId, ownLeader))
         {
             if (!bot.IsWithinRadius(ownLeader, ArmyKeepUpDistance) || leader.TempProperties.GetProperty<bool>(ArmyDetourProperty))
             {
