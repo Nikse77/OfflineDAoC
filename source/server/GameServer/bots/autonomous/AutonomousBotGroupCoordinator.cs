@@ -3484,7 +3484,14 @@ public static partial class AutonomousBotGroupCoordinator
     {
         if (session?.Leader != null && session.Leader.IsAlive && session.Leader.Group == session.Group &&
             members.Contains(session.Leader))
+        {
+            // Owner 2026-11-03: the group names the same leader as the session. If the hand-over to the group did not take
+            // (the successor was not yet in the group when it was promoted) it is repeated here until it does.
+            if (session.ObjectiveKind == eAutonomousObjectiveKind.RvR && session.Group != null &&
+                session.Group.LivingLeader != session.Leader)
+                session.Group.MakeLeader(session.Leader);
             return session.Leader;
+        }
 
         GameBot replacement = session?.ObjectiveKind == eAutonomousObjectiveKind.RvR
             ? ChooseRvrSuccessor(session, members)
