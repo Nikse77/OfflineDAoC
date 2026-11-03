@@ -1238,12 +1238,14 @@ namespace DOL.GS
             IsReturningAfterRelease = returnToParty;
             // Owner 2026-11-02: the frontier casualty waits at the portal keep until the leader comes for it. Only an
             // RvR release in a frontier sets it; a PvE release still walks back on its own as it always did.
-            // Owner 2026-11-03: "WaitingAtFrontierKeep va settato solo se il bot è in gruppo (e ovviamente non è lui il capo)". Run of
-            // 11:19-11:47: Nialanan died alone, kept the wait, was drafted into a party of another region 4 minutes later
-            // and stood at the keep for 21 minutes, holding seven comrades at their meetup: there is no leader to come for a
-            // bot with no party, and the leader does not wait for itself.
-            WaitingAtFrontierKeep = frontierRelease && IsAutonomousWorldBot && rvrDuty &&
-                                    Group != null && Group.LivingLeader != this;
+            // Owner 2026-11-03: "WaitingAtFrontierKeep va settato solo se il bot è in gruppo". Run of 11:19-11:47: Nialanan
+            // died alone, kept the wait, was drafted into a party of another region 4 minutes later and stood at the keep for
+            // 21 minutes, holding seven comrades at their meetup: there is no leader to come for a bot with no party.
+            // The leader of a party keeps the flag too: a leader that released at the keep holds the party there until the
+            // comrades have gathered (controller: pickedUp / ComradesGatheredAtTheKeep) and the regroup moves to its keep
+            // (RVR_REGROUP_AT_BORDER_KEEP). Excluding it (build of 12:43) left it "walking back to the party" for good: 10
+            // regroups stayed open, one for 27 minutes.
+            WaitingAtFrontierKeep = frontierRelease && IsAutonomousWorldBot && rvrDuty && Group != null;
             if (returnToParty) AutonomousRealmRaid.RejoinAfterRelease(this);
             _nextReturnRoleplayTick = GameLoop.GameLoopTime + Util.Random(45_000, 90_000);
             Brain?.FSM?.SetCurrentState(eFSMStateType.FOLLOW);
