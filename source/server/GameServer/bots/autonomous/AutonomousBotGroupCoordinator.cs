@@ -3558,12 +3558,18 @@ public static partial class AutonomousBotGroupCoordinator
     public static bool MaySucceedInZone(ushort deathRegion, ushort memberRegion, bool alive, bool waitingAtKeep) =>
         alive && !waitingAtKeep && (deathRegion == 0 || memberRegion == deathRegion);
 
+    /// <summary>
+    /// Where the fallen leader fell. A bot that is no longer alive may not have recorded its death yet (the election ran in the
+    /// same second: run 2026-11-04 12:05, three NullReferenceExceptions), so its present position stands in until it has.
+    /// </summary>
+    public static Point3D DeathPoint(Point3D recorded, int x, int y, int z) => recorded ?? new Point3D(x, y, z);
+
     private static GameBot ChooseRvrSuccessor(Session session, GameBot[] members)
     {
         GameBot lost = session?.Leader;
         if (lost == null) return null;
         ushort region = lost.DeathRegionId;
-        Point3D death = lost.DeathLocation;
+        Point3D death = DeathPoint(lost.DeathLocation, lost.X, lost.Y, lost.Z);
         GameBot[] candidates = members
             .Where(member => member != lost && MaySucceedInZone(region, member.CurrentRegionID, member.IsAlive,
                 member.WaitingAtFrontierKeep))

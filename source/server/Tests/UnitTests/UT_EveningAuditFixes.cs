@@ -38,6 +38,16 @@ namespace DOL.UnitTests
         }
 
         [Test]
+        public void ALeaderThatHasNotRecordedItsDeathYetStillGetsASuccessorElection()
+        {
+            // 2026-11-04 12:05: the election ran in the same second the leader fell and read its null death location.
+            var recorded = new Point3D(100, 200, 300);
+            Assert.That(AutonomousBotGroupCoordinator.DeathPoint(recorded, 1, 2, 3), Is.SameAs(recorded));
+            Point3D stand = AutonomousBotGroupCoordinator.DeathPoint(null, 1, 2, 3);
+            Assert.That((stand.X, stand.Y, stand.Z), Is.EqualTo((1, 2, 3)));
+        }
+
+        [Test]
         public void ALivingComradeWaitingAtTheKeepDoesNotHoldTheRvrPartyBack()
         {
             // 2026-11-04: the leader of albion-1f0544-011 stood "Holding group formation" for 22 minutes at Emain Macha while a
