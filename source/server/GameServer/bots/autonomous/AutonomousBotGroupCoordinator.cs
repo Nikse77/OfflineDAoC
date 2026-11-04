@@ -658,7 +658,10 @@ public static partial class AutonomousBotGroupCoordinator
         if (directive?.IsDynamic != true || directive.Leader == null)
             return true;
         long now = GameLoop.GameLoopTime;
-        return BotMembers(directive.Leader.Group).Where(member => member.IsAlive)
+        bool rvr = directive.ObjectiveKind == eAutonomousObjectiveKind.RvR;
+        // Owner 2026-11-04: a comrade waiting at its frontier keep does not hold the party (the leader fetches it).
+        return BotMembers(directive.Leader.Group)
+            .Where(member => member.IsAlive && CountsForPull(rvr, member.IsAlive, member.WaitingAtFrontierKeep))
             .All(member => member.CurrentRegionID == directive.Leader.CurrentRegionID &&
                 (member.GetDistanceTo(directive.Leader) is var distance && distance <= CohesionRadius ||
                  AutonomousGroupMemberStall.Release(member, directive.Leader, distance, CohesionRadius, now)));
@@ -718,6 +721,8 @@ public static partial class AutonomousBotGroupCoordinator
         foreach (GameBot member in BotMembers(leader.Group))
         {
             if (!member.IsAlive || member == leader) continue;
+            // Owner 2026-11-04: nor does a comrade waiting at its frontier keep (the leader fetches it).
+            if (!CountsForPull(directive.ObjectiveKind == eAutonomousObjectiveKind.RvR, member.IsAlive, member.WaitingAtFrontierKeep)) continue;
             // Owner 2026-11-01: only the members that left with the party hold it. One left behind at the muster keep -
             // or in another region - used to report an infinite distance, and the party stood still waiting for it.
             if (directive.ObjectiveKind == eAutonomousObjectiveKind.RvR &&

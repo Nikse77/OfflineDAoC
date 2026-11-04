@@ -254,6 +254,9 @@ public sealed partial class AutonomousWorldBotController
         foreach (GameBot member in members)
         {
             if (member == bot || !member.IsAlive || member.CurrentRegionID != bot.CurrentRegionID) continue;
+            // Owner 2026-11-04: a comrade waiting at its frontier keep does not hold the walk (the leader fetches it).
+            if (!AutonomousBotGroupCoordinator.CountsForPull(_groupDirective.ObjectiveKind == eAutonomousObjectiveKind.RvR,
+                    member.IsAlive, member.WaitingAtFrontierKeep)) continue;
             float distance = member.GetDistanceTo(bot);
             if (AutonomousGroupMemberStall.Release(member, bot, distance, AutonomousGroupPace.CompactTrailRadius, now)) continue;
             farthest = Math.Max(farthest, distance);
