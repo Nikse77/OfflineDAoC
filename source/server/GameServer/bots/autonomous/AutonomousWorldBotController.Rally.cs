@@ -216,6 +216,8 @@ public sealed partial class AutonomousWorldBotController
     public const long ArmyArrivalHoldMilliseconds = 12 * 60_000;
     private long _armyArrivalHoldSince;
     private long _nextMarchCatchupLog;
+    // Owner 2026-11-04: a marching follower far from its place replans its route at most every few seconds while it walks.
+    private long _nextMarchRepath;
     private Vector3? _marchDetour;
     private const string ArmyDetourProperty = "ArmyMarchDetour";
     private const string ArmyPushProperty = "ArmyMarchPush";
@@ -429,7 +431,13 @@ public sealed partial class AutonomousWorldBotController
                          $"returningAfterRelease={bot.IsReturningAfterRelease} waitingAtKeep={bot.WaitingAtFrontierKeep} " +
                          $"deaths={bot.PersistentRecord?.DeathCount} moving={bot.IsMoving}");
             }
-            IssuePath(bot, formation, retargetWhileMoving: true);
+            // Owner 2026-11-04: it replanned on every turn (about 170 ms each; 213 of 235 long ticks in an hour were marching
+            // bots). A bot already walking keeps its route for a few seconds; one that stands replans at once.
+            if (AutonomousMarchRepath.ShouldReplan(bot.IsMoving, now, _nextMarchRepath))
+            {
+                _nextMarchRepath = now + AutonomousMarchRepath.NextDelayMilliseconds(bot.ObjectID);
+                IssuePath(bot, formation, retargetWhileMoving: true);
+            }
         }
         SetRvrStatus(bot, "Marching with the army", keep.Name, $"In formation behind {leader.Name}");
         return true;
