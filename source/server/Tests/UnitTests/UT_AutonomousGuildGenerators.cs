@@ -83,6 +83,39 @@ namespace DOL.UnitTests
                 }
         }
 
+        private static readonly string[] PrimaryColourNames =
+            ["Red", "Dark Red", "Violet", "Purple", "Royal Blue", "Blue", "Teal", "Light Blue", "Green", "Dark Green", "Olive", "Tan", "Brown", "Rust", "Gray", "Maroon"];
+
+        private static readonly string[] SecondaryColourNames = ["Khaki", "Dark Khaki", "Gray", "Yellow", "Orange", "Green", "Blue", "Purple"];
+
+        /// <summary>
+        /// Prints a dozen generated guilds per realm (name, emblem number and what it decodes to). Run on request only:
+        /// <c>dotnet test Tests/Tests.csproj -c Release --filter "FullyQualifiedName~ShowSomeGeneratedGuilds" --logger "console;verbosity=detailed"</c>
+        /// (add <c>--no-build</c> after a build). The seed can be changed to see other draws.
+        /// </summary>
+        [Test, Explicit("Prints generated guild names and emblems for the owner to look at; asserts nothing")]
+        public void ShowSomeGeneratedGuilds()
+        {
+            var random = new Random(2026);
+            var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var emblems = new HashSet<int>();
+            foreach (eRealm realm in Realms)
+            {
+                TestContext.Out.WriteLine($"=== {realm} ===");
+                for (int i = 0; i < 12; i++)
+                {
+                    string name = AutonomousGuildNames.Generate(realm, names.Contains, random);
+                    int emblem = AutonomousGuildEmblems.Generate(realm, emblems.Contains, random);
+                    names.Add(name);
+                    emblems.Add(emblem);
+                    var (logo, pattern, primary, secondary) = AutonomousGuildEmblems.Decode(emblem);
+                    TestContext.Out.WriteLine($"{name,-32} emblem={emblem,-7} logo={logo,-3} pattern={pattern} " +
+                        $"primary={PrimaryColourNames[primary]}({primary}) secondary={SecondaryColourNames[secondary]}({secondary}) " +
+                        $"contrast={AutonomousGuildEmblems.Contrast(primary, secondary):0}");
+                }
+            }
+        }
+
         [Test]
         public void TheTwoColoursOfAGeneratedEmblemContrastEnough()
         {
