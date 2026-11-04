@@ -109,12 +109,12 @@ namespace DOL.UnitTests
         }
 
         [Test]
-        public void TheRotationWaitsHalfASecondBetweenChantsAndThreeSecondsAfterTheLast()
+        public void TheRotationWaitsOneSecondBetweenChantsAndFourSecondsAfterTheLast()
         {
-            Assert.That(BotChantRotation.DelayAfter(0, 4), Is.EqualTo(500));
-            Assert.That(BotChantRotation.DelayAfter(2, 4), Is.EqualTo(500));
-            Assert.That(BotChantRotation.DelayAfter(3, 4), Is.EqualTo(3_000), "after endurance regen, before armor again");
-            Assert.That(BotChantRotation.DelayAfter(2, 3), Is.EqualTo(3_000), "a companion has three chants");
+            Assert.That(BotChantRotation.DelayAfter(0, 4), Is.EqualTo(1_000));
+            Assert.That(BotChantRotation.DelayAfter(2, 4), Is.EqualTo(1_000));
+            Assert.That(BotChantRotation.DelayAfter(3, 4), Is.EqualTo(4_000), "after endurance regen, before armor again");
+            Assert.That(BotChantRotation.DelayAfter(2, 3), Is.EqualTo(4_000), "a companion has three chants");
             Assert.That(BotChantRotation.NextStep(3, 4), Is.EqualTo(0));
             Assert.That(BotChantRotation.NextStep(0, 4), Is.EqualTo(1));
             Assert.That(BotChantRotation.NextStep(0, 0), Is.EqualTo(0));

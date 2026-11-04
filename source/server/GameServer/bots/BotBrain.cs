@@ -2557,7 +2557,7 @@ namespace DOL.AI.Brain
 
         /// <summary>
         /// Owner 2026-11-04: in combat the Paladin casts armor, damage add, combat heal and endurance regen one after the other
-        /// (half a second apart, three seconds before it starts again); out of combat it holds the endurance chant and nothing
+        /// (one second apart, four seconds before it starts again); out of combat it holds the endurance chant and nothing
         /// else. A companion leaves the armor chant out (its wings and sphere on every member at every cast). A chant still
         /// on its reuse timer is waited for, one it has no power for is skipped, the one already pulsing is not cast again.
         /// </summary>
