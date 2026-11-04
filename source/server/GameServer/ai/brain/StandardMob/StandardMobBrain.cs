@@ -800,17 +800,10 @@ namespace DOL.AI.Brain
             if (!CanBaf)
                 return;
 
-            // Owner 2026-11-04: BAF_SKIPPED / BAF_ROUND lines for the pulls of a player, its companions and their pets only.
-            bool logged = BafFriends.IsPlayerPull(puller);
-
             // BaF only happens if the NPC was attacked (no BAF on body pull), and if it has a faction or (with no
             // faction) brings its own kind (BafFriends).
             if (!BafFriends.CanBringFriends(Body) || Body.attackComponent.AttackerTracker.Count == 0)
             {
-                if (logged)
-                    BafFriends.LogSkipped(Body, puller, !BafFriends.CanBringFriends(Body)
-                        ? "the monster cannot bring friends (no faction, same-name rule off)"
-                        : "the monster has no attacker yet (a body pull)");
                 _canBaf = false;
                 return;
             }
@@ -828,36 +821,24 @@ namespace DOL.AI.Brain
                 playerPuller = brain.GetPlayerOwner();
 
                 if (playerPuller == null)
-                {
-                    if (logged) BafFriends.LogSkipped(Body, puller, "the puller is a pet with no player owner");
                     return;
-                }
 
                 // A companion's pet resolves to the player; only count it when companions count.
                 GameLiving petOwner = brain.Owner;
                 if (petOwner is GameBot && !(CompanionBringAFriend.Enabled && CompanionBringAFriend.IsCompanion(petOwner)))
-                {
-                    if (logged) BafFriends.LogSkipped(Body, puller, "the puller is the pet of a bot that does not count as a companion");
                     return;
-                }
 
                 countFrom = petOwner is GameBot ? petOwner : playerPuller;
             }
             else
-            {
-                if (logged) BafFriends.LogSkipped(Body, puller, "the puller does not count (companions off, or not a companion)");
                 return;
-            }
 
             // Owner 2026-11-04: the "one round of adds per fight" rule of the 0.38 import (BafFriends.InBafFight) is gone: a fight
             // that goes on, as a /grind does between pulls, kept the player "in the fight" for good and no pull brought friends.
 
             // Prevent the same puller from triggering two BAFs at the same time.
             if (!playerPuller.TempProperties.TrySetProperty(ResetBafPropertyAction.Property, true))
-            {
-                if (logged) BafFriends.LogSkipped(Body, puller, "another round of adds of this player is still being set up (a few seconds)");
-                return;
-            }
+                 return;
 
             _ = new ResetBafPropertyAction(playerPuller);
             CanBaf = false; // Mobs only BAF once per fight.
@@ -866,12 +847,9 @@ namespace DOL.AI.Brain
             // range, and in a dungeon up to 1,000 units (nearest first); each must be in sight of the pulled monster.
             int bafRadius = BafFriends.Radius(AggroRange, Body.CurrentZone.IsDungeon, attackersCount);
 
-            var stats = logged ? new BafFriends.Stats() : null;
-            List<GameNPC> brainsInRadius = GetFriendlyAndAvailableNpcsInRadiusOrderedByDistance(bafRadius, maxAdds, stats);
+            List<GameNPC> brainsInRadius = GetFriendlyAndAvailableNpcsInRadiusOrderedByDistance(bafRadius, maxAdds);
             int addCount = brainsInRadius.Count;
             BafAddCount = addCount;
-            if (logged)
-                BafFriends.LogRound(Body, puller, playerPuller, attackersCount, maxAdds, bafRadius, AggroRange, Body.CurrentZone.IsDungeon, addCount, stats);
 
             foreach (GameNPC npc in brainsInRadius)
             {
@@ -966,7 +944,7 @@ namespace DOL.AI.Brain
             }
         }
 
-        public List<GameNPC> GetFriendlyAndAvailableNpcsInRadiusOrderedByDistance(int radius, int count, BafFriends.Stats stats = null)
+        public List<GameNPC> GetFriendlyAndAvailableNpcsInRadiusOrderedByDistance(int radius, int count)
         {
             List<GameNPC> finalNpcs = GameLoop.GetListForTick<GameNPC>();
 
@@ -981,21 +959,11 @@ namespace DOL.AI.Brain
 
                 foreach (GameNPC npc in Body.GetNPCsInRadius((ushort) radius))
                 {
-                    if (npc == Body)
+                    if (npc == Body || !BafFriends.IsFriend(Body, npc) || !npc.IsAggressive || !npc.IsAvailableToJoinFight || npc.Brain is not StandardMobBrain)
                         continue;
-
-                    // Owner 2026-11-04: each filter counts what it turns away (BAF_ROUND), same order and same result as before.
-                    if (stats != null) stats.InRadius++;
-                    if (!BafFriends.IsFriend(Body, npc)) { if (stats != null) stats.NotFriend++; continue; }
-                    if (!npc.IsAggressive) { if (stats != null) stats.NotAggressive++; continue; }
-                    if (!npc.IsAvailableToJoinFight) { if (stats != null) stats.NotAvailable++; continue; }
-                    if (npc.Brain is not StandardMobBrain) { if (stats != null) stats.NotStandardBrain++; continue; }
 
                     if (!BafFriends.InSight(Body, npc))
-                    {
-                        if (stats != null) stats.NotInSight++;
                         continue;
-                    }
 
                     long xDiff = Body.X - npc.X;
                     long yDiff = Body.Y - npc.Y;
