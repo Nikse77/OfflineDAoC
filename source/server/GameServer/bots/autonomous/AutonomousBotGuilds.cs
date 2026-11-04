@@ -157,7 +157,10 @@ namespace DOL.GS
             }
             if (stale.Count > 0)
                 GameServer.Database.DeleteObject(stale);
-            Log.Info($"BOT_GUILDS loaded members={Members.Count} removedStale={stale.Count}");
+            Log.Info($"BOT_GUILDS loaded members={Members.Count} removedStale={stale.Count} automaticGuilds={AutomaticGuilds.Count}");
+            // A retired bot may have emptied an automatic guild while the server was off.
+            foreach (string guildId in AutomaticGuilds.Keys.ToArray())
+                DeleteIfEmptyAutomatic(GuildMgr.GetGuildByGuildID(guildId));
         }
 
         private static GuildMgr.GuildMemberView ViewFor(OfflineWorldBotGuildRecord record, OfflineWorldBotRecord stored, GameBot live)
@@ -248,8 +251,38 @@ namespace DOL.GS
             return true;
         }
 
+        /// <summary>
+        /// A gamebot joins a guild the gamebots founded (AutonomousGuildFounding): no invite, no message, no entry in a member
+        /// list. The bot shows the guild's name and emblem from now on.
+        /// </summary>
+        public static bool AddAutomaticMember(GameBot bot, Guild guild)
+        {
+            if (bot == null || guild == null || !IsAutomatic(guild) || bot.DatabaseID <= 0 || Members.ContainsKey(bot.DatabaseID))
+                return false;
+            var record = new OfflineWorldBotGuildRecord
+            {
+                BotId = bot.DatabaseID,
+                GuildID = guild.GuildID,
+                BotName = bot.Name,
+                JoinedUtc = DateTime.UtcNow.ToString("O"),
+                InvitedBy = string.Empty,
+            };
+            if (!GameServer.Database.AddObject(record)) return false;
+            Members[bot.DatabaseID] = record;
+            Present(bot);
+            return true;
+        }
+
+        /// <summary>An automatic guild left without members is deleted (owner 2026-11-04).</summary>
+        private static void DeleteIfEmptyAutomatic(Guild guild)
+        {
+            if (guild == null || !IsAutomatic(guild) || MembersOf(guild).Any()) return;
+            Log.Info($"BOT_GUILD_DELETED guild=\"{guild.Name}\" reason=\"no members left\"");
+            GuildMgr.DeleteGuild(guild.Name);
+        }
+
         /// <summary>Removes a gamebot from its guild (booted, roster deletion, retirement, guild disbanded).</summary>
-        public static bool Remove(long botId, string by, bool announce = true)
+        public static bool Remove(long botId, string by, bool announce = true, bool deleteEmptyAutomaticGuild = true)
         {
             if (!Members.TryRemove(botId, out var record)) return false;
             Guild guild = GuildMgr.GetGuildByGuildID(record.GuildID);
@@ -272,6 +305,8 @@ namespace DOL.GS
             if (AutonomousBotRegistry.TryGet(botId, out GameBot bot))
                 Present(bot);
             Log.Info($"BOT_GUILD_REMOVE bot={record.BotName} id={botId} guild=\"{guild?.Name}\" by={by}");
+            if (deleteEmptyAutomaticGuild)
+                DeleteIfEmptyAutomatic(guild);
             return true;
         }
 
@@ -291,7 +326,7 @@ namespace DOL.GS
         public static void OnGuildDeleted(Guild guild)
         {
             foreach (long botId in MembersOf(guild))
-                Remove(botId, null, announce: false);
+                Remove(botId, null, announce: false, deleteEmptyAutomaticGuild: false);
             Unmark(guild);
         }
 

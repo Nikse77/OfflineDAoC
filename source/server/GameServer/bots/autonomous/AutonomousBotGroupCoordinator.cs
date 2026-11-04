@@ -2015,6 +2015,9 @@ public static partial class AutonomousBotGroupCoordinator
                      $"size={formedMembers.Length} lockedSize={session.LockedSize} objective={objectiveKind} " +
                      $"members=\"{string.Join(",", formedMembers.Select(member => member.Name))}\" " +
                      $"rendezvous={session.RendezvousRegion}:{(int)session.Rendezvous.X},{(int)session.Rendezvous.Y},{(int)session.Rendezvous.Z}");
+            // Owner 2026-11-04: a party of eight gamebots with no guild joins one together (AutonomousGuildFounding).
+            if (formedMembers.Length == AutonomousGuildFounding.PartySize)
+                AutonomousGuildFounding.OnPartyFormed(formedMembers);
             if (claimed.Count >= 15)
                 break;
         }
