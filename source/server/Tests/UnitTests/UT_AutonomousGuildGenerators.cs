@@ -84,6 +84,24 @@ namespace DOL.UnitTests
         }
 
         [Test]
+        public void TheTwoColoursOfAGeneratedEmblemContrastEnough()
+        {
+            // Owner 2026-11-04: Tan on Dark Khaki and Light Blue on Purple-grey read as one flat colour.
+            Assert.That(AutonomousGuildEmblems.Contrast(primary: 11, secondary: 1), Is.LessThan(AutonomousGuildEmblems.MinimumContrast));
+            Assert.That(AutonomousGuildEmblems.Contrast(primary: 7, secondary: 7), Is.LessThan(AutonomousGuildEmblems.MinimumContrast));
+            Assert.That(AutonomousGuildEmblems.Contrast(primary: 0, secondary: 3), Is.GreaterThanOrEqualTo(AutonomousGuildEmblems.MinimumContrast));
+            var random = new Random(11);
+            foreach (eRealm realm in Realms)
+                for (int i = 0; i < 1000; i++)
+                {
+                    var (_, _, primary, secondary) = AutonomousGuildEmblems.Decode(AutonomousGuildEmblems.Generate(realm, _ => false, random));
+                    Assert.That(AutonomousGuildEmblems.Contrast(primary, secondary), Is.GreaterThanOrEqualTo(AutonomousGuildEmblems.MinimumContrast));
+                }
+            // The emblem of a player guild with poor contrast is not "valid" for the generator, but still decodes.
+            Assert.That(AutonomousGuildEmblems.IsValid(eRealm.Albion, AutonomousGuildEmblems.Encode(1, 0, 11, 1)), Is.False);
+        }
+
+        [Test]
         public void TheRealmLogoListsAreTheRealmsOwnAndLeaveOutTheGuardLogos()
         {
             foreach (eRealm realm in Realms)
