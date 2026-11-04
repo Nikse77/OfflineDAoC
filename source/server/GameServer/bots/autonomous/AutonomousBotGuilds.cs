@@ -6,6 +6,7 @@ using System.Reflection;
 using DOL.Database;
 using DOL.Database.Attributes;
 using DOL.Events;
+using DOL.GS.Keeps;
 using DOL.GS.PacketHandler;
 using DOL.Logging;
 
@@ -325,6 +326,10 @@ namespace DOL.GS
         /// <summary>Every member of a disbanded guild leaves it.</summary>
         public static void OnGuildDeleted(Guild guild)
         {
+            // An automatic guild gives its keeps back (they go back to the realm's unclaimed level).
+            if (IsAutomatic(guild))
+                foreach (AbstractGameKeep keep in guild.ClaimedKeeps.ToArray())
+                    keep.Release();
             foreach (long botId in MembersOf(guild))
                 Remove(botId, null, announce: false, deleteEmptyAutomaticGuild: false);
             Unmark(guild);
