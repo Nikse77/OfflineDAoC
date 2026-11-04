@@ -656,13 +656,16 @@ public static partial class AutonomousRvrEventLayer
     /// shared equally by the forces of its realm, AutonomousRvrRoamZones.PatrolRegionFor). With nothing to patrol in it, any of the
     /// three zones will do.
     /// </summary>
-    private static LiveObjective PickPatrol(Force force, IEnumerable<LiveObjective> objectives)
+    private static LiveObjective PickPatrol(Force force, IEnumerable<LiveObjective> objectives, LiveObjective previous = null)
     {
         LiveObjective[] patrols = objectives.Where(objective => objective.Kind == Intent.Roam).ToArray();
         long now = GameLoop.GameLoopTime;
-        return patrols.Where(objective => AutonomousRvrRoamZones.IsPatrolPoint(force.GroupId, force.Realm, now,
-                objective.RegionId, objective.X, objective.Y)).OrderBy(_ => Random.Shared.Next()).FirstOrDefault()
-            ?? patrols.Where(RoamsHere).OrderBy(_ => Random.Shared.Next()).FirstOrDefault();
+        // Owner 2026-11-04: the next point is at least AutonomousRvrPatrolSpacing.MinimumDistance from the previous one, if possible.
+        Func<LiveObjective, double> fromPrevious = previous == null ? null : candidate =>
+            AutonomousRvrPatrolSpacing.Distance(previous.RegionId, previous.X, previous.Y, candidate.RegionId, candidate.X, candidate.Y);
+        return AutonomousRvrPatrolSpacing.Choose(patrols.Where(objective => AutonomousRvrRoamZones.IsPatrolPoint(force.GroupId, force.Realm, now,
+                objective.RegionId, objective.X, objective.Y)).ToArray(), fromPrevious)
+            ?? AutonomousRvrPatrolSpacing.Choose(patrols.Where(RoamsHere).ToArray(), fromPrevious);
     }
 
     private static Plan ReservePlan(Force force, IReadOnlyCollection<LiveObjective> objectives, long nowTick,
@@ -671,7 +674,8 @@ public static partial class AutonomousRvrEventLayer
         // Owner 2026-11-03: the patrol point is held until the force reaches it, five minutes pass, or the patrol is
         // interrupted (ChooseOrJoin forgets the point when the plan is anything but a patrol). Called under Sync.
         // With no patrol or hunt on offer at all the menu entry gives nothing, as before, whatever point was held.
-        LiveObjective fresh = PickPatrol(force, objectives)
+        PatrolHeld.TryGetValue(force.GroupId, out var previousPoint);
+        LiveObjective fresh = PickPatrol(force, objectives, previousPoint.Target)
             ?? objectives.Where(objective => objective.Kind == Intent.HuntEnemy && !objective.IsRelicCarrier && objective.EnemyCount > 0)
                 .OrderBy(_ => Random.Shared.Next()).FirstOrDefault();
         if (fresh == null)
