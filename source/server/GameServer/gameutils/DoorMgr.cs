@@ -114,19 +114,48 @@ namespace DOL.GS
 				else
 				{
 					// Track doors that can't be opened via interaction, so they can be treated as obstacles.
-					if (!door.CanBeOpenedViaInteraction && !PathfindingProvider.Instance.RegisterDoor(door) && log.IsErrorEnabled)
+					if (!door.CanBeOpenedViaInteraction && !PathfindingProvider.Instance.RegisterDoor(door))
 					{
-						log.Error($"Failed to register door in pathfinding provider, possible navmesh/object location mismatch " +
-							$"(Id: {door.DoorId}) " +
+						// 2026-11-04: most of these doors stand within a few hundred units of a door that registered first and
+						// already took the shared door polygons (their Door flag is gone), so the mesh is fine there; the
+						// message is a warning for them and stays an error only for a door that has no registered neighbour.
+						GameDoorBase neighbour = FindRegisteredNeighbour(door);
+						string detail = $"(Id: {door.DoorId}) " +
 							$"(Name: {door.Name}) " +
 							$"(Loc: {door.X},{door.Y},{door.Z}) " +
 							$"(ZoneId: {door.CurrentZone?.ID}) " +
-							$"(RegionId: {door.CurrentRegionID})");
+							$"(RegionId: {door.CurrentRegionID})";
+						if (neighbour != null)
+						{
+							if (log.IsWarnEnabled)
+								log.Warn($"Door not registered in the pathfinding provider, probably sharing its navmesh polygons with door {neighbour.DoorId} {detail}");
+						}
+						else if (log.IsErrorEnabled)
+							log.Error($"Failed to register door in pathfinding provider, possible navmesh/object location mismatch {detail}");
 					}
 				}
 
 				m_doors[door.DoorId] = door;
 			}
+		}
+
+		/// <summary>The closest already registered door of the same region within 250 units (and 400 in height), if any.</summary>
+		private static GameDoorBase FindRegisteredNeighbour(GameDoorBase door)
+		{
+			GameDoorBase closest = null;
+			double closestDistance = 250 * 250;
+			foreach (GameDoorBase other in m_doors.Values)
+			{
+				if (other == door || other.CurrentRegionID != door.CurrentRegionID || Math.Abs(other.Z - door.Z) > 400)
+					continue;
+				double dx = other.X - door.X, dy = other.Y - door.Y, distance = dx * dx + dy * dy;
+				if (distance <= closestDistance)
+				{
+					closest = other;
+					closestDistance = distance;
+				}
+			}
+			return closest;
 		}
 
 		public static void UnregisterDoor(int doorID)
