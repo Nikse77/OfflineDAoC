@@ -7,6 +7,22 @@ The newest version is first. For the full detail of every earlier update, see
 
 0.37 / 0.37b / 0.37c is the latest release.
 
+**Guilds of the gamebots**
+- The gamebots now found guilds of their own. When a party of exactly eight gamebots forms, all of one realm, level 20 or
+  more and in no guild, the eight join a guild together: the realm's automatic guild with the fewest members that has eight
+  free places (a guild holds 64), or a new one with a generated English name (like "Order of the Silver Hawk" or
+  "Clan Ironfang") and a random emblem no other guild has. A smaller party waits and a party never splits. A guild left
+  without members is deleted.
+- These guilds show only from outside: the guild name under the bot's name (own realm), the emblem on its cloak and
+  shield, and the name on the keeps it claims. They have no guild chat, no join or leave messages, and no member list or
+  ranks for you. You cannot join one. A bot of such a guild that you invite into your own guild moves to it.
+- Their guilds claim keeps. A keep taken from its lord is claimed, at least 30 seconds after the lord falls and within
+  twenty minutes, by an automatic guild of the realm that took it that has a living bot within 4,500 units of the keep,
+  picked at random among those under the server's keeps-per-guild limit. The keep's guards become level 5, as for any claimed
+  keep. You can still claim a keep with your own guild before they do.
+- These guilds give their bots no realm points, merit or guild bonuses: a bot's membership stays outside the real guild
+  member list, as for the bots you invite.
+
 **Bots and raids**
 - Hibernian bots no longer get stuck at the door of their portal keep in Odin's Gate. Once out of the keep's
   inner door, the route they planned led back in to the keep yard and then out again, over and over, until they

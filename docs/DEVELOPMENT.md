@@ -146,6 +146,25 @@ design. To make one:
 Patches are cumulative from the base: the next one (0.38) is built against the same 0.36 baseline, with the
 previous patch's file fingerprints accepted too.
 
+## Gamebot guilds
+
+The gamebots found guilds on their own (owner 2026-11-04). The code is in `source/server/GameServer/bots/autonomous`:
+
+| File | What it does |
+|---|---|
+| `AutonomousGuildFounding.cs` | When a party of eight autonomous bots forms (hooked in `AutonomousBotGroupCoordinator`, after `AUTONOMOUS_GROUP_FORMED`) and all are one realm, level 20+, in no guild, they join the automatic guild of the realm with the fewest members and eight free places (`Capacity` 64), or a new one is founded. `PartyQualifies` and `ChooseGuild` are pure and tested. |
+| `AutonomousGuildNames.cs` | Standalone name generator per realm (`Generate(realm, isTaken, random)`): letters and spaces only, at most 30 characters, a numeral is added as a last resort. |
+| `AutonomousGuildEmblems.cs` | Standalone emblem generator (`Generate(realm, isTaken, random)`): logo << 9 \| pattern << 7 \| primary << 3 \| secondary, the realm's own logos, a minimum brightness contrast between the two colours, never 0 and never an emblem another guild has. |
+| `AutonomousKeepClaims.cs` | Claims keeps for automatic guilds: 30 seconds to 20 minutes after `KeepEvent.KeepTaken`, a guild of the keep's realm with a live bot within 4,500 units, picked at random among those `AbstractGameKeep.GuildClaimRefusal` accepts. |
+| `AutonomousBotGuilds.cs` | Membership (a bot is a member in `offline_world_bot_guild`, not in `IGamePlayer.Guild`, so no realm points, merit or guild buffs), `IsAutomatic` / `MarkAutomatic` (table `offline_world_auto_guild`), the join rule for a player's invite, silence in guild chat, deletion of an automatic guild left empty. |
+
+- `Guild.AddPlayer` refuses a player for an automatic guild. A bot of an automatic guild that a player invites moves to the player's guild.
+- `AbstractGameKeep.ClaimForGuild(guild)` is the claim without a player; `Claim(player)` calls it.
+- The tables `offline_world_bot_guild` and `offline_world_auto_guild` are saved progress (`progress-policy.json`).
+- Log lines: `BOT_GUILD_FOUNDED`, `BOT_GUILD_PARTY_JOINED`, `BOT_GUILD_DELETED`, `BOT_GUILD_AUTOMATIC`, `BOT_GUILD_KEEP_CLAIMED`,
+  `BOT_GUILD_KEEP_UNCLAIMED`, `BOT_GUILD_KEEP_CLAIM_DROPPED`, and `BOT_GUILDS loaded ... automaticGuilds=N` at startup.
+- To see what the generators make: `dotnet test Tests/Tests.csproj -c Release --filter "FullyQualifiedName~ShowSomeGeneratedGuilds" --logger "console;verbosity=detailed"` (an `[Explicit]` test).
+
 ## Sharing safely
 
 - **Never commit a played database.** It contains accounts, characters, bot rosters, inventories
