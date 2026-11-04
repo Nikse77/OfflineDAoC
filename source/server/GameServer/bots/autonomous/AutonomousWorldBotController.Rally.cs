@@ -42,7 +42,10 @@ public sealed partial class AutonomousWorldBotController
             var nav = PathfindingProvider.Instance;
             Vector3? floor = zone != null && nav.IsAvailable && nav.HasNavmesh(zone)
                 ? nav.GetClosestPoint(zone, raw, 160, 160, 800, nav.DefaultFilters) : raw;
-            _musterPost = floor ?? home.Position;
+            // Owner 2026-11-04: the nearest floor may be a piece of mesh with no way in; keep only a post the army can reach.
+            Vector3 wanted = floor ?? home.Position;
+            Zone homeZone = region.GetZone((int)home.Position.X, (int)home.Position.Y);
+            _musterPost = AutonomousReachablePost.Resolve(nav, homeZone, home.Position, wanted);
         }
         Vector3 post = _musterPost ?? home.Position;
         long now = GameLoop.GameLoopTime;
