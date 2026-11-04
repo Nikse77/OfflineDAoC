@@ -18,6 +18,15 @@ namespace DOL.UnitTests
         }
 
         [Test]
+        public void ABotThatHasArrivedIsNotTracedAsStalledButAFarOneIs()
+        {
+            Assert.That(RouteStallTracePolicy.ShouldTrace(0), Is.False);
+            Assert.That(RouteStallTracePolicy.ShouldTrace(600), Is.False, "exactly the radius counts as arrived");
+            Assert.That(RouteStallTracePolicy.ShouldTrace(600.5), Is.True);
+            Assert.That(RouteStallTracePolicy.ShouldTrace(62_630), Is.True, "the Emain Macha 211>212 seam stall");
+        }
+
+        [Test]
         public void AFollowerThatStandsReplansAtOnce()
         {
             Assert.That(AutonomousMarchRepath.ShouldReplan(moving: false, now: 1_000, nextAllowed: 999_999), Is.True);

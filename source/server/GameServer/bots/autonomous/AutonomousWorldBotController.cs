@@ -5131,6 +5131,10 @@ namespace DOL.GS
 
         private void TraceRouteStall(GameBot bot, Vector3 current, Vector3 destination, long now)
         {
+            // Owner 2026-11-04: a bot already at its destination is waiting, not stalled (19 of 27 traces in an hour); they
+            // no longer use up the minute's budget of six lines either.
+            if (!RouteStallTracePolicy.ShouldTrace(Vector2.Distance(new(current.X, current.Y), new(destination.X, destination.Y))))
+                return;
             if (now >= System.Threading.Interlocked.Read(ref _nextRouteStallTraceTick))
             {
                 System.Threading.Interlocked.Exchange(ref _nextRouteStallTraceTick, now + 60_000);
