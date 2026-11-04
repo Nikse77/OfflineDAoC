@@ -48,6 +48,36 @@ namespace DOL.AI.Brain
         // refreshed its own clock while the player stayed in combat, so a /grind that chains pulls was never out of "the
         // fight" and no pull brought friends. Removed.
 
+        // Owner 2026-11-04 (diagnostics): a pull of a Sorcerer with seven companions in Darkness Falls brought one rocot instead of
+        // three or four, and the log could not say why. One line per round of adds of a player's pull, one when it is skipped.
+        private static readonly DOL.Logging.Logger Log = DOL.Logging.LoggerManager.Create(typeof(BafFriends));
+
+        /// <summary>What each filter of the friends search turned away.</summary>
+        public sealed class Stats
+        {
+            public int InRadius, NotFriend, NotAggressive, NotAvailable, NotStandardBrain, NotInSight;
+        }
+
+        /// <summary>A pull by a player, a companion or a pet (the pulls that bring friends).</summary>
+        public static bool IsPlayerPull(GameLiving puller) =>
+            puller is GamePlayer || CompanionBringAFriend.IsCompanion(puller) || puller is GameNPC { Brain: IControlledBrain };
+
+        public static void LogSkipped(GameNPC pulled, GameLiving puller, string why)
+        {
+            if (Log.IsInfoEnabled)
+                Log.Info($"BAF_SKIPPED mob=\"{pulled.Name}\"({pulled.Level}) puller=\"{puller?.Name}\" because {why}");
+        }
+
+        public static void LogRound(GameNPC pulled, GameLiving puller, GamePlayer player, int attackers, int maxAdds, int radius,
+            int aggroRange, bool dungeon, int found, Stats stats)
+        {
+            if (!Log.IsInfoEnabled) return;
+            Log.Info($"BAF_ROUND mob=\"{pulled.Name}\"({pulled.Level}) at={pulled.X},{pulled.Y},{pulled.Z} puller=\"{puller?.Name}\" player=\"{player?.Name}\" " +
+                     $"attackers={attackers} maxAdds={maxAdds} radius={radius} aggroRange={aggroRange} dungeon={dungeon} found={found} " +
+                     $"inRadius={stats?.InRadius} notFriend={stats?.NotFriend} notAggressive={stats?.NotAggressive} notAvailable={stats?.NotAvailable} " +
+                     $"notStandardBrain={stats?.NotStandardBrain} notInSight={stats?.NotInSight}");
+        }
+
         /// <summary>In sight along the walkable ground (the navmesh); where there is no navmesh, assumed so.</summary>
         public static bool InSight(GameNPC pulled, GameNPC other)
         {
