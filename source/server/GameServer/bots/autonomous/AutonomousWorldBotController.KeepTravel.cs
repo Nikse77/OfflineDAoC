@@ -16,7 +16,7 @@ public sealed partial class AutonomousWorldBotController
     private RvrPlanningNavigation _keepPlanning;
     private Vector3? _keepHop;
     private Vector3 _keepHopFor, _keepStallPosition, _keepStallAnchor;
-    private long _keepStallSince;
+    private long _keepStallSince, _keepTravelLastCall, _keepTravelCallGap;
     private int _keepTravelStalls;
 
     private static long KeepTravelGeometry(Region region, Zone destination, string targetId)
@@ -40,6 +40,8 @@ public sealed partial class AutonomousWorldBotController
     private bool FollowKeepTravel(GameBot bot, CampDestination destination)
     {
         long now = GameLoop.GameLoopTime;
+        _keepTravelCallGap = _keepTravelLastCall == 0 ? 0 : now - _keepTravelLastCall;
+        _keepTravelLastCall = now;
         Vector3 current = new(bot.X, bot.Y, bot.Z);
         string key = $"{bot.PersistentRecord?.ObjectiveAssignmentId}:{bot.CurrentRegionID}:{bot.Realm}:{destination.Id}:{destination.X}:{destination.Y}:{destination.Z}";
         long geometry = KeepTravelGeometry(bot.CurrentRegion, bot.CurrentRegion.GetZone(destination.X,destination.Y),destination.Id);
@@ -200,12 +202,22 @@ public sealed partial class AutonomousWorldBotController
             ? _keepTravelStalls + 1 : 1;
         if (_keepTravelStalls == 1)
             _keepStallAnchor = current;
+        long stillMilliseconds = now - _keepStallSince;
         _keepStallSince = now;
         _keepHop = null;
+        // Diagnostics only (2026-11-04): why did a bot with a valid navmesh route stand still?
+        // gapMs = time since the previous travel turn (a long gap means the bot was busy elsewhere, not stalled);
+        // hop = whether a shorter leg could be planned from here.
+        Zone legZone = bot.CurrentZone;
+        string hopProbe = legZone == null || bot.CurrentRegion.GetZone((int)next.X, (int)next.Y) != legZone ? "other-zone"
+            : KeepTravelStallPolicy.TryShorterLeg(PathfindingProvider.Instance, legZone, current, next, out Vector3 probe)
+                ? $"{(int)probe.X},{(int)probe.Y},{(int)probe.Z}" : "none";
         Log.Warn($"RVR_KEEP_TRAVEL_STALL bot=\"{bot.Name}\" id={bot.DatabaseID} realm={GlobalConstants.RealmToName(bot.Realm)} target=\"{destination.Id}\" " +
                  $"region={bot.CurrentRegionID} from={(int)current.X},{(int)current.Y},{(int)current.Z} " +
                  $"next={(int)next.X},{(int)next.Y},{(int)next.Z} segment={_keepTravelIndex + 1}/{_keepTravelPoints?.Length ?? 0} " +
-                 $"moving={bot.IsMoving} stalls={_keepTravelStalls}");
+                 $"moving={bot.IsMoving} stalls={_keepTravelStalls} stillMs={stillMilliseconds} gapMs={_keepTravelCallGap} " +
+                 $"alive={bot.IsAlive} stunned={bot.IsStunned} mezzed={bot.IsMezzed} sitting={bot.IsSitting} speed={bot.CurrentSpeed}/{bot.MaxSpeed} " +
+                 $"distance={(int)Vector3.Distance(current, next)} hop={hopProbe} phase=\"{bot.PersistentRecord?.ObjectivePhase}\"");
         bot.StopMovingOnPath();
         bot.StopMoving();
         bot.ForcePathReplot();
