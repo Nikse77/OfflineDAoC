@@ -833,13 +833,8 @@ namespace DOL.AI.Brain
             else
                 return;
 
-            // No new round of adds while the puller's group is still in the fight that brought friends (owner 2026-10-29:
-            // in Keltoi Fogou a respawned group joined a fight already under way).
-            if (BafFriends.InBafFight(playerPuller))
-            {
-                CanBaf = false;
-                return;
-            }
+            // Owner 2026-11-04: the "one round of adds per fight" rule of the 0.38 import (BafFriends.InBafFight) is gone: a fight
+            // that goes on, as a /grind does between pulls, kept the player "in the fight" for good and no pull brought friends.
 
             // Prevent the same puller from triggering two BAFs at the same time.
             if (!playerPuller.TempProperties.TrySetProperty(ResetBafPropertyAction.Property, true))
@@ -854,8 +849,6 @@ namespace DOL.AI.Brain
 
             List<GameNPC> brainsInRadius = GetFriendlyAndAvailableNpcsInRadiusOrderedByDistance(bafRadius, maxAdds);
             int addCount = brainsInRadius.Count;
-            if (addCount > 0)
-                BafFriends.MarkBafFight(playerPuller);
             BafAddCount = addCount;
 
             foreach (GameNPC npc in brainsInRadius)

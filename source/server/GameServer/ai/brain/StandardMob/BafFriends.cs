@@ -44,25 +44,9 @@ namespace DOL.AI.Brain
         public static int DungeonRadius(int attackers) =>
             Math.Min(DungeonReinforcementRadius, 250 + 150 * (Math.Max(1, attackers) - 1));
 
-        private const string BafFightProperty = "OfflineDAoC.BafFightTick";
-        public const long BafFightMilliseconds = 120_000;
-
-        /// <summary>Pure rule: a puller still in combat within two minutes of the last adds is in the same fight.</summary>
-        public static bool SameFight(bool inCombat, long now, long lastBaf) =>
-            inCombat && lastBaf > 0 && now - lastBaf < BafFightMilliseconds;
-
-        public static bool InBafFight(GamePlayer puller)
-        {
-            long now = GameLoop.GameLoopTime;
-            long last = puller.TempProperties.GetProperty<long>(BafFightProperty);
-            if (!SameFight(puller.InCombat, now, last))
-                return false;
-            puller.TempProperties.SetProperty(BafFightProperty, now); // the fight goes on
-            return true;
-        }
-
-        public static void MarkBafFight(GamePlayer puller) =>
-            puller.TempProperties.SetProperty(BafFightProperty, GameLoop.GameLoopTime);
+        // Owner 2026-11-04: there was a "one round of adds per fight" rule here (InBafFight, 0.38 import of 2026-10-30). It
+        // refreshed its own clock while the player stayed in combat, so a /grind that chains pulls was never out of "the
+        // fight" and no pull brought friends. Removed.
 
         /// <summary>In sight along the walkable ground (the navmesh); where there is no navmesh, assumed so.</summary>
         public static bool InSight(GameNPC pulled, GameNPC other)
