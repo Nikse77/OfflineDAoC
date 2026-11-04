@@ -38,6 +38,23 @@ namespace DOL.UnitTests
         }
 
         [Test]
+        public void ALivingComradeWaitingAtTheKeepDoesNotHoldTheRvrPartyBack()
+        {
+            // 2026-11-04: the leader of albion-1f0544-011 stood "Holding group formation" for 22 minutes at Emain Macha while a
+            // comrade waited for it at the portal keep, 49,000 units away: that comrade vetoed every new step of the party.
+            Assert.That(AutonomousBotGroupCoordinator.CountsForPull(rvr: true, alive: true, waitingAtFrontierKeep: true), Is.False);
+            Assert.That(AutonomousBotGroupCoordinator.CountsForPull(rvr: true, alive: true, waitingAtFrontierKeep: false), Is.True);
+            // A corpse is a casualty (the regroup handles it), not a comrade parked at the keep.
+            Assert.That(AutonomousBotGroupCoordinator.CountsForPull(rvr: true, alive: false, waitingAtFrontierKeep: false), Is.True);
+            // Not RvR (a PvE party): unchanged.
+            Assert.That(AutonomousBotGroupCoordinator.CountsForPull(rvr: false, alive: true, waitingAtFrontierKeep: true), Is.True);
+            // Two members, one waiting: the leader alone may go for it; with nobody waiting a party still needs two.
+            Assert.That(AutonomousBotGroupCoordinator.MinimumPullMembers(counted: 1, all: 2), Is.EqualTo(1));
+            Assert.That(AutonomousBotGroupCoordinator.MinimumPullMembers(counted: 7, all: 8), Is.EqualTo(1));
+            Assert.That(AutonomousBotGroupCoordinator.MinimumPullMembers(counted: 8, all: 8), Is.EqualTo(2));
+        }
+
+        [Test]
         public void PointAlongWalksThePathCorners()
         {
             Vector3[] corners = [new(0, 0, 0), new(3000, 0, 0), new(3000, 3000, 0)];

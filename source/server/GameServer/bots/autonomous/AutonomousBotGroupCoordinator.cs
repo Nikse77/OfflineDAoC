@@ -1198,12 +1198,16 @@ public static partial class AutonomousBotGroupCoordinator
             GameBot puller = ChoosePuller(session, members);
             if (leader == null) return false;
             bool combatActor = AutonomousRvrStaging.UsesIndependentCombatActors(session.ObjectiveKind) || bot == puller;
+            // Owner 2026-11-04: in an RvR party a living comrade parked at its frontier keep waiting for the leader does not
+            // count for cohesion or readiness; the leader's fetch step goes for it. It used to veto every new step, so the
+            // leader stood "Holding group formation" while the comrade waited for it (ten such leaders in the run of 09:10).
+            GameBot[] pullMembers = PullMembers(session.ObjectiveKind, members);
             return !IsAssemblyPhase(session.Phase) && !session.Recovery.IsRegrouping && combatActor &&
                 !session.Recovery.HasCasualty(RecoveryMembers(session, members, false)) &&
-                !session.RecoveringBetweenPulls && MembersReadyForPull(members) &&
+                !session.RecoveringBetweenPulls && MembersReadyForPull(pullMembers, MinimumPullMembers(pullMembers.Length, members.Length)) &&
                 (session.ObjectiveKind != eAutonomousObjectiveKind.GroupPve ||
                     HasActivePveComposition(session, members)) &&
-                members.Length >= 2 && members.All(member => !member.IsOnStableMasterRoute &&
+                pullMembers.Length >= MinimumPullMembers(pullMembers.Length, members.Length) && pullMembers.All(member => !member.IsOnStableMasterRoute &&
                     member.CurrentRegionID == leader.CurrentRegionID && member.GetDistanceTo(leader) <=
                         PullCohesionRadius(corridorBlocker, bot.CurrentZone?.IsDungeon == true));
         }
@@ -1246,6 +1250,8 @@ public static partial class AutonomousBotGroupCoordinator
             if (session.RecoveringBetweenPulls) reasons.Add("recoveringBetweenPulls");
             foreach (GameBot member in members)
             {
+                if (!CountsForPull(session.ObjectiveKind == eAutonomousObjectiveKind.RvR, member.IsAlive, member.WaitingAtFrontierKeep))
+                    continue;
                 if (!ReadyForGroupPull(member.HealthPercent, member.ManaPercent, member.EndurancePercent, member.MaxMana > 0))
                     reasons.Add($"notReady({member.Name} {member.ClassName} hp={member.HealthPercent} power={member.ManaPercent} end={member.EndurancePercent} resting={member.IsRecoveryResting})");
                 if (member.IsOnStableMasterRoute) reasons.Add($"stableRoute({member.Name})");
@@ -1316,7 +1322,17 @@ public static partial class AutonomousBotGroupCoordinator
     // recovery episode uses the same safe 90/80/80 threshold as regrouping:
     // passive songs, buffs and normal travel can leave a member at 99%, while
     // the puller's hold branch does not start a rest just for that last point.
-    private static bool MembersReadyForPull(GameBot[] members) => members.Length >= 2 &&
+    /// <summary>Whether a member counts for the party's cohesion and readiness before a new step: in an RvR party a living comrade
+    /// waiting at its frontier keep does not (the leader fetches it).</summary>
+    public static bool CountsForPull(bool rvr, bool alive, bool waitingAtFrontierKeep) => !(rvr && alive && waitingAtFrontierKeep);
+
+    /// <summary>How many counted members make a party: two, or one when the rest wait at the keep (the leader then goes for them).</summary>
+    public static int MinimumPullMembers(int counted, int all) => counted < all ? 1 : 2;
+
+    private static GameBot[] PullMembers(eAutonomousObjectiveKind kind, GameBot[] members) =>
+        members.Where(member => CountsForPull(kind == eAutonomousObjectiveKind.RvR, member.IsAlive, member.WaitingAtFrontierKeep)).ToArray();
+
+    private static bool MembersReadyForPull(GameBot[] members, int minimum = 2) => members.Length >= minimum &&
         members.All(member => ReadyForGroupPull(member.HealthPercent, member.ManaPercent,
             member.EndurancePercent, member.MaxMana > 0));
 
