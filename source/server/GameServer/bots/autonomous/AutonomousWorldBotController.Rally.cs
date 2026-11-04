@@ -215,6 +215,7 @@ public sealed partial class AutonomousWorldBotController
     // up to twelve minutes at the camp edge for the column.
     public const long ArmyArrivalHoldMilliseconds = 12 * 60_000;
     private long _armyArrivalHoldSince;
+    private long _nextMarchCatchupLog;
     private Vector3? _marchDetour;
     private const string ArmyDetourProperty = "ArmyMarchDetour";
     private const string ArmyPushProperty = "ArmyMarchPush";
@@ -413,7 +414,23 @@ public sealed partial class AutonomousWorldBotController
         if (Vector3.DistanceSquared(new(bot.X, bot.Y, bot.Z), formation) < FormationFollowReach * FormationFollowReach)
             AutonomousGroupFormationFollow.Ensure(bot, leader, groupCenter, formation, false);
         else
+        {
+            // Diagnostics only (2026-11-04): who is far from its place in the column, and why? Every such turn replans the
+            // route (about 170 ms), 1,425 long ticks in 105 minutes. One line per bot per minute.
+            if (now >= _nextMarchCatchupLog)
+            {
+                _nextMarchCatchupLog = now + 60_000;
+                Log.Info($"RVR_MARCH_CATCHUP bot=\"{bot.Name}\" id={bot.DatabaseID} target={targetId} " +
+                         $"toSlot={(int)Vector3.Distance(new(bot.X, bot.Y, bot.Z), formation)} " +
+                         $"toLeader={(int)Vector2.Distance(new(bot.X, bot.Y), new(leader.X, leader.Y))} " +
+                         $"toKeep={(int)Vector2.Distance(new(bot.X, bot.Y), new(keep.X, keep.Y))} " +
+                         $"groupLeader={bot.Group?.LivingLeader == bot} groupSize={bot.Group?.MemberCount ?? 1} " +
+                         $"ownLeaderRegion={(bot.Group?.LivingLeader as GameBot)?.CurrentRegionID} region={bot.CurrentRegionID} " +
+                         $"returningAfterRelease={bot.IsReturningAfterRelease} waitingAtKeep={bot.WaitingAtFrontierKeep} " +
+                         $"deaths={bot.PersistentRecord?.DeathCount} moving={bot.IsMoving}");
+            }
             IssuePath(bot, formation, retargetWhileMoving: true);
+        }
         SetRvrStatus(bot, "Marching with the army", keep.Name, $"In formation behind {leader.Name}");
         return true;
     }
