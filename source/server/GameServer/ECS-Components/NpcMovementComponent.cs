@@ -85,8 +85,47 @@ namespace DOL.GS
         {
             PathTo(inside, speed);
             if (Owner is GameBot { IsAutonomousWorldBot: true } bot)
+            {
                 _seamContinuation = new(inside, outside, final, bot.CurrentRegionID, bot.Group,
                     bot.PersistentRecord?.ObjectiveAssignmentId, true);
+                NoteSeamEvent($"armed {inside.X:0},{inside.Y:0}>{outside.X:0},{outside.Y:0}");
+            }
+        }
+
+        // Diagnostics (owner 2026-11-04): four Hibernian bots stood on the inside point of the Emain Macha 211>212 seam
+        // for hours; the trace never said whether the crossing was armed, dropped, or refused, and why.
+        private string _lastSeamEvent = string.Empty;
+        private long _lastSeamEventTick;
+
+        private void NoteSeamEvent(string text)
+        {
+            _lastSeamEvent = text;
+            _lastSeamEventTick = GameLoop.GameLoopTime;
+        }
+
+        /// <summary>The seam crossing in one phrase for the route-stall trace: pending or not, and the last thing that happened.</summary>
+        public string DescribeSeamState() =>
+            $"seamPending={_seamContinuation != null} seamLast=\"{_lastSeamEvent}\" seamAgeS={(_lastSeamEventTick == 0 ? -1 : (GameLoop.GameLoopTime - _lastSeamEventTick) / 1000)}";
+
+        /// <summary>The first reason the continuation across a seam is not taken, or null when it is.</summary>
+        private string SeamRefusal(SeamContinuation continuation)
+        {
+            if (Owner is not GameBot bot) return "owner is not a bot";
+            if (bot.CurrentRegionID != continuation.Region) return "region changed";
+            if (bot.Group != continuation.Group) return "group changed";
+            if (bot.PersistentRecord?.ObjectiveAssignmentId != continuation.Assignment) return "objective changed";
+            if (!bot.IsAlive) return "dead";
+            if (bot.InCombat) return "in combat";
+            if (bot.IsAttacking) return "attacking";
+            if (bot.IsCasting) return "casting";
+            if (bot.IsCrowdControlled) return "crowd controlled";
+            if (bot.castingComponent?.HasPendingSkillRequests == true) return "skill request pending";
+            if (bot.IsOnStableMasterRoute) return "on a stable route";
+            if (bot.IsRecoveryResting) return "resting";
+            if (bot.Brain is not BotBrain brain) return "no bot brain";
+            if (brain.HasAggro) return "has aggro";
+            if (Vector3.DistanceSquared(_ownerPosition, continuation.At) > 16 * 16) return "not at the seam point";
+            return null;
         }
 
         public void PathViaValidatedWaypoint(Vector3 waypoint, Vector3 final, short speed)
@@ -102,16 +141,21 @@ namespace DOL.GS
             SeamContinuation continuation = _seamContinuation;
             if (continuation == null) return false;
             _seamContinuation = null;
-            if (Owner is not GameBot bot || bot.CurrentRegionID != continuation.Region ||
-                bot.Group != continuation.Group || bot.PersistentRecord?.ObjectiveAssignmentId != continuation.Assignment ||
-                !bot.IsAlive || bot.InCombat || bot.IsAttacking || bot.IsCasting || bot.IsCrowdControlled ||
-                bot.castingComponent?.HasPendingSkillRequests == true ||
-                bot.IsOnStableMasterRoute || bot.IsRecoveryResting || bot.Brain is not BotBrain brain || brain.HasAggro ||
-                Vector3.DistanceSquared(_ownerPosition, continuation.At) > 16 * 16)
+            string refusal = SeamRefusal(continuation);
+            if (refusal != null)
+            {
+                NoteSeamEvent($"refused: {refusal}");
                 return false;
+            }
+            GameBot bot = (GameBot)Owner;
             if (bot.Group != null)
                 foreach (GameLiving member in bot.Group.GetMembersInTheGroup())
-                    if (member.InCombat || member.IsAttacking || member is GameBot { IsRecoveryResting: true }) return false;
+                    if (member.InCombat || member.IsAttacking || member is GameBot { IsRecoveryResting: true })
+                    {
+                        NoteSeamEvent($"refused: group member {member.Name} fights or rests");
+                        return false;
+                    }
+            NoteSeamEvent($"taken {(continuation.Walk ? "walk" : "path")} to {continuation.Next.X:0},{continuation.Next.Y:0}");
             if (continuation.Walk)
             {
                 UnsetFlag(MovementState.Pathfinding);
@@ -296,7 +340,7 @@ namespace DOL.GS
         /// <summary>Mover and path state for a route stall trace (diagnostics).</summary>
         public string DescribeRouteState() =>
             $"state={_movementState} speed={CurrentSpeed} dest={_destination.X:0},{_destination.Y:0},{_destination.Z:0} " +
-            $"casting={Owner.IsCasting} combat={Owner.InCombat} {_pathfinder.DescribeRoute()}";
+            $"casting={Owner.IsCasting} combat={Owner.InCombat} {_pathfinder.DescribeRoute()} {DescribeSeamState()}";
 
         /// <summary>The pathfinder's last result (diagnostics).</summary>
         public PathfindingStatus LastPathfindingStatus => _pathfinder.PathfindingStatus;
@@ -313,6 +357,8 @@ namespace DOL.GS
 
         public void StopMoving()
         {
+            if (_seamContinuation != null)
+                NoteSeamEvent("dropped by StopMoving");
             _seamContinuation = null;
             _fallContinuation = null;
             _movementState = MovementState.None;

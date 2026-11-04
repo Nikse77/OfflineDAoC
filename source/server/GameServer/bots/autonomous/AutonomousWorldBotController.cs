@@ -5144,7 +5144,11 @@ namespace DOL.GS
                      // Run 2026-10-28: five Albion party members stood 14 minutes at a Darkness Falls camp with a 0-node path to
                      // a point 5,000 units away; which camp, chain waypoint and group phase ordered it was not in the trace.
                      $"camp=\"{_camp?.Id}\" dfRoute=\"{_darknessFallsRouteKey}\" dfWaypoint={_darknessFallsNextWaypoint}/{_darknessFallsWaypoints?.Length ?? 0} " +
-                     $"phase={_groupDirective?.Phase} {mover}");
+                     $"phase={_groupDirective?.Phase} {mover} " +
+                     // Owner 2026-11-04: the zone step this bot is walking, if any (the Emain Macha 211>212 seam stall).
+                     (_resolvedBoundaryStep is { } seamStep
+                         ? $"resolvedStep={(int)seamStep.Inside.X},{(int)seamStep.Inside.Y}>{(int)seamStep.Outside.X},{(int)seamStep.Outside.Y} zone={_resolvedBoundaryZone?.ID}"
+                         : "resolvedStep=none"));
         }
 
         // Run 29 (2026-10-20, Dun Dagda): the siege army's healers fought in the melee like everyone else, so they were
