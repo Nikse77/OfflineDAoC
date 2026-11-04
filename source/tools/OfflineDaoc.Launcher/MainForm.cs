@@ -89,6 +89,11 @@ internal sealed partial class MainForm : Form
     private readonly ComboBox _botXpRate = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 108 };
     private readonly NumericUpDown _loginMinimumLevel = new() { Minimum = 1, Maximum = 50, Value = 1, Width = 108 };
     private readonly NumericUpDown _loginMaximumLevel = new() { Minimum = 0, Maximum = 50, Value = 0, Width = 108 };
+    // Owner 2026-11-04: the minutes the gamebots take to enter the world after a startup (server property startup_ramp_minutes;
+    // 15 is the time for 2,000 bots or more, fewer bots enter in proportionally less, four minutes at least; 0 = all at once)
+    // and the master switch population_enabled, shown but not changed here.
+    private readonly NumericUpDown _startupRampMinutes = new() { Minimum = 0, Maximum = 60, Value = 15, Width = 108 };
+    private readonly Label _populationEnabledState = XpRateLabel("-");
     private readonly CheckBox _makeMeGm = new() { Text = "Make Me a GM", AutoSize = true, ForeColor = DaocTheme.Parchment, Font = new Font("Georgia", 9f, FontStyle.Bold) };
     private readonly CheckBox _rvrAnnouncements = new() { Text = "RvR and battleground announcements", AutoSize = true, Checked = true, ForeColor = DaocTheme.Parchment, Font = new Font("Georgia", 9f, FontStyle.Bold) };
     private readonly CheckBox _pveAnnouncements = new() { Text = "PvE realm event announcements", AutoSize = true, Checked = true, ForeColor = DaocTheme.Parchment, Font = new Font("Georgia", 9f, FontStyle.Bold) };
@@ -224,6 +229,10 @@ internal sealed partial class MainForm : Form
         ConfigureXpRateSelector(_botXpRate);
         _playerXpRate.SelectedIndexChanged += async (_, _) => await SaveXpRateAsync("xp_rate", _playerXpRate);
         _botXpRate.SelectedIndexChanged += async (_, _) => await SaveXpRateAsync("bot_xp_rate", _botXpRate);
+        StyleInput(_startupRampMinutes);
+        _startupRampMinutes.Anchor = AnchorStyles.Left;
+        _startupRampMinutes.Margin = new Padding(0, 10, 0, 9);
+        _startupRampMinutes.ValueChanged += async (_, _) => await SaveStartupRampAsync();
         foreach (NumericUpDown level in new[] { _loginMinimumLevel, _loginMaximumLevel })
         {
             StyleInput(level);
@@ -549,7 +558,7 @@ internal sealed partial class MainForm : Form
         var surface = new InsetPanel
         {
             Dock = DockStyle.Top,
-            Height = 434,
+            Height = 514,
             Margin = new Padding(18),
             Padding = new Padding(20),
             Accent = DaocTheme.Gold,
@@ -558,7 +567,7 @@ internal sealed partial class MainForm : Form
         {
             Dock = DockStyle.Fill,
             ColumnCount = 3,
-            RowCount = 9,
+            RowCount = 11,
             BackColor = Color.Transparent,
         };
         layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 210));
@@ -567,6 +576,8 @@ internal sealed partial class MainForm : Form
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 48));
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 48));
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 48));
+        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 40));
+        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 40));
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 40));
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 40));
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 40));
@@ -612,7 +623,13 @@ internal sealed partial class MainForm : Form
         layout.Controls.Add(XpRateLabel("BOT LOGIN UP TO LEVEL"), 0, 7);
         layout.Controls.Add(_loginMaximumLevel, 1, 7);
         layout.Controls.Add(XpRateDescription("0 means no upper limit. Bots already online are not logged out by this setting."), 2, 7);
-        layout.Controls.Add(_xpSettingsStatus, 0, 8);
+        layout.Controls.Add(XpRateLabel("BOT STARTUP RAMP (MIN)"), 0, 8);
+        layout.Controls.Add(_startupRampMinutes, 1, 8);
+        layout.Controls.Add(XpRateDescription("Minutes the autonomous bots take to enter the world after a startup: 15 is for 2,000 bots or more, fewer bots (a login level range) enter in less, four minutes at least. 0 means all at once."), 2, 8);
+        layout.Controls.Add(XpRateLabel("AUTONOMOUS BOTS"), 0, 9);
+        layout.Controls.Add(_populationEnabledState, 1, 9);
+        layout.Controls.Add(XpRateDescription("Master switch (server property population_enabled): shown here, not changed."), 2, 9);
+        layout.Controls.Add(_xpSettingsStatus, 0, 10);
         layout.SetColumnSpan(_xpSettingsStatus, 3);
         surface.Controls.Add(layout);
         return surface;
@@ -1488,6 +1505,9 @@ internal sealed partial class MainForm : Form
             _loginMaximumLevel.Value = Math.Clamp(snapshot.LoginMaximumLevel, (int)_loginMaximumLevel.Minimum, (int)_loginMaximumLevel.Maximum);
             _loginMinimumLevel.Enabled = editable;
             _loginMaximumLevel.Enabled = editable;
+            _startupRampMinutes.Value = Math.Clamp(snapshot.StartupRampMinutes, (int)_startupRampMinutes.Minimum, (int)_startupRampMinutes.Maximum);
+            _startupRampMinutes.Enabled = editable;
+            _populationEnabledState.Text = snapshot.PopulationEnabled ? "ON" : "OFF";
             _makeMeGm.Checked = snapshot.MakeMeGm;
             _makeMeGm.Enabled = editable;
             _rvrAnnouncements.Checked = snapshot.RvrAnnouncements;
@@ -1604,6 +1624,57 @@ internal sealed partial class MainForm : Form
         }
         catch (Exception ex) { MessageBox.Show(this, ex.Message, "Unable to save the login level range"); }
         finally { _savingXpRates = false; await RefreshDashboardAsync(); }
+    }
+
+    // Owner 2026-11-04: startup_ramp_minutes, saved with the server stopped like the login level range, used at the next startup.
+    private async Task SaveStartupRampAsync()
+    {
+        if (_loadingXpRates || _savingXpRates) return;
+        int minutes = (int)_startupRampMinutes.Value;
+        if (IsServerRunning() || FindExactServerProcess() is not null)
+        {
+            MessageBox.Show(this, "Stop the server before changing the startup ramp.", "Server is running");
+            await RefreshDashboardAsync();
+            return;
+        }
+        _savingXpRates = true;
+        _startupRampMinutes.Enabled = _startButton.Enabled = false;
+        _xpSettingsStatus.Text = "APPLYING THE STARTUP RAMP…";
+        _xpSettingsStatus.ForeColor = DaocTheme.Success;
+        try
+        {
+            await Task.Run(() => PersistStartupRamp(minutes));
+            _xpSettingsStatus.Text = minutes == 0
+                ? "APPLIED: all the bots log in at once. It will be used on the next server startup."
+                : $"APPLIED: the bots log in over {minutes} minutes (fewer bots, less time). It will be used on the next server startup.";
+        }
+        catch (Exception ex) { MessageBox.Show(this, ex.Message, "Unable to save the startup ramp"); }
+        finally { _savingXpRates = false; await RefreshDashboardAsync(); }
+    }
+
+    private void PersistStartupRamp(int minutes)
+    {
+        if (IsServerRunning() || FindExactServerProcess() is not null)
+            throw new InvalidOperationException("The server must be fully stopped.");
+        if (!File.Exists(_database))
+            throw new InvalidOperationException("The prepared world database is missing.");
+        if (minutes < 0 || minutes > 60)
+            throw new InvalidOperationException("The startup ramp is not valid.");
+        using var connection = new SQLiteConnection($"Data Source={_database};Version=3;Pooling=False;Default Timeout=10");
+        connection.Open();
+        using var command = connection.CreateCommand();
+        command.CommandText = """
+            INSERT INTO ServerProperty (Category, `Key`, Description, DefaultValue, Value, LastTimeRowUpdated, ServerProperty_ID)
+            VALUES ('autonomous_population', 'startup_ramp_minutes', @description, '15', @value, @updated, @id)
+            ON CONFLICT(`Key`) DO UPDATE SET
+                Value=excluded.Value,
+                LastTimeRowUpdated=excluded.LastTimeRowUpdated
+            """;
+        command.Parameters.AddWithValue("@description", "Startup ramp duration in minutes for 2,000 bots or more (Offline DAoC launcher).");
+        command.Parameters.AddWithValue("@id", Guid.NewGuid().ToString());
+        command.Parameters.AddWithValue("@value", minutes.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        command.Parameters.AddWithValue("@updated", DateTime.UtcNow.ToString("O"));
+        command.ExecuteNonQuery();
     }
 
     private void PersistLoginRange(int minimum, int maximum)
@@ -1878,6 +1949,8 @@ internal sealed partial class MainForm : Form
         double botXpRate = ReadServerRate(connection, "bot_xp_rate", 1);
         int loginMinimumLevel = (int)ReadServerRate(connection, "login_minimum_level", 1);
         int loginMaximumLevel = (int)ReadServerRate(connection, "login_maximum_level", 0);
+        int startupRampMinutes = ReadServerInteger(connection, "startup_ramp_minutes", 15);
+        bool populationEnabled = ReadServerBoolean(connection, "population_enabled", false);
         using (var command = connection.CreateCommand())
         {
             bool hasObjectiveColumns = ColumnExists(connection, "offline_world_bots", "ObjectiveKind") &&
@@ -1981,7 +2054,31 @@ internal sealed partial class MainForm : Form
         bool rvrAnnouncements = ReadSwitch(connection, "rvr_battleground_announcements");
         bool pveAnnouncements = ReadSwitch(connection, "pve_realm_event_announcements");
         return new DashboardSnapshot(serverState, bots, groups, active, memoryMb, botAiDelay, playerXpRate, botXpRate, makeMeGm, ReadRvrWorld(),
-            rvrAnnouncements, pveAnnouncements, loginMinimumLevel, loginMaximumLevel);
+            rvrAnnouncements, pveAnnouncements, loginMinimumLevel, loginMaximumLevel, startupRampMinutes, populationEnabled);
+    }
+
+    // Unlike ReadServerRate, a stored 0 is a real value here (startup_ramp_minutes = 0 means all bots at once).
+    private static int ReadServerInteger(SQLiteConnection connection, string key, int fallback)
+    {
+        string? value = ReadServerText(connection, key);
+        return value != null && int.TryParse(value, System.Globalization.NumberStyles.Integer,
+            System.Globalization.CultureInfo.InvariantCulture, out int parsed) ? parsed : fallback;
+    }
+
+    private static bool ReadServerBoolean(SQLiteConnection connection, string key, bool fallback)
+    {
+        string? value = ReadServerText(connection, key);
+        return value != null && bool.TryParse(value, out bool parsed) ? parsed : fallback;
+    }
+
+    private static string? ReadServerText(SQLiteConnection connection, string key)
+    {
+        if (!TableExists(connection, "ServerProperty"))
+            return null;
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT Value FROM ServerProperty WHERE `Key`=@key LIMIT 1";
+        command.Parameters.AddWithValue("@key", key);
+        return Convert.ToString(command.ExecuteScalar(), System.Globalization.CultureInfo.InvariantCulture);
     }
 
     // Anything but an explicit "false" (including a missing row) reads as on.
@@ -3413,7 +3510,8 @@ internal sealed partial class MainForm : Form
     }
     private sealed record DashboardSnapshot(string ServerState, List<BotRow> Bots, List<GroupRow> Groups,
         int Active, double ServerMemoryMb, BotAiDelayReport? BotAiDelay, double PlayerXpRate, double BotXpRate, bool MakeMeGm = false, RvrWorldSnapshot? RvrWorld = null,
-        bool RvrAnnouncements = true, bool PveAnnouncements = true, int LoginMinimumLevel = 1, int LoginMaximumLevel = 0);
+        bool RvrAnnouncements = true, bool PveAnnouncements = true, int LoginMinimumLevel = 1, int LoginMaximumLevel = 0,
+        int StartupRampMinutes = 15, bool PopulationEnabled = false);
 
     private sealed record LiveBotStatus(long BotId, int Level, string ZoneName, string Activity,
         string CurrentGoal, string TargetName, string TravelDestination, string ObjectiveProgress,
