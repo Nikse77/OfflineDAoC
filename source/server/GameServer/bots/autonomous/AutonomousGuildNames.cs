@@ -78,7 +78,7 @@ namespace DOL.GS
             "fang", "hammer", "shield", "blade", "claw", "fist", "helm", "guard", "born", "bane", "wind", "spear", "axe", "mane",
         ];
 
-        private static readonly string[] CompoundHeads = ["Clan", "Hold", "House", "Line"];
+        private static readonly string[] CompoundHeads = ["Clan", "Hold", "House"];
 
         private static readonly string[] Numerals = ["II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI", "XII"];
 
