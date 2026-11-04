@@ -49,6 +49,8 @@ namespace DOL.GS.Keeps
 		/// </summary>
 		/// <param name="player"></param>
 		/// <returns></returns>
+		public override string GuildClaimRefusal(Guild guild) => "relic keeps cannot be claimed";
+
 		public override bool CheckForClaim(GamePlayer player)
 		{
 

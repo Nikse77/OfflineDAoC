@@ -647,10 +647,42 @@ namespace DOL.GS.Keeps
 		/// <param name="player">the player who have claim the keep</param>
 		public virtual void Claim(GamePlayer player)
 		{
-			Guild = player.Guild;
+			ClaimForGuild(player.Guild);
+		}
+
+		/// <summary>
+		/// Why a guild cannot claim this keep now (the checks of CheckForClaim that do not concern a player), or null when it can.
+		/// Used by the guilds the gamebots found on their own (owner 2026-11-04).
+		/// </summary>
+		public virtual string GuildClaimRefusal(Guild guild)
+		{
+			if (guild == null)
+				return "no guild";
+			if (InCombat)
+				return "the keep is under attack";
+			if (guild.Realm != Realm)
+				return "the keep is not owned by the guild's realm";
+			if (this.DBKeep.BaseLevel != 50 && !ServerProperties.Properties.ALLOW_BG_CLAIM)
+				return "this keep is not able to be claimed";
+			if (this.Guild != null)
+				return "the keep is already claimed";
+			int limit = ServerProperties.Properties.GUILDS_CLAIM_LIMIT;
+			if (limit <= 0)
+				return "keep claiming is disabled";
+			if (guild.ClaimedKeeps.Count >= limit)
+				return "the guild already owns the limit of keeps";
+			return null;
+		}
+
+		/// <summary>
+		/// claim the keep to a guild (a player's claim, or a guild of gamebots)
+		/// </summary>
+		public virtual void ClaimForGuild(Guild guild)
+		{
+			Guild = guild;
 			
 			if (ServerProperties.Properties.GUILDS_CLAIM_LIMIT > 1)
-				player.Guild.SendMessageToGuildMembers("Your guild has currently claimed " + player.Guild.ClaimedKeeps.Count + " keeps of a maximum of " + ServerProperties.Properties.GUILDS_CLAIM_LIMIT, eChatType.CT_Guild, eChatLoc.CL_ChatWindow);
+				guild.SendMessageToGuildMembers("Your guild has currently claimed " + guild.ClaimedKeeps.Count + " keeps of a maximum of " + ServerProperties.Properties.GUILDS_CLAIM_LIMIT, eChatType.CT_Guild, eChatLoc.CL_ChatWindow);
 
 			ChangeLevel((byte)ServerProperties.Properties.STARTING_KEEP_CLAIM_LEVEL);
 
