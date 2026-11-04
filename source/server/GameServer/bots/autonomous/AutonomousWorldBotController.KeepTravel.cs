@@ -163,6 +163,11 @@ public sealed partial class AutonomousWorldBotController
         return true;
     }
 
+    /// <summary>Diagnostics: the movement-speed debuff on the bot - 0 none, below 99 a snare, 99 or more a root.</summary>
+    private static int SpeedDebuffValue(GameBot bot) =>
+        EffectListService.GetEffectOnTarget(bot, eEffect.MovementSpeedDebuff) is ECSGameSpellEffect { SpellHandler.Spell: { } spell }
+            ? (int)spell.Value : 0;
+
     /// <summary>Very long same-zone legs are walked in navmesh-proven chunks.</summary>
     private Vector3 KeepTravelLeg(GameBot bot, Vector3 current, Vector3 next)
     {
@@ -216,7 +221,7 @@ public sealed partial class AutonomousWorldBotController
                  $"region={bot.CurrentRegionID} from={(int)current.X},{(int)current.Y},{(int)current.Z} " +
                  $"next={(int)next.X},{(int)next.Y},{(int)next.Z} segment={_keepTravelIndex + 1}/{_keepTravelPoints?.Length ?? 0} " +
                  $"moving={bot.IsMoving} stalls={_keepTravelStalls} stillMs={stillMilliseconds} gapMs={_keepTravelCallGap} " +
-                 $"alive={bot.IsAlive} stunned={bot.IsStunned} mezzed={bot.IsMezzed} sitting={bot.IsSitting} speed={bot.CurrentSpeed}/{bot.MaxSpeed} " +
+                 $"alive={bot.IsAlive} stunned={bot.IsStunned} mezzed={bot.IsMezzed} speedDebuff={SpeedDebuffValue(bot)} sitting={bot.IsSitting} speed={bot.CurrentSpeed}/{bot.MaxSpeed} " +
                  $"distance={(int)Vector3.Distance(current, next)} hop={hopProbe} phase=\"{bot.PersistentRecord?.ObjectivePhase}\"");
         bot.StopMovingOnPath();
         bot.StopMoving();
