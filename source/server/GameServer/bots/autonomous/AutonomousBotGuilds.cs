@@ -154,7 +154,9 @@ namespace DOL.GS
                 }
                 record.BotName = bot.Name;
                 Members[record.BotId] = record;
-                GuildMgr.AddBotToGuildMemberViews(guild, ViewFor(record, bot, null));
+                // An automatic guild has no member list for the player (owner 2026-11-04).
+                if (!IsAutomatic(guild))
+                    GuildMgr.AddBotToGuildMemberViews(guild, ViewFor(record, bot, null));
             }
             if (stale.Count > 0)
                 GameServer.Database.DeleteObject(stale);
