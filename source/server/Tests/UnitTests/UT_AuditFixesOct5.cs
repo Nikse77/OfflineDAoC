@@ -109,11 +109,25 @@ namespace DOL.UnitTests
         }
 
         [Test]
-        public void SoloPaladinsHoldOneChant()
+        public void TheRotationWaitsHalfASecondBetweenChantsAndThreeSecondsAfterTheLast()
         {
-            Assert.That(BotSongTwistPolicy.SoloPaladinAnchor(true, 90), Is.EqualTo(eSpellType.DamageAdd));
-            Assert.That(BotSongTwistPolicy.SoloPaladinAnchor(true, 50), Is.EqualTo(eSpellType.CombatHeal));
-            Assert.That(BotSongTwistPolicy.SoloPaladinAnchor(false, 50), Is.EqualTo(eSpellType.EnduranceRegenBuff));
+            Assert.That(BotChantRotation.DelayAfter(0, 4), Is.EqualTo(500));
+            Assert.That(BotChantRotation.DelayAfter(2, 4), Is.EqualTo(500));
+            Assert.That(BotChantRotation.DelayAfter(3, 4), Is.EqualTo(3_000), "after endurance regen, before armor again");
+            Assert.That(BotChantRotation.DelayAfter(2, 3), Is.EqualTo(3_000), "a companion has three chants");
+            Assert.That(BotChantRotation.NextStep(3, 4), Is.EqualTo(0));
+            Assert.That(BotChantRotation.NextStep(0, 4), Is.EqualTo(1));
+            Assert.That(BotChantRotation.NextStep(0, 0), Is.EqualTo(0));
+        }
+
+        [Test]
+        public void ThePaladinChantRotationFollowsTheOwnersOrder()
+        {
+            // Owner 2026-11-04 (replaces the solo Paladin anchor): in combat armor, damage add, combat heal, endurance regen.
+            Assert.That(BotChantRotation.Order(false), Is.EqualTo(new[]
+                { eSpellType.SpecArmorFactorBuff, eSpellType.DamageAdd, eSpellType.CombatHeal, eSpellType.EnduranceRegenBuff }));
+            Assert.That(BotChantRotation.Order(true), Is.EqualTo(new[]
+                { eSpellType.DamageAdd, eSpellType.CombatHeal, eSpellType.EnduranceRegenBuff }), "a companion leaves the armor chant out");
         }
     }
 }

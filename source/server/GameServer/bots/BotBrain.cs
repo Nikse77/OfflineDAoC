@@ -2536,38 +2536,10 @@ namespace DOL.AI.Brain
             }
             else
             {
-                bool injured = bot.HealthPercent < 95 || bot.Group?.GetMembersInTheGroup().Any(member =>
-                    member.IsAlive && member.HealthPercent < 95 && member.CurrentRegionID == bot.CurrentRegionID &&
-                    bot.IsWithinRadius(member, GROUP_DEFENSE_ASSIST_RADIUS)) == true;
-                bool combatHealing = injured && (bot.InCombat || HasAggro || bot.IsAttacking);
-                // A solo Paladin holds one chant instead of cycling three: each recast briefly
-                // retargets the bot to itself mid-fight, and the held chant was endurance or
-                // armor, not damage (solo Paladins killed at half the Armsman rate, Oct 3-5).
-                bool fighting = bot.InCombat || HasAggro || bot.IsAttacking;
-                if ((bot.Group?.MemberCount ?? 1) <= 1)
-                {
-                    eSpellType anchor = BotSongTwistPolicy.SoloPaladinAnchor(fighting, bot.HealthPercent);
-                    chosen = chants.FirstOrDefault(spell => spell.SpellType == anchor) ??
-                        chants.FirstOrDefault(spell => spell.SpellType == eSpellType.DamageAdd) ??
-                        chants.FirstOrDefault(spell => spell.SpellType != eSpellType.CombatHeal);
-                    if (chosen == null || chosen.ID == active?.ID || bot.GetSkillDisabledDuration(chosen) > 0 ||
-                        bot.Mana < bot.PowerCost(chosen)) return;
-                    GameObject soloTarget = bot.TargetObject;
-                    try { bot.TargetObject = bot; bot.CastSpell(chosen, m_mobSpellLine, false); }
-                    finally { bot.TargetObject = soloTarget; }
-                    return;
-                }
-                chants = chants.Where(spell => spell.SpellType != eSpellType.CombatHeal || combatHealing)
-                    .Where(spell => !CompanionChantAnimation.SkipsInGroupTwist(bot, spell))
-                    .OrderByDescending(spell => spell.SpellType == eSpellType.EnduranceRegenBuff)
-                    .ThenByDescending(spell => spell.SpellType == eSpellType.SpecArmorFactorBuff)
-                    .ThenByDescending(spell => spell.SpellType == eSpellType.DamageAdd).ToList();
-                if (chants.Count == 0) return;
-                int id = BotSongTwistPolicy.Choose(chants[0].ID, active?.ID ?? 0,
-                    chants.Select(spell => new BotSongTwistPolicy.Song(spell.ID, spell.CastTime,
-                        bot.Mana >= bot.PowerCost(spell) ? bot.GetSkillDisabledDuration(spell) : int.MaxValue,
-                        SongRemainingMilliseconds(spell))).ToArray());
-                chosen = chants.FirstOrDefault(spell => spell.ID == id);
+                // Owner 2026-11-04: a Paladin's chants are cast in a fixed order in combat (its own when alone, the group's
+                // when grouped) and only the endurance chant out of it. See BotChantRotation.
+                RotatePaladinChants(bot, chants, active);
+                return;
             }
 
             if (chosen == null || chosen.ID == active?.ID || bot.GetSkillDisabledDuration(chosen) > 0 ||
@@ -2579,6 +2551,62 @@ namespace DOL.AI.Brain
                 bot.CastSpell(chosen, m_mobSpellLine, false);
             }
             finally { bot.TargetObject = oldTarget; }
+        }
+
+        private int _paladinChantStep;
+
+        /// <summary>
+        /// Owner 2026-11-04: in combat the Paladin casts armor, damage add, combat heal and endurance regen one after the other
+        /// (half a second apart, three seconds before it starts again); out of combat it holds the endurance chant and nothing
+        /// else. A companion leaves the armor chant out (its wings and sphere on every member at every cast). A chant still
+        /// on its reuse timer is waited for, one it has no power for is skipped, the one already pulsing is not cast again.
+        /// </summary>
+        private void RotatePaladinChants(GameBot bot, List<Spell> chants, Spell active)
+        {
+            bool combat = bot.InCombat || HasAggro || bot.IsAttacking || bot.Group?.GetMembersInTheGroup().Any(member =>
+                member != bot && member.IsAlive && member.CurrentRegionID == bot.CurrentRegionID &&
+                bot.IsWithinRadius(member, GROUP_DEFENSE_ASSIST_RADIUS) && member.InCombat) == true;
+            long now = GameLoop.GameLoopTime;
+
+            if (!combat)
+            {
+                _paladinChantStep = 0;
+                Spell endurance = chants.FirstOrDefault(spell => spell.SpellType == eSpellType.EnduranceRegenBuff);
+                if (endurance == null || endurance.ID == active?.ID || bot.GetSkillDisabledDuration(endurance) > 0 ||
+                    bot.Mana < bot.PowerCost(endurance)) return;
+                CastOwnChant(bot, endurance);
+                return;
+            }
+
+            bool companion = bot.IsTemporaryGroupHelper && !bot.IsAutonomousWorldBot;
+            List<Spell> sequence = BotChantRotation.Order(companion)
+                .Select(type => chants.FirstOrDefault(spell => spell.SpellType == type))
+                .Where(spell => spell != null).ToList();
+            if (sequence.Count == 0) return;
+            int step = _paladinChantStep % sequence.Count;
+            Spell next = sequence[step];
+
+            if (bot.GetSkillDisabledDuration(next) > 0)
+            {
+                _nextSongTwistTick = now + BotChantRotation.WaitForReuseMilliseconds;
+                return;
+            }
+            // Already pulsing, or no power for it: it is skipped; a cast that does not take is not repeated at once.
+            if (next.ID != active?.ID && bot.Mana >= bot.PowerCost(next))
+                CastOwnChant(bot, next);
+            _paladinChantStep = BotChantRotation.NextStep(step, sequence.Count);
+            _nextSongTwistTick = now + BotChantRotation.DelayAfter(step, sequence.Count);
+        }
+
+        private bool CastOwnChant(GameBot bot, Spell chant)
+        {
+            GameObject previous = bot.TargetObject;
+            try
+            {
+                bot.TargetObject = bot;
+                return bot.CastSpell(chant, m_mobSpellLine, false);
+            }
+            finally { bot.TargetObject = previous; }
         }
 
         private bool IsUnderImmediateMeleePressure() =>
