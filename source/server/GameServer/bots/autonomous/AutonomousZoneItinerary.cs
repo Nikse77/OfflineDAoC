@@ -116,10 +116,53 @@ namespace DOL.GS
         /// Shortest zone chain from the start's ground to the goal's ground over the seam file's
         /// (zone, area) graph; empty when either ground is unknown or they do not connect.
         /// </summary>
+        /// <summary>How near a border crossing must be, and how close in height, to tell which ground the bot stands on.</summary>
+        /// <summary>Tool (UT_CrossingAreaAudit): plan with the road anchor only, as before 2026-11-04.</summary>
+        public static bool LegacyStartAreaForAudit;
+
+        public const float CrossingRange = 256f;
+        public const float CrossingHeightRange = 96f;
+
+        /// <summary>Pure rule: the area of the crossing nearest the point, in range and at about the same height.</summary>
+        public static int? NearestCrossingArea(IEnumerable<(Vector2 Position, float Z, int Area)> crossings, Vector3 point)
+        {
+            int? best = null;
+            float bestDistance = CrossingRange * CrossingRange;
+            foreach (var (position, z, area) in crossings)
+            {
+                if (area < 0 || Math.Abs(z - point.Z) > CrossingHeightRange) continue;
+                float distance = Vector2.DistanceSquared(position, new(point.X, point.Y));
+                if (distance > bestDistance) continue;
+                bestDistance = distance;
+                best = area;
+            }
+            return best;
+        }
+
+        private static int? AreaFromNearestCrossing(Topology topology, Zone from, Vector3 start)
+        {
+            if (!topology.Edges.TryGetValue(from, out Edge[] edges)) return null;
+            IEnumerable<(Vector2, float, int)> Listed()
+            {
+                foreach (Edge edge in edges)
+                {
+                    AutonomousZoneSeams.Crossing[] crossings = AutonomousZoneSeams.For(topology.RegionId, from.ID, edge.To.ID);
+                    if (crossings == null) continue;
+                    foreach (var crossing in crossings)
+                        yield return (edge.Vertical ? new Vector2(edge.Border, crossing.Along) : new Vector2(crossing.Along, edge.Border),
+                            crossing.InsideZ, crossing.InsideArea);
+                }
+            }
+            return NearestCrossingArea(Listed(), start);
+        }
+
         private static Zone[] FindAreaRoute(Topology topology, Zone from, Zone to, Vector3 start, Vector3 goal, Func<Zone, bool> allowed)
         {
             if (!topology.Seams) return Array.Empty<Zone>();
-            int? startArea = AutonomousZoneRoads.AreaAt(from, start);
+            // Owner 2026-11-04: a bot standing at a border takes the ground the seam file lists for that spot. The nearest road
+            // anchor can lie on another piece of ground a thousand units away: at Emain Macha's 211>212 border the bot on
+            // Cruachan Gorge's main ground was taken for one on a ledge and sent east, and Breifine sent it back, for ever.
+            int? startArea = (LegacyStartAreaForAudit ? null : AreaFromNearestCrossing(topology, from, start)) ?? AutonomousZoneRoads.AreaAt(from, start);
             int? goalArea = AutonomousZoneRoads.AreaAt(to, goal) ?? AutonomousZoneSeams.MainArea(topology.RegionId, to.ID);
             if (startArea == null || goalArea == null) return Array.Empty<Zone>();
             var graph = AutonomousZoneSeams.AreaGraph(topology.RegionId);
