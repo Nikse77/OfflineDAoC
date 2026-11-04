@@ -29,6 +29,22 @@ namespace DOL.UnitTests
         }
 
         [Test]
+        public void ABotOfAnAutomaticGuildMovesToThePlayersGuildButABotOfAnotherGuildDoesNot()
+        {
+            // Owner 2026-11-04: a player's invite takes a bot out of an automatic guild; any other guild keeps its bot.
+            Assert.That(AutonomousBotGuilds.MembershipRefusal("Ranren", null, false, "player-guild"), Is.Null);
+            Assert.That(AutonomousBotGuilds.MembershipRefusal("Ranren", "auto-guild", true, "player-guild"), Is.Null);
+            Assert.That(AutonomousBotGuilds.MembershipRefusal("Ranren", "other-player-guild", false, "player-guild"), Does.Contain("already in a guild"));
+            Assert.That(AutonomousBotGuilds.MembershipRefusal("Ranren", "player-guild", false, "player-guild"), Does.Contain("already in your guild"));
+        }
+
+        [Test]
+        public void NoGuildIsAutomaticUntilTheGamebotsFoundIt()
+        {
+            Assert.That(AutonomousBotGuilds.IsAutomatic(null), Is.False);
+        }
+
+        [Test]
         public void BotMemberEntriesAreNeverCharacterIds()
         {
             Assert.That(AutonomousBotGuilds.ViewId(42), Is.EqualTo("bot:42"));

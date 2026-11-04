@@ -28,6 +28,49 @@ namespace DOL.GS
 
         private static readonly ConcurrentDictionary<long, OfflineWorldBotGuildRecord> Members = new();
 
+        // Owner 2026-11-04: the guilds the gamebots found on their own ("automatic" guilds). Only their name, emblem and claimed
+        // keeps show from outside: no guild chat, no join or leave messages, and a player never joins one.
+        private static readonly ConcurrentDictionary<string, OfflineWorldAutoGuildRecord> AutomaticGuilds = new();
+
+        /// <summary>True for a guild the gamebots founded themselves.</summary>
+        public static bool IsAutomatic(Guild guild) => guild != null && AutomaticGuilds.ContainsKey(guild.GuildID);
+
+        /// <summary>Marks a guild as one the gamebots founded; saved, so it survives a restart.</summary>
+        public static bool MarkAutomatic(Guild guild)
+        {
+            if (guild == null) return false;
+            if (AutomaticGuilds.ContainsKey(guild.GuildID)) return true;
+            var record = new OfflineWorldAutoGuildRecord { GuildID = guild.GuildID, CreatedUtc = DateTime.UtcNow.ToString("O") };
+            if (!GameServer.Database.AddObject(record)) return false;
+            AutomaticGuilds[guild.GuildID] = record;
+            Log.Info($"BOT_GUILD_AUTOMATIC guild=\"{guild.Name}\" realm={guild.Realm}");
+            return true;
+        }
+
+        private static void Unmark(Guild guild)
+        {
+            if (guild == null || !AutomaticGuilds.TryRemove(guild.GuildID, out var record)) return;
+            try
+            {
+                GameServer.Database.DeleteObject(record);
+            }
+            catch (Exception exception)
+            {
+                Log.Error($"Could not delete the automatic-guild mark of {guild.Name}", exception);
+            }
+        }
+
+        /// <summary>
+        /// Why a gamebot cannot be invited into a player's guild, or null when it can: a bot in an automatic guild is invited
+        /// all the same and moves (owner 2026-11-04), a bot in any other guild is not.
+        /// </summary>
+        public static string MembershipRefusal(string botName, string currentGuildId, bool currentGuildIsAutomatic, string targetGuildId)
+        {
+            if (string.IsNullOrEmpty(currentGuildId)) return null;
+            if (currentGuildId == targetGuildId) return $"{botName} is already in your guild.";
+            return currentGuildIsAutomatic ? null : $"{botName} is already in a guild.";
+        }
+
         public static string ViewId(long botId) => ViewPrefix + botId;
 
         public static bool IsBotView(string internalId) => internalId?.StartsWith(ViewPrefix, StringComparison.Ordinal) == true;
@@ -85,6 +128,17 @@ namespace DOL.GS
 
         private static void Load()
         {
+            AutomaticGuilds.Clear();
+            var staleMarks = new List<OfflineWorldAutoGuildRecord>();
+            foreach (OfflineWorldAutoGuildRecord mark in DOLDB<OfflineWorldAutoGuildRecord>.SelectAllObjects())
+            {
+                if (GuildMgr.GetGuildByGuildID(mark.GuildID) == null)
+                    staleMarks.Add(mark);
+                else
+                    AutomaticGuilds[mark.GuildID] = mark;
+            }
+            if (staleMarks.Count > 0)
+                GameServer.Database.DeleteObject(staleMarks);
             Members.Clear();
             var records = DOLDB<OfflineWorldBotGuildRecord>.SelectAllObjects();
             var stale = new List<OfflineWorldBotGuildRecord>();
@@ -158,15 +212,19 @@ namespace DOL.GS
             if (!bot.IsAutonomousWorldBot)
                 return $"{bot.Name} is a temporary companion and cannot join a guild; companions already wear your guild's name and emblem while they are with you.";
             if (bot.Realm != guild.Realm) return "You can only invite characters of your own realm.";
-            if (Members.TryGetValue(bot.DatabaseID, out var record))
-                return record.GuildID == guild.GuildID ? $"{bot.Name} is already in your guild." : $"{bot.Name} is already in a guild.";
-            return null;
+            if (IsAutomatic(guild)) return "That guild cannot be invited into.";
+            Members.TryGetValue(bot.DatabaseID, out var record);
+            return MembershipRefusal(bot.Name, record?.GuildID,
+                record != null && IsAutomatic(GuildMgr.GetGuildByGuildID(record.GuildID)), guild.GuildID);
         }
 
         public static bool Join(GamePlayer inviter, GameBot bot)
         {
             Guild guild = inviter?.Guild;
             if (JoinRefusal(inviter, bot) != null) return false;
+            // A bot of an automatic guild moves to the player's guild (owner 2026-11-04); its old guild loses a member quietly.
+            if (Members.ContainsKey(bot.DatabaseID))
+                Remove(bot.DatabaseID, null, announce: false);
             var record = new OfflineWorldBotGuildRecord
             {
                 BotId = bot.DatabaseID,
@@ -234,6 +292,7 @@ namespace DOL.GS
         {
             foreach (long botId in MembersOf(guild))
                 Remove(botId, null, announce: false);
+            Unmark(guild);
         }
 
         /// <summary>Name or emblem of a guild changed: its gamebots and its online players' companions show it.</summary>
@@ -302,7 +361,7 @@ namespace DOL.GS
         /// <summary>A guild message in the same format players use (/gu).</summary>
         public static void SpeakInGuild(GameBot bot, Guild guild, string message)
         {
-            if (bot == null || guild == null || string.IsNullOrWhiteSpace(message)) return;
+            if (bot == null || guild == null || string.IsNullOrWhiteSpace(message) || IsAutomatic(guild)) return;
             guild.SendMessageToGuildMembers($"[Guild] {bot.Name}: \"{message.Trim()}\"", eChatType.CT_Guild, eChatLoc.CL_ChatWindow);
         }
 
@@ -316,7 +375,7 @@ namespace DOL.GS
             foreach (string guildId in Members.Values.Select(m => m.GuildID).Distinct().ToArray())
             {
                 Guild guild = GuildMgr.GetGuildByGuildID(guildId);
-                if (guild == null || guild.GetListOfOnlineMembers().Count == 0) continue;
+                if (guild == null || IsAutomatic(guild) || guild.GetListOfOnlineMembers().Count == 0) continue;
                 if (LastGuildChat.TryGetValue(guildId, out long last) && now - last < 240_000) continue;
                 if (Random.Shared.NextDouble() > 0.35) continue;
                 GameBot[] talkers = OnlineMembers(guild).Where(CanTalk).ToArray();
@@ -370,6 +429,14 @@ namespace DOL.GS
         }
 
         #endregion
+    }
+
+    /// <summary>A guild the gamebots founded on their own (<see cref="AutonomousBotGuilds.IsAutomatic"/>).</summary>
+    [DataTable(TableName = "offline_world_auto_guild")]
+    public sealed class OfflineWorldAutoGuildRecord : DataObject
+    {
+        [PrimaryKey] public string GuildID { get; set; } = string.Empty;
+        [DataElement(AllowDbNull = false)] public string CreatedUtc { get; set; } = string.Empty;
     }
 
     /// <summary>One gamebot's guild membership (<see cref="AutonomousBotGuilds"/>). A separate table so the launcher's

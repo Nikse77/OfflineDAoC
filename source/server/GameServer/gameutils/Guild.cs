@@ -641,7 +641,11 @@ namespace DOL.GS
 		{
 			if (addPlayer == null || addPlayer.Guild != null)
 				return false;
-			
+
+			// Owner 2026-11-04: a guild the gamebots founded on their own never takes a player.
+			if (AutonomousBotGuilds.IsAutomatic(this))
+				return false;
+
 			if (log.IsDebugEnabled)
 				log.Debug("Adding player to the guild, guild name=\"" + Name + "\"; player name=" + addPlayer.Name);
 
