@@ -185,6 +185,7 @@ namespace DOL.GS
         // Owner 2026-11-02: a leader that released at a frontier keep holds the party there until its living comrades
         // have gathered around it. The clock is bounded so one unreachable comrade cannot pin the warband for ever.
         private long _frontierKeepGatheredSince;
+        private long _lastFetchTick, _lastFetchMemberId;
         private GameTrainer _trainingTrainer;
         private long _nextTrainingDecisionTick;
         private string _observedObjectiveAssignmentId = string.Empty;
@@ -2733,8 +2734,13 @@ namespace DOL.GS
         {
             fetch = new CampDestination($"rvr-fetch-{member.DatabaseID}", member.Name, "its frontier keep",
                 region, keep.X, keep.Y, keep.Z, 1, false, true);
-            Log.Info($"RVR_LEADER_FETCHES_RELEASED_MEMBER member=\"{member.Name}\" region={region} " +
-                     $"keep={keep.X},{keep.Y},{keep.Z}");
+            // Owner 2026-11-04: one line when a fetch begins, not one per AI turn (365 lines for 8 fetches in 50 minutes).
+            long now = GameLoop.GameLoopTime;
+            if (FetchLogPolicy.ShouldLog(_lastFetchTick, _lastFetchMemberId, now, member.DatabaseID))
+                Log.Info($"RVR_LEADER_FETCHES_RELEASED_MEMBER member=\"{member.Name}\" region={region} " +
+                         $"keep={keep.X},{keep.Y},{keep.Z}");
+            _lastFetchTick = now;
+            _lastFetchMemberId = member.DatabaseID;
             return true;
         }
 
