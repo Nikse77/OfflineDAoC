@@ -27,6 +27,13 @@ public static class KeepTravelStallPolicy
     public static bool IsStalled(long stillMilliseconds, bool busy, bool riding) =>
         !busy && !riding && stillMilliseconds >= StallMilliseconds;
 
+    /// <summary>Longest silence between two travel turns that still counts as one continuous walk.</summary>
+    public const long TravelPauseMilliseconds = 15_000;
+
+    /// <summary>The bot was not asked to travel for a while: it was busy elsewhere, so the stall clock starts again.</summary>
+    public static bool TravelPausedTooLong(long millisecondsSinceLastTravelTurn) =>
+        millisecondsSinceLastTravelTurn > TravelPauseMilliseconds;
+
     public static bool SameSpot(Vector3 a, Vector3 b) =>
         Vector2.DistanceSquared(new(a.X, a.Y), new(b.X, b.Y)) <= SameSpotRadius * SameSpotRadius;
 

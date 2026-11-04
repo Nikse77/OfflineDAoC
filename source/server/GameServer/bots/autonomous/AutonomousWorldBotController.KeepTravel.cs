@@ -192,7 +192,11 @@ public sealed partial class AutonomousWorldBotController
     /// </summary>
     private bool HandleKeepTravelStall(GameBot bot, CampDestination destination, Vector3 current, Vector3 next, long now)
     {
-        if (_keepStallSince == 0 || Vector3.DistanceSquared(current, _keepStallPosition) >
+        // Owner 2026-11-04: a bot that was busy elsewhere (the column closing up, a fight, a cure) and was not asked to travel
+        // for a while has not stalled: the stall clock starts again (run of 2026-11-04, four bots at Caer Benowyc "stalled" after
+        // 113 seconds with no travel turn at all).
+        if (_keepStallSince == 0 || KeepTravelStallPolicy.TravelPausedTooLong(_keepTravelCallGap) ||
+            Vector3.DistanceSquared(current, _keepStallPosition) >
                 KeepTravelStallPolicy.StallRadius * KeepTravelStallPolicy.StallRadius)
         {
             _keepStallPosition = current;

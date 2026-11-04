@@ -27,6 +27,17 @@ namespace DOL.UnitTests
         }
 
         [Test]
+        public void ABotThatWasNotAskedToTravelHasNotStalled()
+        {
+            // 2026-11-04: four bots at Caer Benowyc were reported stalled after 113 seconds without a single travel turn.
+            Assert.That(KeepTravelStallPolicy.TravelPausedTooLong(113_000), Is.True);
+            Assert.That(KeepTravelStallPolicy.TravelPausedTooLong(15_001), Is.True);
+            Assert.That(KeepTravelStallPolicy.TravelPausedTooLong(15_000), Is.False);
+            Assert.That(KeepTravelStallPolicy.TravelPausedTooLong(2_400), Is.False, "an ordinary AI turn is part of the same walk");
+            Assert.That(KeepTravelStallPolicy.TravelPausedTooLong(0), Is.False);
+        }
+
+        [Test]
         public void PointAlongWalksThePathCorners()
         {
             Vector3[] corners = [new(0, 0, 0), new(3000, 0, 0), new(3000, 3000, 0)];
