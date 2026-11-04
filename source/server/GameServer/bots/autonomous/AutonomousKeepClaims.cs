@@ -24,7 +24,7 @@ namespace DOL.GS
         public const long MinimumDelayMilliseconds = 30_000;
 
         /// <summary>After this long without a guild able to claim it, the keep is left unclaimed.</summary>
-        public const long GiveUpMilliseconds = 10 * 60_000;
+        public const long GiveUpMilliseconds = 20 * 60_000;
 
         /// <summary>How close to the keep a bot of the guild must be to count as present at the siege.</summary>
         public const int PresenceRadius = 4_500;

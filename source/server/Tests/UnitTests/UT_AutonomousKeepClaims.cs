@@ -24,10 +24,10 @@ namespace DOL.UnitTests
         }
 
         [Test]
-        public void ANoOneClaimIsGivenUpAfterTenMinutes()
+        public void ANoOneClaimIsGivenUpAfterTwentyMinutes()
         {
-            Assert.That(AutonomousKeepClaims.Expired(now: 600_000, takenAt: 0), Is.False);
-            Assert.That(AutonomousKeepClaims.Expired(now: 600_001, takenAt: 0), Is.True);
+            Assert.That(AutonomousKeepClaims.Expired(now: 1_200_000, takenAt: 0), Is.False);
+            Assert.That(AutonomousKeepClaims.Expired(now: 1_200_001, takenAt: 0), Is.True);
         }
 
         [Test]
