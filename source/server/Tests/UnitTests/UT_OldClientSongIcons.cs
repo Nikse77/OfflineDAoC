@@ -15,8 +15,6 @@ namespace DOL.UnitTests
         [TestCase(5173, "PowerRegenBuff", 1462)]
         [TestCase(5151, "SpeedEnhancement", 320)]  // Bard: Clear Path
         [TestCase(5155, "SpeedEnhancement", 324)]  // Bard: Clear Horizon
-        [TestCase(3221, "SpeedEnhancement", 320)]
-        [TestCase(931, "SpeedEnhancement", 320)]
         [TestCase(5161, "EnduranceRegenBuff", 330)]  // Bard: Rhythm of Hibernia
         [TestCase(5165, "EnduranceRegenBuff", 334)]  // Bard: Rhythm of the Cosmos
         [TestCase(1081, "EnduranceRegenBuff", 330)]
@@ -32,6 +30,15 @@ namespace DOL.UnitTests
         [TestCase(5161, "DirectDamage")]
         [TestCase(5151, "EnduranceRegenBuff")]
         [TestCase(5161, "SpeedEnhancement")]
+        [TestCase(931, "SpeedEnhancement")]   // Sorcerer: Amplify Movement
+        [TestCase(935, "SpeedEnhancement")]   // Sorcerer: Amplify Balance
+        [TestCase(412, "SpeedEnhancement")]   // Animist: Brisk Wind
+        [TestCase(2925, "SpeedEnhancement")]  // Runemaster: Rune of Movement
+        [TestCase(3221, "SpeedEnhancement")]  // Healer: Ease of Movement
+        [TestCase(4472, "SpeedEnhancement")]  // Enchanter: Effervescence
+        [TestCase(5131, "SpeedEnhancement")]  // Warden: Guardian's Encouragement
+        [TestCase(1711, "EnduranceRegenBuff")] // Friar: Saint's Vigor
+        [TestCase(4931, "EnduranceRegenBuff")] // Warden: Attack Unending
         public void OtherSpellsKeepTheirIcon(int icon, string type) =>
             Assert.That(OldClientSongIcons.For((ushort)icon, type), Is.EqualTo((ushort)icon));
 

@@ -9,18 +9,17 @@ namespace DOL.GS
     /// (3608.. for speed, 1111.. for life, 5171.. for power). The icons.csv rows that draw the right pictures
     /// (wing 132, star 42, ring 228, with the rank border) are 320.., 1370.. and 1460..; they are sent for these songs
     /// only. The new client resolves the number through spells.csv, so it needs its own mapping for them.
+    /// Owner 2026-11-05: the spell list and the quick bar read the number as a spells.csv row, so the same mapping on a
+    /// spell of a class without songs (the Sorcerer's Amplify, the Animist's Winds, the Runemaster's Movement, the
+    /// Healer's, Enchanter's and Warden's speed spells, Saint's Vigor, Attack Unending) showed fire icons, empty frames
+    /// and question marks there. Those spells keep their database number; only the songs, and the Paladin's chants
+    /// of 1081.., stay mapped.
     /// </summary>
     public static class OldClientSongIcons
     {
         private static readonly Dictionary<ushort, ushort> Speed = new()
         {
             [3608] = 320, [3609] = 321, [3610] = 322, [3611] = 323, [3612] = 324,
-            [411] = 320, [412] = 321, [413] = 322, [414] = 323, [415] = 324,
-            [931] = 320, [932] = 321, [933] = 322, [934] = 323, [935] = 324,
-            [2921] = 320, [2922] = 321, [2923] = 322, [2924] = 323, [2925] = 324,
-            [3221] = 320, [3222] = 321, [3223] = 322, [3224] = 323, [3225] = 324,
-            [4471] = 320, [4472] = 321, [4473] = 322, [4474] = 323, [4475] = 324,
-            [5131] = 320, [5132] = 321, [5133] = 322, [5134] = 323, [5135] = 324,
             [5151] = 320, [5152] = 321, [5153] = 322, [5154] = 323, [5155] = 324,
         };
 
@@ -35,7 +34,6 @@ namespace DOL.GS
         {
             [1081] = 330, [1082] = 331, [1083] = 332, [1084] = 333, [1085] = 334,
             [5161] = 330, [5162] = 331, [5163] = 332, [5164] = 333, [5165] = 334,
-            [1711] = 2160, [4931] = 2160,
         };
 
         private static readonly Dictionary<ushort, ushort> PowerRegeneration = new()
