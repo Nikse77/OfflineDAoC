@@ -1,3 +1,6 @@
+> **This repository is frozen.** The work continues in [Nikse77/OfflineDAoC-Crown](https://github.com/Nikse77/OfflineDAoC-Crown), which keeps the full history of this one.
+> Nothing more will be added here.
+
 > **Disclaimer.** Dark Age of Camelot is the intellectual property of Electronic Arts and Broadsword
 > Online Games. Offline DAoC is not affiliated with, endorsed by, or connected to either company. The
 > game client, textures, models and other assets it uses belong to them, and this project is built on
